@@ -1,0 +1,10 @@
+#!/bin/sh
+
+HOUSEAPP=houserail
+
+case $1 in
+    configure|abort-upgrade|abort-deconfigure|abort-remove)
+        . /usr/local/share/house/postinstall
+        ;;
+esac
+

@@ -1,0 +1,15 @@
+Source: houserail
+Version: 1.0
+Section: Web servers
+Maintainer: Pascal Martin <pascal.fb.martin@gmail.com>
+Priority: optional
+Homepage: https://github.com/pascal-fb-martin/houserail
+Standard-Version: 4.7.0
+Package: houserail
+Architecture: {{arch}}
+Depends: houseportal
+Description: A House service to control model railroad traffic
+ HouseRail is part of the model railroad control serie of the House suite of web services.
+ .
+ HouseRail provides a web user interface to monitor and control a model railroad's train traffic.
+
