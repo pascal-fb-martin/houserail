@@ -262,10 +262,6 @@ static void houserail_fleet_update (const char *origin, char *data, int length) 
 
     for (i = 0; i < n; ++i) {
          ParserToken *item = vehicles + vehiclelist[i];
-         idx = echttp_json_search (item, ".type");
-         if (idx < 0) continue;
-         if (strcasecmp (item[idx].value.string, "engine")) continue;
-
          idx = echttp_json_search (item, ".id");
          if (idx < 0) continue;
          int index = houserail_fleet_find (item[idx].value.string, 1);
