@@ -29,14 +29,22 @@
  *
  *     Control the movement of one train or engine.
  *
- * void houserail_train_track (const char *name,
- *                             long long timestamp, const char *state);
+ * void houserail_train_track (const char *name, long long timestamp,
+ *                             int lowpost, int highpost);
  *
  *     Update the location of trains based on track occupancy.
  *
+ * const char *houserail_train_reload (void);
+ *
+ *     Import a new configuration.
+ *
+ * int houserail_train_export (char *buffer, int size, const char *separator);
+ *
+ *     Export the current configuration in JSON format.
+ *
  * int houserail_train_status (char *buffer, int size);
  *
- *     Return the status of trains in JSON format.
+ *     Return the live status of trains in JSON format.
  *
  * void houserail_train_background (time_t now);
  *
@@ -81,10 +89,21 @@ const char *houserail_train_stop (const char *id, int emergency) {
 }
 
 
-void houserail_train_track (const char *name,
-                            long long timestamp, const char *state) {
+void houserail_train_track (const char *name, long long timestamp,
+                            int occupied, int lowpost, int highpost) {
+    // TBD
+    printf (__FILE__ ": track %s %soccupied from %d to %d at %lld\n",
+            name, occupied?"":"not ", lowpost, highpost, timestamp);
 }
 
+
+const char *houserail_train_reload (void) {
+   return "Not yet implemented";
+}
+
+int houserail_train_export (char *buffer, int size, const char *separator) {
+    return 0; // TBD
+}
 
 int houserail_train_status (char *buffer, int size) {
     return 0;

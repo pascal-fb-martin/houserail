@@ -54,6 +54,7 @@
 #include "housecontrol.h"
 
 #include "houserail_fleet.h"
+#include "houserail_track.h"
 #include "houserail_train.h"
 
 #define DEBUG if (echttp_isdebug()) printf
@@ -81,7 +82,8 @@ static int rail_export (void) {
     int c = rail_header (JsonBuffer, sizeof(JsonBuffer), ConfigState);
     int empty = c;
 
-    // c += housedcc_pidcc_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
+    c += houserail_track_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
+    c += houserail_train_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
     if (c == empty) return 0;
     return c;
 }
@@ -91,11 +93,8 @@ static const char *rail_save (const char *reason) {
 
     housestate_changed (ConfigState);
 
-    int length = rail_export ();
-    if (length <= 0) return "";
-
-    houseconfig_update (JsonBuffer, reason);
-    housedepositor_put ("config", houseconfig_name(), JsonBuffer, length);
+    rail_export ();
+    houseconfig_save (JsonBuffer, reason);
 
     echttp_content_type_json ();
     return JsonBuffer;
@@ -188,14 +187,17 @@ static const char *rail_update (void) {
 
     housestate_changed (ConfigState);
     const char *error = 0;
-    // error = housedcc_pidcc_reload ();
+    error = houserail_track_reload ();
+    if (error) return error;
+    error = houserail_train_reload ();
+    if (error) return error;
     return error;
 }
 
 static void ontrackchange (const char *name,
                            long long timestamp, const char *old, const char *new) {
     DEBUG (__FILE__ ": track state update for %s, state %s\n", name, new);
-    houserail_train_track (name, timestamp, new);
+    houserail_track_input (name, timestamp, new);
 }
 
 static void rail_protect (const char *method, const char *uri) {
@@ -252,6 +254,7 @@ int main (int argc, const char **argv) {
     housedepositor_state_load ("rail", argc, argv);
     housedepositor_state_share (1);
     housecontrol_subscribe ("track", ontrackchange);
+    houserail_track_subscribe (houserail_train_track);
 
     houselog_event ("SERVICE", "rail", "STARTED", "ON %s", houselog_host());
     echttp_loop();

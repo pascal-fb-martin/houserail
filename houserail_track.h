@@ -17,20 +17,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA  02110-1301, USA.
  *
- *
- * houserail_train.c - Train management (attributes, tracking, etc.)
+ * houserail_track.h - Track topology and detectection.
  */
-const char *houserail_train_initialize (int argc, const char **argv);
+const char *houserail_track_initialize (int argc, const char **argv);
 
-const char *houserail_train_move (const char *id, const char *to, int slow);
-const char *houserail_train_stop (const char *id, int emergency);
+typedef void DetectionListener (const char *name, long long timestamp,
+                                int occupied, int lowpost, int highpost);
 
-void houserail_train_track (const char *name, long long timestamp,
-                            int occupied, int lowpost, int highpost);
+DetectionListener *houserail_track_subscribe (DetectionListener *listener);
 
-const char *houserail_train_reload (void);
-int houserail_train_export (char *buffer, int size, const char *separator);
-int houserail_train_status (char *buffer, int size);
+void houserail_track_input (const char *name,
+                            long long timestamp, const char *state);
 
-void houserail_train_background (time_t now);
+const char *houserail_track_reload (void);
+int houserail_track_export (char *buffer, int size, const char *separator);
+int houserail_track_status (char *buffer, int size);
 
+void houserail_track_background (time_t now);
