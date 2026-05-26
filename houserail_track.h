@@ -21,8 +21,9 @@
  */
 const char *houserail_track_initialize (int argc, const char **argv);
 
-typedef void DetectionListener (const char *name, long long timestamp,
-                                int occupied, int lowpost, int highpost);
+typedef void DetectionListener (const char *line, int lowpost, int highpost,
+                                const char *segment,
+                                int occupied, long long timestamp);
 
 DetectionListener *houserail_track_subscribe (DetectionListener *listener);
 
@@ -34,3 +35,11 @@ int houserail_track_export (char *buffer, int size, const char *separator);
 int houserail_track_status (char *buffer, int size);
 
 void houserail_track_background (time_t now);
+
+// Navigate the track topology:
+int houserail_track_isbetween (const char *segment,
+                               const char *limit1, int post1,
+                               const char *limit2, int post2);
+
+int houserail_track_distance (const char *segment1, int post1,
+                              const char *segment2, int post2, int max);

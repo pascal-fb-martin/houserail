@@ -38,18 +38,16 @@ The models are stored in the `track.models` array. Each element is an object the
 The segments are specific to a layout and are stored in the `track.segments` array. Each element is an object the follows the schema below:
 
 * `id`: an identifier for this segment, unique within the layout.
-* `line`: a line identifier. All standard tracks connected to each other belong to the same line. In the case of a switch, this refers to the normal branch.
-* `previous`: the ID of the previous segment attached to the entry point.
-* `next`: the ID of the subsequent segment attached to the exit point.
-* `reverse`: the ID of the subsequent segment attached to the reverse point (switch only).
+* `line`: a line identifier. All standard tracks connected to each other belong to the same line. In the case of a switch, this refers to the normal direction.
+* `previous`: the ID of the previous segment (increasing milepost order).
+* `next`: the ID of the subsequent segment (decreasing milepost order).
+* `common`: the ID of the linked segment leading to the common point of the switch. This is the same as `previous` or `next`, depending on the orientation of the switch: if `common` is the same as `previous`, the switch is 'diverging', otherwise it is 'converging' (switch only).
+* `branch`: the ID of the subsequent segment attached to the reverse point (switch only).
+* `start`: this optional item provides the starting milepost value for that segment. This is typically used for a branch parallel to a main line, and connected to the main line through a single 'converging' switch. This can also be used if the line name changes. This start value is always a low milepost value: mileposts will increase from there.
 
-If a point of the track segment is a line terminal point, the corresponding linkage to the adjacent segment is missing.
+The previous/next linkage is considered ordered according to mileposts, i.e. `next` links to increasing milepostss while `previous` links to decreasing mileposts. If a point of the track segment is a line terminal point, the corresponding linkage to the adjacent segment is missing.
 
 The name of the line on the reverse point of a switch is determined from the name of the normal branch of the adjacent segment. If multiple switches are connected to each other, that name is determined by transitively following the _normal_ linkages until a standard segment has been found. If two switches are connected through their reverse points, that portion of track has no name. This case should be considered an interlocking anyway as one cannot operate the two switches independently without risking a derail.
-
-A separate field is used to mark the post origin segment. Post value 0 is applied to the endpoint of that segment that is not linked to any other segment.
-
-* `track.origin`: ID of the track segment where post value zero is located.
 
 ## Track Detectors
 

@@ -24,14 +24,20 @@
  *
  * const char *houserail_track_initialize (int argc, const char **argv);
  *
- * typedef void DetectionListener (const char *name, long long timestamp,
- *                                 int occupied, int lowpost, int highpost);
+ * typedef void DetectionListener (const char *line, int lowpost, int highpost,
+ *                                 const char *segment,
+ *                                 int occupied, long long timestamp);
  *
  * DetectionListener *houserail_track_subscribe (DetectionListener *listener);
  *
  *    Subscribe to track detection changes. This returns the previous listener
  *    as a way to chain listeners. It is up to the caller to maintain that
  *    chain. That previous listener might be null, i.e. no previous listener.
+ *
+ *    NOTE: the exact location is (line, lowpost, highpost). The segment
+ *    parameter is a pre-calculated accelerator. The line parameter could
+ *    be needed if the segment is part of an interlocking (more than one
+ *    branch in that segment).
  *
  * void houserail_track_input (const char *name,
  *                             long long timestamp, const char *state);
@@ -54,6 +60,13 @@
  * void houserail_track_background (time_t now);
  *
  *     Periodic update function.
+ *
+ * int houserail_track_isbetween (const char *segment,
+ *                                const char *limit1, int post1,
+ *                                const char *limit2, int post2);
+ *
+ * int houserail_track_distance (const char *segment1, int post1,
+ *                               const char *segment2, int post2, int max);
  */
 
 #include <time.h>
@@ -85,20 +98,18 @@ struct TrackSegment {
     unsigned int signature; // Seach accelerator.
 
     const char *line; // The name of the line going through the normal points.
+    int start;        // Starting milepost for this segment (optional).
 
     // The following attributes are calculated by following the linkages.
 
     int model;
     int next;     // Link from exit point to the next segment. -1 if none.
     int previous; // Link from entry point to the previous segment. -1 if none.
+    int common;   // Link to the adjacent segment that is connected to the common switch end (switch only).
     int branch;   // Link from reverse point to the next segment (switch only).
 
     // The following attributes are calculated by following the topology from
     // the terminal point marked as the origin.
-
-    int entry;   // Post value at the entry end (common end for a switch).
-    int exit;    // Post value at the exit end (normal exit for a switch).
-    int reverse; // Post value at the reverse exit, or -1 is not a switch.
 
     int low;
     int high;
@@ -210,10 +221,14 @@ void houserail_track_input (const char *name,
     if (!detector) return;
 
     int occupied = strcasecmp (state, "on") ? 0 : 1;
-    if (!TrackNextListener) return;
+    if (occupied == detector->occupied) return;
+    detector->occupied = occupied;
+    if (detector->segment < 0) return;
 
-    TrackNextListener (detector->line, timestamp,
-                       occupied, detector->low, detector->high);
+    if (!TrackNextListener) return;
+    TrackNextListener (detector->line, detector->low, detector->high,
+                       LayoutSegments[detector->segment].id,
+                       occupied, timestamp);
 }
 
 static int houserail_track_detector_compare (const void *a, const void *b) {
@@ -291,7 +306,8 @@ const char *houserail_track_reload (void) {
     struct Linkage {
         const char *previous;
         const char *next;
-        const char *reverse;
+        const char *common;
+        const char *branch;
     } *temp = calloc (LayoutSegmentsCount, sizeof(struct Linkage));
 
     for (i = 0; i < LayoutSegmentsCount; ++i) {
@@ -305,11 +321,13 @@ const char *houserail_track_reload (void) {
         const char *modelid = houseconfig_string (element, ".model");
         segment->model = houserail_track_search_model (modelid);
 
+        segment->start = houseconfig_integer (element, ".start");
         segment->low = segment->high = -1; // To be calculated later.
 
         temp[i].previous = houseconfig_string (element, ".previous");
         temp[i].next = houseconfig_string (element, ".next");
-        temp[i].reverse = houseconfig_string (element, ".reverse");
+        temp[i].common = houseconfig_string (element, ".common");
+        temp[i].branch = houseconfig_string (element, ".branch");
     }
 
     // Resolve the segment linkages
@@ -318,24 +336,32 @@ const char *houserail_track_reload (void) {
         struct TrackSegment *segment = LayoutSegments + i;
         segment->previous = houserail_track_search_by_id (temp[i].previous);
         segment->next = houserail_track_search_by_id (temp[i].next);
-        segment->reverse = houserail_track_search_by_id (temp[i].reverse);
+        segment->common = houserail_track_search_by_id (temp[i].common);
+        segment->branch = houserail_track_search_by_id (temp[i].branch);
     }
     free (temp);
 
     // Find the first track on each line, and follow the layout to calculate
     // the low and high post for each segment.
     // (This is not a very efficient loop. Make it better later, if needed.)
+    //
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         struct TrackSegment *segment = LayoutSegments + i;
         if (segment->low >= 0) continue; // Already processed.
+        int startpost = 0;
         int isstart = (segment->previous < 0);
         if (!isstart) {
-           if (LayoutSegments[segment->previous].reverse == i)
-              isstart = 1; // This is the exit of a switch reverse branch.
+           // A branch starts at the common point of a switch, if the current
+           // segment starts at the switch (and not ends at the switch).
+           struct TrackSegment *previous = LayoutSegments + segment->previous;
+           if (previous->branch == i) {
+              isstart = 1; // This starts from a switch reverse branch.
+              startpost = LayoutModels[previous->model].reverse;
+           }
         }
         if (isstart) {
-           segment->low = 0;
-           segment->high = LayoutModels[segment->model].length;
+           segment->low = (segment->start > 0) ? segment->start : startpost;
+           segment->high = segment->low + LayoutModels[segment->model].length;
            struct TrackSegment *cursor = segment;
            int next;
            for (next = segment->next; next >= 0; next = cursor->next) {
@@ -344,9 +370,10 @@ const char *houserail_track_reload (void) {
                cursor->high = cursor->low + LayoutModels[cursor->model].length;
 
                // Stop when the following segment was already processed, or
-               // when reaching a different line (typically a switch).
+               // when reaching a different line (usually a switch).
                //
-               if (LayoutSegments[cursor->next].low >= 0) break;
+               if ((cursor->next >= 0) &&
+                   (LayoutSegments[cursor->next].low >= 0)) break;
                if (strcasecmp (LayoutSegments[cursor->next].line, cursor->line))
                    break;
            }
@@ -391,5 +418,16 @@ int houserail_track_status (char *buffer, int size) {
 
 
 void houserail_track_background (time_t now) {
+}
+
+int houserail_track_isbetween (const char *segment,
+                               const char *limit1, int post1,
+                               const char *limit2, int post2) {
+   return 0;
+}
+
+int houserail_track_distance (const char *segment1, int post1,
+                              const char *segment2, int post2, int max) {
+   return -1;
 }
 
