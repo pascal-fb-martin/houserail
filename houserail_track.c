@@ -61,12 +61,15 @@
  *
  *     Periodic update function.
  *
- * int houserail_track_isbetween (const char *segment,
- *                                const char *limit1, int post1,
- *                                const char *limit2, int post2);
+ * int houserail_track_covered (const char *segment, int low, int high,
+ *                              const char *limit1, int post1,
+ *                              const char *limit2, int post2);
  *
  * int houserail_track_distance (const char *segment1, int post1,
  *                               const char *segment2, int post2, int max);
+ *
+ * int houserail_track_move (struct TrackLocation *location,
+ *                           int distance, int direction);
  */
 
 #include <time.h>
@@ -413,21 +416,27 @@ int houserail_track_export (char *buffer, int size, const char *separator) {
 }
 
 int houserail_track_status (char *buffer, int size) {
-    return 0;
+    return 0; // TBD
 }
 
 
 void houserail_track_background (time_t now) {
+    // TBD
 }
 
-int houserail_track_isbetween (const char *segment,
-                               const char *limit1, int post1,
-                               const char *limit2, int post2) {
-   return 0;
+int houserail_track_covered (const char *segment, int low, int high,
+                             const char *limit1, int post1,
+                             const char *limit2, int post2) {
+   return 0; // TBD
 }
 
 int houserail_track_distance (const char *segment1, int post1,
                               const char *segment2, int post2, int max) {
-   return -1;
+   return -1; // TBD
+}
+
+int houserail_track_move (struct TrackLocation *location,
+                          int distance, int direction) {
+   return 1; // TBD
 }
 

@@ -6,12 +6,12 @@
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor,
@@ -37,9 +37,20 @@ int houserail_track_status (char *buffer, int size);
 void houserail_track_background (time_t now);
 
 // Navigate the track topology:
-int houserail_track_isbetween (const char *segment,
-                               const char *limit1, int post1,
-                               const char *limit2, int post2);
+
+int houserail_track_covered (const char *segment, int low, int high,
+                             const char *limit1, int post1,
+                             const char *limit2, int post2);
 
 int houserail_track_distance (const char *segment1, int post1,
                               const char *segment2, int post2, int max);
+
+struct TrackLocation {
+    const char *segment;
+    const char *line;
+    int post;
+};
+
+int houserail_track_move (struct TrackLocation *location,
+                          int distance, int direction);
+

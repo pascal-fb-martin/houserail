@@ -22,12 +22,17 @@
  */
 const char *houserail_train_initialize (int argc, const char **argv);
 
-const char *houserail_train_move (const char *id, const char *to, int slow);
-const char *houserail_train_stop (const char *id, int emergency);
-
 void houserail_train_track (const char *line, int lowpost, int highpost,
                             const char *segment,
                             int occupied, long long timestamp);
+
+const char *houserail_train_move (const char *id, const char *to, int slow);
+const char *houserail_train_stop (const char *id, int emergency);
+
+const char *houserail_train_enter (const char *id,
+                                   const char *facing, int orientation);
+const char *houserail_train_park (const char *id);
+const char *houserail_train_delete (const char *id);
 
 const char *houserail_train_reload (void);
 int houserail_train_export (char *buffer, int size, const char *separator);
