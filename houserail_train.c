@@ -255,19 +255,17 @@ static void houserail_train_pull (struct TrainConsist *train,
     train->updated = timestamp;
 }
 
-static void houserail_train_pull_over (struct TrainConsist *train,
-                                       const char *segment,
-                                       int lowpost, int highpost,
-                                       int occupied, long long timestamp) {
+static void houserail_train_pull_occupied (struct TrainConsist *train,
+                                           const char *segment,
+                                           int lowpost, int highpost,
+                                           long long timestamp) {
 
     // Find the car spot closest to the location and moving toward it,
     // then move the train by the distance found.
 
     int direction = houserail_train_direction (train);
 
-    int post;
-    if (direction >= 0) post = occupied?lowpost:highpost;
-    else if (direction < 0) post = occupied?highpost:lowpost;
+    int post = (direction >= 0) ? lowpost : highpost;
 
     int min = TRAINMAXDISTANCE;
     int found = 0;
@@ -293,6 +291,16 @@ static void houserail_train_pull_over (struct TrainConsist *train,
     houserail_train_pull (train, min, timestamp);
 }
 
+static void houserail_train_pull_vacant (struct TrainConsist *train,
+                                         const char *segment,
+                                         int lowpost, int highpost,
+                                         long long timestamp) {
+    // Consider the last detectable spot that could have been within
+    // the detector's range.. This requires iterating until no spot remain
+    // within range.
+    // TBD.
+}
+
 void houserail_train_track (const char *line, int lowpost, int highpost,
                             const char *segment,
                             int occupied, long long timestamp) {
@@ -307,21 +315,29 @@ void houserail_train_track (const char *line, int lowpost, int highpost,
     // there are lots of trains. If this becomes a problem, this might
     // need an index of trains on each track segment (a per track segment
     // link to a list of trains).
+    // NOTE: if the detector has a wide range, multiple trains may cover it.
+    // For now, assume that only one train may cover a detector's location.
 
     int i;
     for (i = 0; i < LayoutTrainsCount; ++i) {
         struct TrainConsist *train = LayoutTrains + i;
         if (houserail_train_covers (train, segment, lowpost, highpost)) {
-            houserail_train_pull_over
-               (train, segment, lowpost, highpost, occupied, timestamp);
-            return;
+            if (occupied)
+               houserail_train_pull_occupied
+                  (train, segment, lowpost, highpost, timestamp);
+            else
+               houserail_train_pull_vacant
+                  (train, segment, lowpost, highpost, timestamp);
+            return; // Assume only one train within range.
         }
     }
+    if (!occupied)
+        return; // If no train was within range, why was it occupied??
 
     // Find the nearest train heading toward the designed location.
     // Limit the search to a maximum distance. Each time we found a train,
-    // that train's distance become the new limit: it makes no sense to search
-    // for a farther train.
+    // that train's distance become the new limit: it would make no sense
+    // to search for a farther train.
     int min = TRAINMAXDISTANCE;
     int closest = -1;
     int distance;
