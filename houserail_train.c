@@ -207,16 +207,28 @@ static int houserail_train_covers (struct TrainConsist *train,
                                     train->head.segment, train->head.post);
 }
 
+static int houserail_train_spotdistance (struct TrackLocation *spot,
+                                         const char *segment,
+                                         int lowpost, int highpost, int max,
+                                         int direction, int occupied) {
+
+    int post;
+    if (direction >= 0) post = occupied?lowpost:highpost;
+    else if (direction < 0) post = occupied?highpost:lowpost;
+
+    int distance = houserail_track_distance (spot->segment, spot->post,
+                                             segment, post, max);
+    distance *= direction;
+    if (distance < 0) return -1; // Not the direction of travel
+    return distance;
+}
+
 static int houserail_train_distance (struct TrainConsist *train,
                                      const char *segment,
                                      int lowpost, int highpost, int max,
                                      int occupied) {
 
     int direction = houserail_train_direction (train);
-
-    int post;
-    if (direction >= 0) post = occupied?lowpost:highpost;
-    else if (direction < 0) post = occupied?highpost:lowpost;
 
     // Depending on the train speed sign, choose the first or last detection
     // spot of the consist.
@@ -228,11 +240,8 @@ static int houserail_train_distance (struct TrainConsist *train,
         lead = &(car->spots[car->count-1]); // Last spot.
     }
 
-    int distance = houserail_track_distance (lead->segment, lead->post,
-                                             segment, post, max);
-    distance *= direction;
-    if (distance < 0) return -1; // Not the direction of travel
-    return distance;
+    return houserail_train_spotdistance
+               (lead, segment, lowpost, highpost, max, direction, occupied);
 }
 
 static void houserail_train_pull (struct TrainConsist *train,
@@ -295,10 +304,48 @@ static void houserail_train_pull_vacant (struct TrainConsist *train,
                                          const char *segment,
                                          int lowpost, int highpost,
                                          long long timestamp) {
-    // Consider the last detectable spot that could have been within
-    // the detector's range.. This requires iterating until no spot remain
-    // within range.
-    // TBD.
+
+    // Consider the last detectable spot that was within the detector's
+    // range.. This requires iterating until no spot remain within range.
+
+    int direction = houserail_train_direction (train);
+
+    struct {
+        int car;
+        int spot;
+    } first, last;
+    first.spot = -1;
+
+    int i;
+    for (i = 0; i < train->count; ++i) {
+        int j;
+        struct TrainCar *car = train->cars + i;
+        for (j = 0; j < car->count; ++j) {
+            int post = car->spots[j].post;
+            if ((post < lowpost) || (post > highpost)) continue;
+            if (strcmp (segment, car->spots[j].segment)) continue;
+            if (first.spot < 0) {
+                first.car = i;
+                first.spot = j;
+            }
+            last.car = i;
+            last.spot = j;
+        }
+    }
+    if (first.spot < 0) return; // No more spot over the detector.
+
+    if (direction < 0) last = first;
+
+    // Move the train so that the last spot exits the detector's range.
+    int distance = houserail_train_spotdistance
+                       (&(train->cars[last.car].spots[last.spot]),
+                        segment, lowpost, highpost, TRAINMAXDISTANCE,
+                        direction, 0);
+    if (distance < 0) return;
+    houserail_train_pull (train, distance, timestamp);
+
+    // Iterate using tail recursion.
+    houserail_train_pull_vacant (train, segment, lowpost, highpost, timestamp);
 }
 
 void houserail_train_track (const char *line, int lowpost, int highpost,
