@@ -20,11 +20,13 @@
  *
  * houserail_train.c - Train management (attributes, tracking, etc.)
  */
+#include "houserail_track.h"
+
 const char *houserail_train_initialize (int argc, const char **argv);
 
-void houserail_train_track (const char *line, int lowpost, int highpost,
-                            const char *segment,
-                            int occupied, long long timestamp);
+void houserail_train_track (const struct TrackRange *area,
+                            int occupied,
+                            long long timestamp);
 
 const char *houserail_train_move (const char *id, const char *to, int slow);
 const char *houserail_train_stop (const char *id, int emergency);

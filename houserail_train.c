@@ -26,9 +26,9 @@
  *
  *     Initialize this module.
  *
- * void houserail_train_track (const char *line, int lowpost, int highpost,
- *                             const char *segment,
- *                             int occupied, long long timestamp);
+ * void houserail_train_track (const struct TrackRange *area,
+ *                             int occupied,
+ *                             long long timestamp);
  *
  *     Update the location of trains based on track occupancy.
  *
@@ -198,35 +198,31 @@ static int houserail_train_direction (struct TrainConsist *train) {
 }
 
 static int houserail_train_covers (struct TrainConsist *train,
-                                   const char *segment, int low, int high) {
+                                   const struct TrackRange *area) {
 
     if (!train->head.segment) return 0;
     if (!train->tail.segment) return 0;
-    return houserail_track_covered (segment, low, high,
-                                    train->tail.segment, train->tail.post,
-                                    train->head.segment, train->head.post);
+    return houserail_track_covered
+                (area, &(train->tail), &(train->head), train->orientation);
 }
 
 static int houserail_train_spotdistance (struct TrackLocation *spot,
-                                         const char *segment,
-                                         int lowpost, int highpost, int max,
-                                         int direction, int occupied) {
+                                         const struct TrackRange *area,
+                                         int max, int direction, int occupied) {
 
-    int post;
-    if (direction >= 0) post = occupied?lowpost:highpost;
-    else if (direction < 0) post = occupied?highpost:lowpost;
+    struct TrackLocation point;
+    point.segment = area->segment;
+    point.line = area->line;
+    if (direction >= 0) point.post = occupied?area->low:area->high;
+    else if (direction < 0) point.post = occupied?area->high:area->low;
 
-    int distance = houserail_track_distance (spot->segment, spot->post,
-                                             segment, post, max);
-    distance *= direction;
-    if (distance < 0) return -1; // Not the direction of travel
+    int distance = houserail_track_distance (spot, &point, direction, max);
     return distance;
 }
 
 static int houserail_train_distance (struct TrainConsist *train,
-                                     const char *segment,
-                                     int lowpost, int highpost, int max,
-                                     int occupied) {
+                                     const struct TrackRange *area,
+                                     int max, int occupied) {
 
     int direction = houserail_train_direction (train);
 
@@ -241,7 +237,7 @@ static int houserail_train_distance (struct TrainConsist *train,
     }
 
     return houserail_train_spotdistance
-               (lead, segment, lowpost, highpost, max, direction, occupied);
+               (lead, area, max, direction, occupied);
 }
 
 static void houserail_train_pull (struct TrainConsist *train,
@@ -265,8 +261,7 @@ static void houserail_train_pull (struct TrainConsist *train,
 }
 
 static void houserail_train_pull_occupied (struct TrainConsist *train,
-                                           const char *segment,
-                                           int lowpost, int highpost,
+                                           const struct TrackRange *area,
                                            long long timestamp) {
 
     // Find the car spot closest to the location and moving toward it,
@@ -274,7 +269,10 @@ static void houserail_train_pull_occupied (struct TrainConsist *train,
 
     int direction = houserail_train_direction (train);
 
-    int post = (direction >= 0) ? lowpost : highpost;
+    struct TrackLocation point;
+    point.segment = area->segment;
+    point.line = area->line;
+    point.post = (direction >= 0) ? area->low : area->high;
 
     int min = TRAINMAXDISTANCE;
     int found = 0;
@@ -284,11 +282,7 @@ static void houserail_train_pull_occupied (struct TrainConsist *train,
         struct TrainCar *car = train->cars + i;
         for (j = car->count - 1; j >= 0; --j) {
             int distance;
-            distance = houserail_track_distance (car->spots[j].segment,
-                                                 car->spots[j].post,
-                                                 segment, post, min);
-            distance *= direction;
-            if (distance < 0) continue; // Not the direction of travel
+            distance = houserail_track_distance (car->spots+j, &point, direction, min);
             if ((distance > 0) && (distance < min)) {
                 min = distance;
                 found = 1;
@@ -301,8 +295,7 @@ static void houserail_train_pull_occupied (struct TrainConsist *train,
 }
 
 static void houserail_train_pull_vacant (struct TrainConsist *train,
-                                         const char *segment,
-                                         int lowpost, int highpost,
+                                         const struct TrackRange *area,
                                          long long timestamp) {
 
     // Consider the last detectable spot that was within the detector's
@@ -322,8 +315,8 @@ static void houserail_train_pull_vacant (struct TrainConsist *train,
         struct TrainCar *car = train->cars + i;
         for (j = 0; j < car->count; ++j) {
             int post = car->spots[j].post;
-            if ((post < lowpost) || (post > highpost)) continue;
-            if (strcmp (segment, car->spots[j].segment)) continue;
+            if ((post < area->low) || (post > area->high)) continue;
+            if (strcmp (area->segment, car->spots[j].segment)) continue;
             if (first.spot < 0) {
                 first.car = i;
                 first.spot = j;
@@ -339,20 +332,19 @@ static void houserail_train_pull_vacant (struct TrainConsist *train,
     // Move the train so that the last spot exits the detector's range.
     int distance = houserail_train_spotdistance
                        (&(train->cars[last.car].spots[last.spot]),
-                        segment, lowpost, highpost, TRAINMAXDISTANCE,
-                        direction, 0);
+                        area, TRAINMAXDISTANCE, direction, 0);
     if (distance < 0) return;
     houserail_train_pull (train, distance, timestamp);
 
     // Iterate using tail recursion.
-    houserail_train_pull_vacant (train, segment, lowpost, highpost, timestamp);
+    houserail_train_pull_vacant (train, area, timestamp);
 }
 
-void houserail_train_track (const char *line, int lowpost, int highpost,
-                            const char *segment,
-                            int occupied, long long timestamp) {
+void houserail_train_track (const struct TrackRange *area,
+                            int occupied,
+                            long long timestamp) {
 
-    DEBUG (__FILE__ ": received update for on segment %s, %soccupied\n", segment, occupied?"":"not ");
+    DEBUG (__FILE__ ": received update for on segment %s, %soccupied\n", area->segment, occupied?"":"not ");
 
     // Find the active train located on this segment, or leading to it.
     // This is looking for either a train already covering the designated
@@ -368,13 +360,11 @@ void houserail_train_track (const char *line, int lowpost, int highpost,
     int i;
     for (i = 0; i < LayoutTrainsCount; ++i) {
         struct TrainConsist *train = LayoutTrains + i;
-        if (houserail_train_covers (train, segment, lowpost, highpost)) {
+        if (houserail_train_covers (train, area)) {
             if (occupied)
-               houserail_train_pull_occupied
-                  (train, segment, lowpost, highpost, timestamp);
+               houserail_train_pull_occupied (train, area, timestamp);
             else
-               houserail_train_pull_vacant
-                  (train, segment, lowpost, highpost, timestamp);
+               houserail_train_pull_vacant (train, area, timestamp);
             return; // Assume only one train within range.
         }
     }
@@ -392,7 +382,7 @@ void houserail_train_track (const char *line, int lowpost, int highpost,
     for (i = 0; i < LayoutTrainsCount; ++i) {
         train = LayoutTrains + i;
         if (train->speed == 0) continue;
-        distance = houserail_train_distance (train, segment, lowpost, highpost, min, occupied);
+        distance = houserail_train_distance (train, area, min, occupied);
         if ((distance > 0) && (distance < min)) {
            min = distance;
            closest = i;
@@ -407,10 +397,10 @@ void houserail_train_track (const char *line, int lowpost, int highpost,
     // If the actual orientation of the train is not known yet, deduct it
     // from the observed movement.
     if (train->orientation == 0) {
-        if ((train->speed > 0) && (highpost < train->tail.post)) {
+        if ((train->speed > 0) && (area->high < train->tail.post)) {
             // Moving forward in the backward direction: reverse orientation.
             train->orientation = -1;
-        } else if ((train->speed < 0) && (lowpost > train->head.post)) {
+        } else if ((train->speed < 0) && (area->low > train->head.post)) {
             // Moving backward in the forward direction: reverse orientation.
             train->orientation = -1;
         } else {

@@ -6,12 +6,12 @@
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor,
@@ -24,9 +24,9 @@
  *
  * const char *houserail_track_initialize (int argc, const char **argv);
  *
- * typedef void DetectionListener (const char *line, int lowpost, int highpost,
- *                                 const char *segment,
- *                                 int occupied, long long timestamp);
+ * typedef void DetectionListener (const struct TrackRange *area,
+ *                                 int occupied,
+ *                                 long long timestamp);
  *
  * DetectionListener *houserail_track_subscribe (DetectionListener *listener);
  *
@@ -61,15 +61,29 @@
  *
  *     Periodic update function.
  *
- * int houserail_track_covered (const char *segment, int low, int high,
- *                              const char *limit1, int post1,
- *                              const char *limit2, int post2);
+ * The functions below are used to move a train along the track. The path
+ * followed depend on the position of the switches.
  *
- * int houserail_track_distance (const char *segment1, int post1,
- *                               const char *segment2, int post2, int max);
+ * int houserail_track_covered (const struct TrackRange *area,
+ *                              const struct TrackLocation *limit1,
+ *                              const struct TrackLocation *limit2,
+ *                              int direction);
+ *
+ *     Return 1 if the location is within the two limits provided.
+ *     This is used to check if a train is present over a specific area.
+ *
+ * int houserail_track_distance (const struct TrackLocation *point1,
+ *                               const struct TrackLocation *point2,
+ *                               int direction, int max);
+ *
+ *     Return the distance a train would have to move by between the two
+ *     track points provided.
  *
  * int houserail_track_move (struct TrackLocation *location,
  *                           int distance, int direction);
+ *
+ *     Move a train location by the specified distance along the tracks.
+ *     This is dependant on the state of the switches.
  */
 
 #include <time.h>
@@ -108,8 +122,11 @@ struct TrackSegment {
     int model;
     int next;     // Link from exit point to the next segment. -1 if none.
     int previous; // Link from entry point to the previous segment. -1 if none.
-    int common;   // Link to the adjacent segment that is connected to the common switch end (switch only).
-    int branch;   // Link from reverse point to the next segment (switch only).
+
+    // The following items are for switches only, valid if branch >= 0.
+    int common;   // The adjacent segment connected to the common switch end
+    int branch;   // The adjacent segment connected to the reverse point.
+    int needle;   // The adjacent segment connected to the needle's position.
 
     // The following attributes are calculated by following the topology from
     // the terminal point marked as the origin.
@@ -124,16 +141,14 @@ struct TrackDetector {
     const char *id;
     unsigned int signature; // Seach accelerator.
 
-    const char *line;
-    int low;     // Low post limit of the detection zone.
-    int high;    // High post limit of the detection zone.
-
-    // The following attributes are calculated.
-    int segment; // RESTRICTION: a detector can cover at most one segment.
+    int segment;
+    struct TrackRange area; // RESTRICTION: a detector covers only one segment.
 
     // The following is the live status.
-    int occupied;
-    long long timestamp;
+    struct {
+        int occupied;
+        long long timestamp;
+    } live;
 };
 
 static struct TrackModel *LayoutModels = 0;
@@ -222,16 +237,14 @@ void houserail_track_input (const char *name,
     // TBD
     struct TrackDetector *detector = houserail_track_search_detector (name);
     if (!detector) return;
-
-    int occupied = strcasecmp (state, "on") ? 0 : 1;
-    if (occupied == detector->occupied) return;
-    detector->occupied = occupied;
     if (detector->segment < 0) return;
 
+    int occupied = strcasecmp (state, "on") ? 0 : 1;
+    if (occupied == detector->live.occupied) return;
+    detector->live.occupied = occupied;
+
     if (!TrackNextListener) return;
-    TrackNextListener (detector->line, detector->low, detector->high,
-                       LayoutSegments[detector->segment].id,
-                       occupied, timestamp);
+    TrackNextListener (&(detector->area), occupied, timestamp);
 }
 
 static int houserail_track_detector_compare (const void *a, const void *b) {
@@ -239,14 +252,14 @@ static int houserail_track_detector_compare (const void *a, const void *b) {
     const struct TrackDetector *detecta = (struct TrackDetector *)a;
     const struct TrackDetector *detectb = (struct TrackDetector *)b;
 
-    int result = strcasecmp (detecta->line, detectb->line);
+    int result = strcasecmp (detecta->area.line, detectb->area.line);
     if (result) return result;
 
-    if (detecta->low < detectb->low) return -1;
-    if (detecta->low > detectb->low) return 1;
+    if (detecta->area.low < detectb->area.low) return -1;
+    if (detecta->area.low > detectb->area.low) return 1;
     return 0;
 }
-    
+
 const char *houserail_track_reload (void) {
 
     if (LayoutModels) {
@@ -339,8 +352,13 @@ const char *houserail_track_reload (void) {
         struct TrackSegment *segment = LayoutSegments + i;
         segment->previous = houserail_track_search_by_id (temp[i].previous);
         segment->next = houserail_track_search_by_id (temp[i].next);
-        segment->common = houserail_track_search_by_id (temp[i].common);
         segment->branch = houserail_track_search_by_id (temp[i].branch);
+        if (segment->branch >= 0) {
+            segment->common = houserail_track_search_by_id (temp[i].common);
+            segment->needle = (segment->common == segment->next)? segment->previous : segment->next;
+        } else {
+            segment->common = segment->needle = -1;
+        }
     }
     free (temp);
 
@@ -394,15 +412,18 @@ const char *houserail_track_reload (void) {
         detector->id = houseconfig_string (element, ".id");
         detector->signature = echttp_hash_signature (detector->id);
 
-        detector->line = houseconfig_string (element, ".line");
-        detector->low = houseconfig_integer (element, ".low");
-        detector->high = houseconfig_integer (element, ".high");
+        detector->area.line = houseconfig_string (element, ".line");
+        detector->area.segment = 0;
+        detector->area.low = houseconfig_integer (element, ".low");
+        detector->area.high = houseconfig_integer (element, ".high");
 
         detector->segment =
-            houserail_track_search_by_location (detector->line, detector->low);
+            houserail_track_search_by_location (detector->area.line, detector->area.low);
+        if (detector->segment < 0) continue;
+        detector->area.segment = LayoutSegments[detector->segment].id;
 
-        detector->occupied = 0;
-        detector->timestamp = 0;
+        detector->live.occupied = 0;
+        detector->live.timestamp = 0;
     }
 
     qsort (LayoutDetectors, LayoutDetectorsCount, sizeof(struct TrackDetector),
@@ -424,15 +445,134 @@ void houserail_track_background (time_t now) {
     // TBD
 }
 
-int houserail_track_covered (const char *segment, int low, int high,
-                             const char *limit1, int post1,
-                             const char *limit2, int post2) {
-   return 0; // TBD
+static int houserail_track_locate (const struct TrackLocation *point) {
+
+    if (point->segment)
+        return houserail_track_search_by_id (point->segment);
+
+    return houserail_track_search_by_location (point->line, point->post);
 }
 
-int houserail_track_distance (const char *segment1, int post1,
-                              const char *segment2, int post2, int max) {
-   return -1; // TBD
+static int houserail_track_walk (struct TrackSegment *segment, int direction) {
+    return (direction > 0) ? segment->next : segment->previous;
+}
+
+static int houserail_track_path (struct TrackRange *path, int size,
+                                 const struct TrackLocation *limit1,
+                                 const struct TrackLocation *limit2,
+                                 int direction) {
+
+    if (strcasecmp (limit1->line, limit2->line) == 0) {
+        // The two limits are on the same line: there is only one entry
+        // in the path. The direction does not matter in this case.
+        path[0].line = limit2->line;
+        path[0].segment = 0;
+        path[0].low  = limit1->post;
+        path[0].high = limit2->post;
+        return 1;
+    }
+
+    // The two limits are not on the same line: walk the tracks from one
+    // limit until we meet the other limit.
+    //
+    int index = houserail_track_locate (limit1);
+    if (index < 0) return 0;
+    struct TrackSegment *segment = LayoutSegments + index;
+
+    int cursor = 0;
+    const char *line = limit1->line;
+    path[0].line = limit1->line;
+    path[0].segment = segment->id;
+    path[0].low = limit1->post;
+
+    int nextsegment = houserail_track_walk (segment, direction);
+    while (nextsegment >= 0) {
+        struct TrackSegment *next = LayoutSegments + nextsegment;
+
+        if ((next->branch >= 0) && (LayoutSegments+next->common == segment)) {
+
+           // This is the entry to a switch: follow the needle
+           if (next->needle == next->branch) {
+               line = LayoutSegments[next->branch].line;
+               path[cursor++].high = (direction > 0) ? segment->low : segment->high;
+               if (cursor >= size) return 0; // Overflow.
+
+               path[cursor].line = line;
+               path[cursor].segment = next->id;
+               path[cursor].low = (direction > 0) ? next->low : next->high;
+
+               next = LayoutSegments + next->branch; // Pass that switch.
+           }
+        }
+        if (strcasecmp (line, next->line)) {
+
+           // The name of the line changed, without taking a branch.
+           line = next->line;
+           path[cursor++].high = (direction > 0) ? segment->low : segment->high;
+           if (cursor >= size) return 0; // Overflow.
+
+           path[cursor].line = line;
+           path[cursor].segment = next->id;
+           path[cursor].low = next->low;
+        }
+        if (strcasecmp (line, limit2->line) == 0) break; // End of path
+
+        segment = next;
+        nextsegment = houserail_track_walk (segment, direction);
+    }
+    if (nextsegment < 0) return 0; // Could not find the other end.
+
+    path[cursor++].high = limit2->post;
+    return cursor;
+}
+
+static int houserail_track_overlap (const struct TrackRange *area,
+                                    const struct TrackRange *limits) {
+
+    if (strcasecmp (area->line, limits->line)) return 0;
+
+    // Do not assume that the range's posts are properly sorted.
+    int high = (limits->high >= limits->low)? limits->high : limits->low;
+    if (area->low >= high) return 0;
+    int low = (limits->high >= limits->low)? limits->low : limits->high;
+    if (area->high <= low) return 0;
+
+    return 1;
+}
+
+int houserail_track_covered (const struct TrackRange *area,
+                             const struct TrackLocation *limit1,
+                             const struct TrackLocation *limit2,
+                             int direction) {
+
+   // Retrieve all the line portions between the two limits. Then check
+   // if there is an overlap with any of these portions.
+   //
+   struct TrackRange path[16];
+   int count = houserail_track_path (path, 16, limit1, limit2, direction);
+   int i;
+   for (i = 0; i < count; ++i) {
+       if (houserail_track_overlap (area, path+i)) return 1;
+   }
+   return 0;
+}
+
+int houserail_track_distance (const struct TrackLocation *point1,
+                              const struct TrackLocation *point2,
+                              int direction, int max) {
+
+   struct TrackRange path[16];
+   int count = houserail_track_path (path, 16, point1, point2, direction);
+   if (count <= 0) return -1;
+
+   int distance = 0;
+   int i;
+   for (i = 0; i < count; ++i) {
+       int delta = path[i].high - path[i].low;
+       if (delta >= 0) distance += delta;
+       else            distance -= delta;
+   }
+   return distance;
 }
 
 int houserail_track_move (struct TrackLocation *location,
