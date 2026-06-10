@@ -59,11 +59,13 @@ int houserail_track_covered (const struct TrackRange *area,
                              const struct TrackLocation *limit2,
                              int direction);
 
+int houserail_track_walk (struct TrackRange *path, int size,
+                          const struct TrackLocation *limit1,
+                          const struct TrackLocation *limit2,
+                          int direction, int max);
+
 int houserail_track_distance (const struct TrackLocation *point1,
                               const struct TrackLocation *point2,
                               int direction, int max);
-
-int houserail_track_move (struct TrackLocation *location,
-                          int distance, int direction);
 #endif
 

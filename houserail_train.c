@@ -77,15 +77,16 @@
 #include <echttp_hash.h>
 
 #include "houserail_fleet.h"
-#include "houserail_train.h"
 #include "houserail_track.h"
+#include "houserail_path.h"
+#include "houserail_train.h"
 
 #define DEBUG if (echttp_isdebug()) printf
 
 static FleetListener *TrainNextFleetListener = 0;
 static DetectionListener *TrainNextDetectionListener = 0;
 
-static int TrainRestrictedSpeed = 3; // TBD: make it configurable.
+static int TrainRestrictedSpeed = 3; // FIXME: make it configurable.
 
 #define TRAINMAXCARS 16 // FIXME: arbitrary limit.
 #define TRAINMAXSPOT 4  // FIXME: arbitrary limit.
@@ -138,6 +139,8 @@ struct TrainConsist {
     struct TrainCar      cars[TRAINMAXCARS]; // From head to tail.
     int                  count;
     long long updated;
+
+    struct TrackPath     path; // The sections of track the train is on.
 
     int orientation;    // -1: decreasing, 1: increasing, 0: unknown.
     int speed;          // Reported by HouseDCC.
@@ -202,8 +205,8 @@ static int houserail_train_covers (struct TrainConsist *train,
 
     if (!train->head.segment) return 0;
     if (!train->tail.segment) return 0;
-    return houserail_track_covered
-                (area, &(train->tail), &(train->head), train->orientation);
+    if (train->path.count <= 0) return 0;
+    return houserail_path_covers (&(train->path), area);
 }
 
 static int houserail_train_spotdistance (struct TrackLocation *spot,
@@ -247,16 +250,24 @@ static void houserail_train_pull (struct TrainConsist *train,
     // Move the head, tail and each car spot of the consist.
     int direction = houserail_train_direction (train);
 
-    houserail_track_move (&(train->head), distance, direction);
+    // Extend the path first, then move each train point along
+    // the extended path, and then rollup the path. This way
+    // the code walks the track only once.
+
+    houserail_path_lengthen (&(train->path), distance, direction);
+
+    houserail_path_move (&(train->path), &(train->head), distance, direction);
     int i;
     for (i = train->count - 1; i >= 0; --i) {
         struct TrainCar *car = train->cars + i;
         int j;
         for (j = car->count - 1; j >= 0; --j) {
-            houserail_track_move (car->spots+j, distance, direction);
+            houserail_path_move (&(train->path), car->spots+j, distance, direction);
         }
     }
-    houserail_track_move (&(train->tail), distance, direction);
+    houserail_path_move (&(train->path), &(train->tail), distance, direction);
+
+    houserail_path_rollup (&(train->path), &(train->tail), direction);
     train->updated = timestamp;
 }
 
@@ -388,7 +399,7 @@ void houserail_train_track (const struct TrackRange *area,
            closest = i;
         }
     }
-    if (closest < 0) return; // TBD: new train detected?
+    if (closest < 0) return; // FIXME: new train detected?
 
     // The closest train was identified. Its head must be moved to that
     // detector's location.
@@ -409,7 +420,8 @@ void houserail_train_track (const struct TrackRange *area,
         if (train->orientation < 0) {
             // Reverse the train orientation. The default consist assumed
             // that the orientation was going to be positive.
-            // TBD.
+            houserail_path_reverse (&(train->path));
+            // TBD: reverse head and tail, detectors.
         }
     }
     houserail_train_pull (train, min, timestamp);
@@ -423,7 +435,8 @@ const char *houserail_train_initialize (int argc, const char **argv) {
 }
 
 const char *houserail_train_move (const char *id, const char *to, int slow) {
-    // TBD: set normal speed according to upcoming track speed limit.
+
+    // FIXME: set normal speed according to upcoming track speed limit.
     int speed = slow?TrainRestrictedSpeed:5;
     return houserail_fleet_move (id, speed);
 }
@@ -447,7 +460,7 @@ const char *houserail_train_enter (const char *id,
     struct TrainConsist *train = houserail_train_search (id);
     if (!train) return "unknown train";
 
-    // TBD
+    // TBD: create new train or activate an existing train
     return 0;
 }
 
@@ -456,27 +469,27 @@ const char *houserail_train_delete (const char *id) {
     struct TrainConsist *train = houserail_train_search (id);
     if (!train) return "unknown train";
 
-    // TBD
+    // TBD: delete a train entry.
     return 0;
 }
 
 const char *houserail_train_reload (void) {
-   // TBD
+   // TBD: reload the list of trains from the saved status, keep known locations.
    LayoutCarModelsCount = 0;
    LayoutCarModels = 0;
    return "Not yet implemented";
 }
 
 int houserail_train_export (char *buffer, int size, const char *separator) {
-    return 0; // TBD
+    return 0; // TBD: save train state in JSON.
 }
 
 int houserail_train_status (char *buffer, int size) {
-    return 0; // TBD
+    return 0; // TBD: export train status in JSON.
 }
 
 
 void houserail_train_background (time_t now) {
-    // TBD
+    // TBD: background work needed?
 }
 

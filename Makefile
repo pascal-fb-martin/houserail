@@ -27,7 +27,11 @@ HCAT=Train
 
 # Application build. --------------------------------------------
 
-OBJS= houserail.o houserail_fleet.o houserail_track.o houserail_train.o
+OBJS= houserail.o \
+      houserail_fleet.o \
+      houserail_track.o \
+      houserail_path.o \
+      houserail_train.o
 LIBOJS=
 
 all: houserail
