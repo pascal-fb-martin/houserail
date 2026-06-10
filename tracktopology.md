@@ -29,6 +29,7 @@ The models are stored in the `track.models` array. Each element is an object the
 * `id`: vendor's product ID of the part.
 * `length`: the length of the part (standard track) or the length of the normal branch (switch track).
 * `reverse`: the length of the reverse branch of a switch. Not present for standard tracks.
+* `civil`: the civil speed limit for that track.
 
 > [!NOTE]
 > Models will eventually be stored separately from the layout, to make it possible to build a database of models shared by multiple layouts.

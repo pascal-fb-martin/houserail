@@ -44,10 +44,16 @@ The full configuration is actually split into two parts: static configuration an
 ## Web API
 
 ```
-/rail/move?id=STRING&to=STRING
+/rail/move?id=STRING&dir=STRING[&slow=1|0]
 ```
 
-Order a train to move to a specific tracklocation.
+Order a train to move in a specified direction. The slow option forces the train to move at restricted speed. Otherwise the train will follow the track's civil speed at each location.
+
+```
+/rail/switch?id=STRING&state=normal|reverse
+```
+
+Set the specified switch to the specified state.
 
 ```
 /rail/stop[?id=STRING]

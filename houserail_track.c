@@ -67,6 +67,16 @@
  *
  *     Periodic update function.
  *
+ * int houserail_track_civil (const struct TrackLocation *point, int direction);
+ *
+ *     Return the civil speed limit applicable to the specified location in
+ *     the specified direction.
+ *
+ *     If the direction is 0 (i.e. none), the limit is the civil speed for
+ *     the segment at that location. Otherwise, the limit is the smallest of
+ *     the civil speed for the segment at this location and the civil speed
+ *     on the approaching segment in that direction.
+ *
  * The functions below are used to move a train along the track. The path
  * followed depend on the position of the switches, like a train would.
  *
@@ -120,6 +130,7 @@ struct TrackModel {
 
     int length;  // Length on the normal side.
     int reverse; // Length on the reverse side, 0 if not a switch.
+    int civil;   // Civil speed limit on that track.
 };
 
 struct TrackSegment {
@@ -343,6 +354,7 @@ const char *houserail_track_reload (void) {
 
         model->length = houseconfig_integer (element, ".length");
         model->reverse = houseconfig_integer (element, ".reverse");
+        model->civil = houseconfig_integer (element, ".civil");
     }
 
     // Populate the segments array.
@@ -484,6 +496,21 @@ static int houserail_track_locate (const struct TrackLocation *point) {
     return houserail_track_search_by_location (point->line, point->post);
 }
 
+int houserail_track_civil (const struct TrackLocation *point, int direction) {
+
+    int segment = houserail_track_locate (point);
+    if (segment < 0) return 0; // Stop whenever there is any doubt.
+
+    int speed1 = LayoutModels[LayoutSegments[segment].model].civil;
+    if (!direction) return speed1;
+
+    segment = (direction > 0) ? LayoutSegments[segment].next
+                              : LayoutSegments[segment].previous;
+    int speed2 = LayoutModels[LayoutSegments[segment].model].civil;
+    if (speed1 < speed2) return speed1;
+    return speed2;
+}
+
 static int houserail_track_step (struct TrackSegment *segment, int direction) {
     return (direction > 0) ? segment->next : segment->previous;
 }
@@ -532,20 +559,27 @@ int houserail_track_walk (struct TrackRange *path, int size,
 
            // This is the entry to a switch: follow the needle
            if (next->needle == next->branch) {
-               line = LayoutSegments[next->branch].line;
-               int post = (direction > 0) ? segment->low : segment->high;
+               struct TrackModel *model = LayoutModels + next->model;
+               struct TrackSegment *branch = LayoutSegments + next->branch;
+               line = branch->line;
 
                if (max > 0) {
-                   distance += abs (post - path[cursor].low);
+                   distance += model->reverse;
                    if (distance > max) goto toofar;
                }
 
-               path[cursor++].high = post;
+               // The current section ends at the exit of the segment before
+               // the switch.
+               path[cursor++].high =
+                   (direction > 0) ? segment->low : segment->high;
                if (cursor >= size) return 0; // Overflow.
 
+               // The next section starts at the entry of the switch, but
+               // refer to the branch line.
                path[cursor].line = line;
                path[cursor].segment = next->id;
-               path[cursor].low = (direction > 0) ? next->low : next->high;
+               path[cursor].low = (direction > 0)?branch->low-model->reverse
+                                                 :branch->high+model->reverse;
 
                next = LayoutSegments + next->branch; // Pass that switch.
            }

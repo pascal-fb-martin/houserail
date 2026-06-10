@@ -54,6 +54,8 @@ struct TrackLocation {
     int post;
 };
 
+int houserail_track_civil (const struct TrackLocation *point, int direction);
+
 int houserail_track_covered (const struct TrackRange *area,
                              const struct TrackLocation *limit1, 
                              const struct TrackLocation *limit2,

@@ -121,18 +121,14 @@ static const char *rail_move (const char *method, const char *uri,
                              const char *data, int length) {
 
     const char *id = echttp_parameter_get("id");
-    const char *to = echttp_parameter_get("to");
+    const char *dir = echttp_parameter_get("dir");
     const char *slow = echttp_parameter_get("slow");
 
     if (!id) {
         echttp_error (404, "missing device ID");
         return "";
     }
-    if (!to) {
-        echttp_error (400, "missing destination ID");
-        return "";
-    }
-    const char *error = houserail_train_move (id, to, slow?atoi(slow):0);
+    const char *error = houserail_train_move (id, dir, slow?atoi(slow):0);
     if (error) {
         echttp_error (500, error);
         return "";
