@@ -39,12 +39,6 @@
  *    be needed if the segment is part of an interlocking (more than one
  *    branch in that segment).
  *
- * const char *houserail_track_switch (const char *name, const char *state);
- *
- *     Update a switch position. This is designed to be used as a listener
- *     or through a web request. Return 0 on success, an error message on
- *     failure.
- *
  * void houserail_track_input (const char *name,
  *                             long long timestamp, const char *state);
  *
@@ -106,6 +100,12 @@
  *
  *     Return the distance a train would have to move by between the two
  *     track points provided.
+ *
+ * const char *houserail_track_switch (const char *name, const char *state);
+ *
+ *     Update a switch position. This is designed to be used as a listener
+ *     or through a web request. Return 0 on success, an error message on
+ *     failure.
  */
 
 #include <time.h>
@@ -250,25 +250,6 @@ DetectionListener *houserail_track_subscribe (DetectionListener *listener) {
     DetectionListener *previous = TrackNextListener;
     TrackNextListener = listener;
     return previous;
-}
-
-const char *houserail_track_switch (const char *name, const char *state) {
-
-    int index = houserail_track_search_by_id (name);
-    if (index < 0) return "Invalid name";
-
-    struct TrackSegment *segment = LayoutSegments + index;
-    if (segment->branch < 0) return "Not a switch";
-
-    if (!strcasecmp (state, "normal")) {
-        segment->needle =
-            (segment->common == segment->next) ? segment->previous : segment->next;
-    } else if (!strcasecmp (state, "reverse")) {
-        segment->needle = segment->branch;
-    } else {
-        segment->needle = -1;
-    }
-    return 0;
 }
 
 void houserail_track_input (const char *name,
@@ -638,5 +619,24 @@ int houserail_track_distance (const struct TrackLocation *point1,
        if (distance > max) return -1;
    }
    return distance;
+}
+
+const char *houserail_track_switch (const char *name, const char *state) {
+
+    int index = houserail_track_search_by_id (name);
+    if (index < 0) return "Invalid name";
+
+    struct TrackSegment *segment = LayoutSegments + index;
+    if (segment->branch < 0) return "Not a switch";
+
+    if (!strcasecmp (state, "normal")) {
+        segment->needle =
+            (segment->common == segment->next) ? segment->previous : segment->next;
+    } else if (!strcasecmp (state, "reverse")) {
+        segment->needle = segment->branch;
+    } else {
+        segment->needle = -1;
+    }
+    return 0;
 }
 

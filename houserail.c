@@ -53,7 +53,7 @@
 
 #include "housecontrol.h"
 
-#include "houserail_fleet.h"
+#include "houserail_field.h"
 #include "houserail_track.h"
 #include "houserail_train.h"
 
@@ -154,6 +154,29 @@ static const char *rail_stop (const char *method, const char *uri,
     return rail_status (method, uri, data, length);
 }
 
+static const char *rail_switch (const char *method, const char *uri,
+                                const char *data, int length) {
+
+    const char *id = echttp_parameter_get("id");
+    const char *cmd = echttp_parameter_get("cmd");
+
+    // Issue the track switch change request through DCC.
+    const char *error = houserail_field_switch_set (id, cmd);
+    if (error) {
+        echttp_error (500, error);
+        return "";
+    }
+
+    // Report the new known state locally.
+    error = houserail_track_switch (id, cmd);
+    if (error) {
+        echttp_error (500, error);
+        return "";
+    }
+    housestate_changed (LiveState);
+    return rail_status (method, uri, data, length);
+}
+
 static const char *rail_config (const char *method, const char *uri,
                                 const char *data, int length) {
 
@@ -175,7 +198,7 @@ static void rail_background (int fd, int mode) {
     housedepositor_periodic (now);
     housedepositor_state_background (now);
     housecontrol_background (now);
-    houserail_fleet_background (now);
+    houserail_field_background (now);
     houserail_train_background (now);
 }
 
@@ -228,7 +251,7 @@ int main (int argc, const char **argv) {
     error = houseconfig_initialize ("rail", rail_update, argc, argv);
     if (error) goto fatal;
 
-    error = houserail_fleet_initialize (housedepositor_group(), argc, argv);
+    error = houserail_field_initialize (housedepositor_group(), argc, argv);
     if (error) goto fatal;
     error = houserail_train_initialize (argc, argv);
     if (error) goto fatal;
@@ -243,6 +266,7 @@ int main (int argc, const char **argv) {
     echttp_route_uri ("/rail/status", rail_status);
     echttp_route_uri ("/rail/move",   rail_move);
     echttp_route_uri ("/rail/stop",   rail_stop);
+    echttp_route_uri ("/rail/switch", rail_switch);
     echttp_route_uri ("/rail/config", rail_config);
 
     echttp_static_route ("/", "/usr/local/share/house/public");

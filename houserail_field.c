@@ -18,14 +18,18 @@
  * Boston, MA  02110-1301, USA.
  *
  *
- * houserail_fleet.c - The client stub to access the active vehicles.
+ * houserail_field.c - The client stub to access field equipment.
  *
  * SYNOPSYS:
  *
- * This module hides the specific web request syntax used when querying
- * vehicle information or sending vehicle commands.
+ * This module hides the specific web request syntax used to access field
+ * equipment:
+ * - querying fleet, switch and signal status,
+ * - sending fleet commands,
+ * - sending switch commands.
+ * (Signal is future.)
  *
- * const char *houserail_fleet_initialize (const char *group,
+ * const char *houserail_field_initialize (const char *group,
  *                                         int argc, const char **argv);
  *
  *    Initialize this module. Must be called first and only once.
@@ -33,7 +37,7 @@
  *
  * typedef void FleetListener (const char *id, int index);
  *
- * FleetListener *houserail_fleet_subscribe (FleetListener *listener);
+ * FleetListener *houserail_field_fleet_subscribe (FleetListener *listener);
  *
  *    Subscribe to vehicle state changes. The listener is only called
  *    when a change has occurred. If the listener is called with
@@ -45,15 +49,15 @@
  *    The index provided to the listener is only valid during the call.
  *    Its value may change in between two calls.
  *
- * int houserail_fleet_iterate (FleetListener *listener);
+ * int houserail_field_fleet_iterate (FleetListener *listener);
  *
  *    Retrieve the current list of active vehicles. The provided listener
  *    will be called once for each known vehicle. This listener does not need
- *    to be the same as the one declared using houserail_fleet_subscribe().
+ *    to be the same as the one declared using houserail_field_subscribe().
  *
  *    This returns the number of vehicles currently known.
  *
- * int houserail_fleet_search (const char *id);
+ * int houserail_field_fleet_search (const char *id);
  *
  *    Return the index of the specified vehicle, or -1 when not found.
  *
@@ -61,22 +65,31 @@
  *    on a subsequent periodic update. The index should be used immediately
  *    and never stored.
  *
- * const char *houserail_fleet_model (int index);
- * int         houserail_fleet_speed (int index);
+ * const char *houserail_field_fleet_model (int index);
+ * int         houserail_field_fleet_speed (int index);
  *
  *    Get information about a specific vehicle.
  *
- * const char *houserail_fleet_move (const char *id, int speed);
+ * const char *houserail_field_fleet_move (const char *id, int speed);
  *
  *    Order the designated vehicle to move at the given speed. The sign
  *    of the speed decide the direction of the movement.
+ *    Returns 0 on success, an error message on failure.
  *
- * const char *houserail_fleet_stop (const char *id, int emergency);
+ * const char *houserail_field_fleet_stop (const char *id, int emergency);
  *
  *    Force the vehicle to stop. An emergency stop is immediate, a normal
  *    stop follows a desceleration curve.
+ *    Returns 0 on success, an error message on failure.
  *
- * void houserail_fleet_background (time_t now);
+ * const char *houserail_field_switch_set (const char *id, const char *state);
+ *
+ *    Change the state of the specified switch to the commanded state.
+ *    Returns 0 on success or if the switch is not known, an error message
+ *    on failure. Unknown switches are not reported as failure in order to
+ *    accomodate reporting the state of manual switches.
+ *
+ * void houserail_field_background (time_t now);
  *
  *    Periodic update of train information.
  */
@@ -102,7 +115,7 @@
 #include "houselog.h"
 #include "housediscover.h"
 
-#include "houserail_fleet.h"
+#include "houserail_field.h"
 
 #define DEBUG if (echttp_isdebug()) printf
 
@@ -121,30 +134,30 @@ static int               FleetDbSize = 0;
 
 static FleetListener *FleetSubscribed = 0;
 
-static const char *FleetLayout = 0;
-static long long FleetKnown = 0;
+static const char *FieldLayout = 0;
+static long long FieldKnown = 0;
 
 static char *FleetControlUri = 0;
 
-static void houserail_fleet_noop (const char *id, int index) {
+static void houserail_field_fleet_noop (const char *id, int index) {
     // Do nothing.
 }
 
-const char *houserail_fleet_initialize (const char *group,
+const char *houserail_field_initialize (const char *group,
                                         int argc, const char **argv) {
-    FleetLayout = group;
-    FleetSubscribed = houserail_fleet_noop;
+    FieldLayout = group;
+    FleetSubscribed = houserail_field_fleet_noop;
     return 0;
 }
 
-FleetListener *houserail_fleet_subscribe (FleetListener *listener) {
+FleetListener *houserail_field_fleet_subscribe (FleetListener *listener) {
 
     FleetListener *previous = FleetSubscribed;
     FleetSubscribed = listener;
     return previous;
 }
 
-int houserail_fleet_iterate (FleetListener *listener) {
+int houserail_field_iterate (FleetListener *listener) {
 
     int i;
     int count = 0;
@@ -156,19 +169,19 @@ int houserail_fleet_iterate (FleetListener *listener) {
     return count;
 }
 
-const char *houserail_fleet_model (int index) {
+const char *houserail_field_fleet_model (int index) {
     if (index < 0 || index >= FleetDbCount) return "";
     if (!FleetDb[index].id[0]) return "";
     return FleetDb[index].model;
 }
 
-int houserail_fleet_speed (int index) {
+int houserail_field_fleet_speed (int index) {
     if (index < 0 || index >= FleetDbCount) return 0;
     if (!FleetDb[index].id[0]) return 0;
     return FleetDb[index].speed;
 }
 
-int houserail_fleet_find (const char *id, int update) {
+int houserail_field_fleet_find (const char *id, int update) {
 
     int i;
     int empty = -1;
@@ -202,11 +215,11 @@ int houserail_fleet_find (const char *id, int update) {
     return i;
 }
 
-int houserail_fleet_search (const char *id) {
-    return houserail_fleet_find (id, 0);
+int houserail_field_fleet_search (const char *id) {
+    return houserail_field_fleet_find (id, 0);
 }
 
-static ParserToken *houserail_fleet_prepare (int count) {
+static ParserToken *houserail_field_prepare (int count) {
  
     static ParserToken *EventTokens = 0;
     static int EventTokensAllocated = 0;
@@ -218,10 +231,10 @@ static ParserToken *houserail_fleet_prepare (int count) {
     return EventTokens;
 }
 
-static void houserail_fleet_update (const char *origin, char *data, int length) {
+static void houserail_field_update (const char *origin, char *data, int length) {
 
     int count = echttp_json_estimate(data);
-    ParserToken *tokens = houserail_fleet_prepare (count);
+    ParserToken *tokens = houserail_field_prepare (count);
 
     const char *error = echttp_json_parse (data, tokens, &count);
     if (error) {
@@ -237,12 +250,12 @@ static void houserail_fleet_update (const char *origin, char *data, int length) 
 
     int idx = echttp_json_search (tokens, ".trains.layout");
     if (idx < 0) return;
-    if (strcmp (tokens[idx].value.string, FleetLayout)) return;
+    if (strcmp (tokens[idx].value.string, FieldLayout)) return;
 
     idx = echttp_json_search (tokens, ".latest");
     if (idx < 0) idx = echttp_json_search (tokens, ".trains.latest");
-    if (idx >= 0) FleetKnown = tokens[idx].value.integer;
-    else FleetKnown = 0;
+    if (idx >= 0) FieldKnown = tokens[idx].value.integer;
+    else FieldKnown = 0;
 
     idx = echttp_json_search (tokens, ".trains.vehicles");
     if (idx < 0) return;
@@ -264,7 +277,7 @@ static void houserail_fleet_update (const char *origin, char *data, int length) 
          ParserToken *item = vehicles + vehiclelist[i];
          idx = echttp_json_search (item, ".id");
          if (idx < 0) continue;
-         int index = houserail_fleet_find (item[idx].value.string, 1);
+         int index = houserail_field_fleet_find (item[idx].value.string, 1);
          if (index < 0) continue;
          FleetDb[index].present = 1;
 
@@ -314,12 +327,12 @@ cleanup:
     free (vehiclelist);
 }
 
-static void houserail_fleet_discovered
+static void houserail_field_discovered
                (void *origin, int status, char *data, int length) {
 
     status = echttp_redirected("GET");
     if (!status) {
-        echttp_submit (0, 0, houserail_fleet_discovered, origin);
+        echttp_submit (0, 0, houserail_field_discovered, origin);
         return;
     }
 
@@ -344,38 +357,38 @@ static void houserail_fleet_discovered
         }
     }
 
-    houserail_fleet_update ((const char *)origin, data, length);
+    houserail_field_update ((const char *)origin, data, length);
 }
 
-static const char *houserail_fleet_request (const char *url, const char *uri) {
+static const char *houserail_field_request (const char *url, const char *uri) {
 
     const char *error = echttp_client ("GET", url);
     if (error) {
         houselog_trace (HOUSE_FAILURE, uri, "%s", error);
         return error;
     }
-    echttp_submit (0, 0, houserail_fleet_discovered, (void *)uri);
+    echttp_submit (0, 0, houserail_field_discovered, (void *)uri);
     return 0;
 }
 
-static void houserail_fleet_scan_server
+static void houserail_field_scan_server
                 (const char *service, void *context, const char *uri) {
 
     char url[256];
-    if (FleetKnown > 0) {
+    if (FieldKnown > 0) {
         snprintf (url, sizeof(url),
-                  "%s/fleet/status?layout=%s&known=%lld",
-                  uri, FleetLayout, FleetKnown);
+                  "%s/status?layout=%s&known=%lld",
+                  uri, FieldLayout, FieldKnown);
     } else {
         snprintf (url, sizeof(url),
-                  "%s/fleet/status?layout=%s", uri, FleetLayout);
+                  "%s/status?layout=%s", uri, FieldLayout);
     }
 
-    const char *error = houserail_fleet_request (url, uri);
+    const char *error = houserail_field_request (url, uri);
     if (error) houselog_trace (HOUSE_FAILURE, uri, "%s", error);
 }
 
-const char *houserail_fleet_move (const char *id, int speed) {
+const char *houserail_field_fleet_move (const char *id, int speed) {
 
     if (!FleetControlUri) return "No train server identified yet";
 
@@ -383,10 +396,10 @@ const char *houserail_fleet_move (const char *id, int speed) {
     snprintf (url, sizeof(url),
               "%s/fleet/move?id=%s&speed=%d", FleetControlUri, id, speed);
 
-    return houserail_fleet_request (url, FleetControlUri);
+    return houserail_field_request (url, FleetControlUri);
 }
 
-const char *houserail_fleet_stop (const char *id, int emergency) {
+const char *houserail_field_fleet_stop (const char *id, int emergency) {
 
     if (!FleetControlUri) return "No train server identified yet";
 
@@ -394,10 +407,14 @@ const char *houserail_fleet_stop (const char *id, int emergency) {
     snprintf (url, sizeof(url),
               "%s/fleet/stop?id=%s&urgent=%d", FleetControlUri, id, emergency);
 
-    return houserail_fleet_request (url, FleetControlUri);
+    return houserail_field_request (url, FleetControlUri);
 }
 
-void houserail_fleet_background (time_t now) {
+const char *houserail_field_switch_set (const char *id, const char *state) {
+    return 0; // TBD: DCC switches not implemented yet.
+}
+
+void houserail_field_background (time_t now) {
 
     static time_t latestdiscovery = 0;
 
@@ -412,6 +429,6 @@ void houserail_fleet_background (time_t now) {
     if (now <= latestdiscovery) return;
     latestdiscovery = now;
 
-    housediscovered ("train", 0, houserail_fleet_scan_server);
+    housediscovered ("train", 0, houserail_field_scan_server);
 }
 

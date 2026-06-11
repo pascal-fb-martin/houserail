@@ -18,22 +18,24 @@
  * Boston, MA  02110-1301, USA.
  *
  *
- * houserail_fleet.c - The client stub to access the active vehicles.
+ * houserail_field.c - The client stub to access the active vehicles.
  */
-const char *houserail_fleet_initialize (const char *group,
+const char *houserail_field_initialize (const char *group,
                                         int argc, const char **argv);
 
 typedef void FleetListener (const char *id, int index);
 
-FleetListener *houserail_fleet_subscribe (FleetListener *listener);
-int            houserail_fleet_iterate   (FleetListener *listener);
+FleetListener *houserail_field_fleet_subscribe (FleetListener *listener);
+int            houserail_field_fleet_iterate   (FleetListener *listener);
 
-int         houserail_fleet_search (const char *id);
-const char *houserail_fleet_model (int index);
-int         houserail_fleet_speed (int index);
+int         houserail_field_fleet_search (const char *id);
+const char *houserail_field_fleet_model (int index);
+int         houserail_field_fleet_speed (int index);
 
-const char *houserail_fleet_move (const char *id, int speed);
-const char *houserail_fleet_stop (const char *id, int emergency);
+const char *houserail_field_fleet_move (const char *id, int speed);
+const char *houserail_field_fleet_stop (const char *id, int emergency);
 
-void houserail_fleet_background (time_t now);
+const char *houserail_field_switch_set (const char *id, const char *state);
+
+void houserail_field_background (time_t now);
 

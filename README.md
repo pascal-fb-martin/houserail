@@ -50,16 +50,16 @@ The full configuration is actually split into two parts: static configuration an
 Order a train to move in a specified direction. The slow option forces the train to move at restricted speed. Otherwise the train will follow the track's civil speed at each location.
 
 ```
-/rail/switch?id=STRING&state=normal|reverse
-```
-
-Set the specified switch to the specified state.
-
-```
 /rail/stop[?id=STRING]
 ```
 
 Immediately stop the identified train, or all known trains if the id parameter is missing.
+
+```
+/rail/switch?id=STRING&cmd=normal|reverse
+```
+
+Set the specified switch to the specified state.
 
 ```
 /rail/status[?known=NUMBER]

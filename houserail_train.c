@@ -77,7 +77,7 @@
 #include <echttp.h>
 #include <echttp_hash.h>
 
-#include "houserail_fleet.h"
+#include "houserail_field.h"
 #include "houserail_track.h"
 #include "houserail_path.h"
 #include "houserail_train.h"
@@ -173,7 +173,7 @@ static struct TrainConsist *houserail_train_search (const char *id) {
 
 static void houserail_train_fleet (const char *id, int index) {
 
-    int speed = houserail_fleet_speed (index);
+    int speed = houserail_field_fleet_speed (index);
     DEBUG (__FILE__ ": received fleet update for %s, speed = %d\n", id, speed);
 
     unsigned int signature = echttp_hash_signature (id);
@@ -405,8 +405,8 @@ void houserail_train_track (const struct TrackRange *area,
 
             // Adjust the train speed based on its new location.
             if (abs(train->speed) > TrainRestrictedSpeed)
-               houserail_fleet_move (train->id,
-                                     houserail_train_maxspeed (train));
+               houserail_field_fleet_move (train->id,
+                                           houserail_train_maxspeed (train));
 
             return; // Assume only one train within range.
         }
@@ -460,14 +460,16 @@ void houserail_train_track (const struct TrackRange *area,
 
     // Adjust the train speed based on its new location.
     if (abs(train->speed) > TrainRestrictedSpeed)
-       houserail_fleet_move (train->id,
-                             houserail_train_maxspeed (train));
+       houserail_field_fleet_move (train->id,
+                                   houserail_train_maxspeed (train));
 }
 
 const char *houserail_train_initialize (int argc, const char **argv) {
 
-    TrainNextFleetListener = houserail_fleet_subscribe (houserail_train_fleet);
-    TrainNextDetectionListener = houserail_track_subscribe (houserail_train_track);
+    TrainNextFleetListener =
+        houserail_field_fleet_subscribe (houserail_train_fleet);
+    TrainNextDetectionListener =
+        houserail_track_subscribe (houserail_train_track);
     return 0;
 }
 
@@ -482,11 +484,11 @@ const char *houserail_train_move (const char *id, const char *dir, int slow) {
     if (!slow) {
         speed = houserail_train_maxspeed (train);
     }
-    return houserail_fleet_move (id, speed);
+    return houserail_field_fleet_move (id, speed);
 }
 
 const char *houserail_train_stop (const char *id, int emergency) {
-    return houserail_fleet_stop (id, emergency);
+    return houserail_field_fleet_stop (id, emergency);
 }
 
 const char *houserail_train_park (const char *id) {

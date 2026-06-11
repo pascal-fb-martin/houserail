@@ -69,5 +69,7 @@ int houserail_track_walk (struct TrackRange *path, int size,
 int houserail_track_distance (const struct TrackLocation *point1,
                               const struct TrackLocation *point2,
                               int direction, int max);
+
+const char *houserail_track_switch (const char *name, const char *state);
 #endif
 
