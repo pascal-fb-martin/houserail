@@ -39,6 +39,7 @@ const char *houserail_train_delete (const char *id);
 const char *houserail_train_reload (void);
 int houserail_train_export (char *buffer, int size, const char *separator);
 int houserail_train_status (char *buffer, int size);
+int houserail_train_locate (char *buffer, int size);
 
 void houserail_train_background (time_t now);
 

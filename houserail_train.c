@@ -64,6 +64,12 @@
  *
  *     Return the live status of trains in JSON format.
  *
+ * int houserail_train_locate (char *buffer, int size);
+ *
+ *     Return a subset of the live status of trains in JSON format.
+ *     That subset represents enough information to show the train ID at
+ *     the right location on a track display.
+ *
  * void houserail_train_background (time_t now);
  *
  *     Periodic update function.
@@ -531,7 +537,79 @@ int houserail_train_export (char *buffer, int size, const char *separator) {
 }
 
 int houserail_train_status (char *buffer, int size) {
-    return 0; // TBD: export train status in JSON.
+
+    int cursor = 0;
+    const char *prefix = ",\"train\":[";
+
+    int i;
+    for (i = 0; i < LayoutTrainsCount; ++i) {
+        struct TrainConsist *train = LayoutTrains + i;
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s{\"id\":\"%s\"", prefix, train->id);
+        if (!train->parked) {
+            const char *segment = houserail_track_segment (&(train->head));
+            train->head.segment = segment; // Cache the result.
+            if (segment)
+               cursor += snprintf (buffer+cursor, size-cursor,
+                                   ",\"head\":[\"%s\",%d,\"%s\"]",
+                                   train->head.line, train->head.post, segment);
+
+            segment = houserail_track_segment (&(train->tail));
+            train->tail.segment = segment; // Cache the result.
+            if (segment)
+               cursor += snprintf (buffer+cursor, size-cursor,
+                                   ",\"tail\":[\"%s\",%d,\"%s\"]",
+                                   train->tail.line, train->tail.post, segment);
+
+            int direction = houserail_train_direction (train);
+            cursor += snprintf (buffer+cursor, size-cursor,
+                                ",\"proceed\":[\"%s\",%d]",
+                                (direction >= 0)?"up":"down",
+                                abs(train->speed));
+        }
+        const char *prefix2 = "\"cars\":[";
+        int empty = cursor;
+        int j;
+        for (j = 0; j < train->count; ++j) {
+            cursor += snprintf (buffer+cursor, size-cursor,
+                                "%s\"%s\"", prefix2, train->cars[j].id);
+            prefix2 = ",";
+        }
+        if (cursor > empty)
+            cursor += snprintf (buffer+cursor, size-cursor, "]}");
+        else
+            cursor += snprintf (buffer+cursor, size-cursor, "}");
+        prefix = ",";
+    }
+    if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
+    return cursor;
+}
+
+int houserail_train_locate (char *buffer, int size) {
+
+    int cursor = 0;
+    const char *prefix = ",\"train\":[";
+
+    int i;
+    for (i = 0; i < LayoutTrainsCount; ++i) {
+        struct TrainConsist *train = LayoutTrains + i;
+
+        if (train->parked) continue;
+        const char *segment = houserail_track_segment (&(train->head));
+        train->head.segment = segment; // Cache the result.
+        if (!segment) continue;
+
+        int direction = houserail_train_direction (train);
+        if (direction == 0) direction = train->orientation;
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s{\"id\":\"%s\",\"head\":[\"%s\",%d,\"%s\"],"
+                                             "\"proceed\":[\"%s\":%d]}",
+                            prefix, train->id,
+                            train->head.line, train->head.post, segment,
+                            (direction >= 0)?"up":"down", abs(train->speed));
+        prefix = ",";
+    }
+    return cursor;
 }
 
 

@@ -36,6 +36,9 @@ const char *houserail_field_fleet_move (const char *id, int speed);
 const char *houserail_field_fleet_stop (const char *id, int emergency);
 
 const char *houserail_field_switch_set (const char *id, const char *state);
+const char *houserail_field_signal_set (const char *id, const char *state);
+
+int houserail_field_status (char *buffer, int size);
 
 void houserail_field_background (time_t now);
 

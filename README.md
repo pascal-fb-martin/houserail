@@ -44,10 +44,58 @@ The full configuration is actually split into two parts: static configuration an
 ## Web API
 
 ```
+/rail/train/status[?known=NUMBER]
+```
+
+Return the last known state of trains.
+
+This returns JSON data with the following format:
+
+* host:          the name of the host replying.
+* timestamp:     the time when the response was built.
+* latest:        the current state of the server (see the `known` parameter).
+* rail.layout:   the name of the layout managed by this server.
+* rail.train:    the current status of trains.
+
+The `rail.train` item is an array of objects, each one reprenting a single train:
+
+* id:      This train's ID.
+* head:    An array describing the location of the train's head.
+* tail:    An array describing the location of the train's tail.
+* proceed: An array containing the train's direction ("up" or "down") and speed.
+* cars:    An array containing the ordered list of cars.
+
+If a train is parked (i.e not present on the layout), items `head`, `tail` and `proceed` are not present.
+
+```
+/rail/track/status[?known=NUMBER]
+```
+
+Return the last known state of the tracks, switches and signals on the layout. This also includes just enough information about the location of trains to show their IDs at the proper place on a track display.
+
+This returns JSON data with the following format:
+
+* host:          the name of the host replying.
+* timestamp:     the time when the response was built.
+* latest:        the current state of the server (see the `known` parameter).
+* rail.layout:   the name of the layout managed by this server.
+* rail.detector: the current status of each individual occupancy detector.
+* rail.track:    the current status of tracks.
+* rail.switch:   the current status of switches.
+* rail.signal:   the current status of signals.
+* rail.train:    a subset of the current status of trains.
+
+Each `detector`, `track`, `switch` and `signal` entry is an array of arrays, where each inner array has two elements: the ID of the device followed by its status. Switches can be `reverse`, `normal` or `invalid`, signals can be `red` or `green`, detectors and tracks can be `on` or `off`.
+
+The train status subset contains enough information to locate the train on a track display: `id`, `head` and `procees`. (The last item provides the direction of travel.)
+
+```
 /rail/move?id=STRING&dir=STRING[&slow=1|0]
 ```
 
 Order a train to move in a specified direction. The slow option forces the train to move at restricted speed. Otherwise the train will follow the track's civil speed at each location.
+
+This returns an updated status of the trains.
 
 ```
 /rail/stop[?id=STRING]
@@ -55,17 +103,15 @@ Order a train to move in a specified direction. The slow option forces the train
 
 Immediately stop the identified train, or all known trains if the id parameter is missing.
 
+This returns an updated status of the trains.
+
 ```
 /rail/switch?id=STRING&cmd=normal|reverse
 ```
 
 Set the specified switch to the specified state.
 
-```
-/rail/status[?known=NUMBER]
-```
-
-Return the last known state of trains and switches on the layout.
+This returns an updated status of the tracks.
 
 ```
 /rail/config

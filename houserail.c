@@ -64,16 +64,18 @@ static char JsonBuffer[65537];
 static int LiveState = -1;
 static int ConfigState = -1;
 
+static FleetListener *TrainNextFleetListener = 0;
+
 static int rail_header (char *buffer, int size, int stateid) {
 
     int cursor;
     cursor = snprintf (buffer, size,
-                       "{\"host\":\"%s\",\"timestamp\":%lld"
-                           ",\"rail\":{\"layout\":\"%s\",\"latest\":%lu",
+                       "{\"host\":\"%s\",\"timestamp\":%lld,\"latest\":%lu"
+                           ",\"rail\":{\"layout\":\"%s\"",
                        houselog_host(),
                        (long long)time(0),
-                       housedepositor_group(),
-                       housestate_current (stateid));
+                       housestate_current (stateid),
+                       housedepositor_group());
     return cursor;
 }
 
@@ -85,6 +87,7 @@ static int rail_export (void) {
     c += houserail_track_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
     c += houserail_train_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
     if (c == empty) return 0;
+    c += snprintf (JsonBuffer+c, sizeof(JsonBuffer)-c, "}");
     return c;
 }
 
@@ -101,8 +104,27 @@ static const char *rail_save (const char *reason) {
 }
 */
 
-static const char *rail_status (const char *method, const char *uri,
-                               const char *data, int length) {
+static const char *rail_status_track (const char *method, const char *uri,
+                                      const char *data, int length) {
+
+    if (housestate_same (LiveState)) return "";
+
+    int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), LiveState);
+    int empty = cursor;
+
+    cursor += houserail_track_status (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
+    cursor += houserail_field_status (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
+    cursor += houserail_train_locate (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
+
+    if (cursor == empty) return "";
+
+    cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}");
+    echttp_content_type_json ();
+    return JsonBuffer;
+}
+
+static const char *rail_status_train (const char *method, const char *uri,
+                                      const char *data, int length) {
 
     if (housestate_same (LiveState)) return "";
 
@@ -110,9 +132,9 @@ static const char *rail_status (const char *method, const char *uri,
     int empty = cursor;
 
     cursor += houserail_train_status (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
-
     if (cursor == empty) return "";
 
+    cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}");
     echttp_content_type_json ();
     return JsonBuffer;
 }
@@ -134,7 +156,7 @@ static const char *rail_move (const char *method, const char *uri,
         return "";
     }
     housestate_changed (LiveState);
-    return rail_status (method, uri, data, length);
+    return rail_status_train (method, uri, data, length);
 }
 
 static const char *rail_stop (const char *method, const char *uri,
@@ -151,7 +173,7 @@ static const char *rail_stop (const char *method, const char *uri,
         return "";
     }
     housestate_changed (LiveState);
-    return rail_status (method, uri, data, length);
+    return rail_status_train (method, uri, data, length);
 }
 
 static const char *rail_switch (const char *method, const char *uri,
@@ -174,7 +196,30 @@ static const char *rail_switch (const char *method, const char *uri,
         return "";
     }
     housestate_changed (LiveState);
-    return rail_status (method, uri, data, length);
+    return rail_status_track (method, uri, data, length);
+}
+
+static const char *rail_signal (const char *method, const char *uri,
+                                const char *data, int length) {
+
+    const char *id = echttp_parameter_get("id");
+    const char *cmd = echttp_parameter_get("cmd");
+
+    // Issue the track signal change request through DCC.
+    const char *error = houserail_field_signal_set (id, cmd);
+    if (error) {
+        echttp_error (500, error);
+        return "";
+    }
+
+    // Report the new known state locally.
+    error = houserail_track_signal (id, cmd);
+    if (error) {
+        echttp_error (500, error);
+        return "";
+    }
+    housestate_changed (LiveState);
+    return rail_status_track (method, uri, data, length);
 }
 
 static const char *rail_config (const char *method, const char *uri,
@@ -217,6 +262,12 @@ static void ontrackchange (const char *name,
                            long long timestamp, const char *old, const char *new) {
     DEBUG (__FILE__ ": track state update for %s, state %s\n", name, new);
     houserail_track_input (name, timestamp, new);
+    housestate_changed (LiveState);
+}
+
+static void ontrainchange (const char *id, int index) {
+    housestate_changed (LiveState);
+    if (TrainNextFleetListener) TrainNextFleetListener (id, index);
 }
 
 static void rail_protect (const char *method, const char *uri) {
@@ -263,18 +314,22 @@ int main (int argc, const char **argv) {
     echttp_cors_allow_method("GET");
     echttp_protect (0, rail_protect);
 
-    echttp_route_uri ("/rail/status", rail_status);
+    echttp_route_uri ("/rail/train/status", rail_status_train);
+    echttp_route_uri ("/rail/track/status", rail_status_track);
     echttp_route_uri ("/rail/move",   rail_move);
     echttp_route_uri ("/rail/stop",   rail_stop);
     echttp_route_uri ("/rail/switch", rail_switch);
+    echttp_route_uri ("/rail/signal", rail_signal);
     echttp_route_uri ("/rail/config", rail_config);
 
     echttp_static_route ("/", "/usr/local/share/house/public");
     echttp_background (&rail_background);
+
     housedepositor_state_load ("rail", argc, argv);
     housedepositor_state_share (1);
+
     housecontrol_subscribe ("track", ontrackchange);
-    houserail_track_subscribe (houserail_train_track);
+    TrainNextFleetListener = houserail_field_fleet_subscribe (ontrainchange);
 
     houselog_event ("SERVICE", "rail", "STARTED", "ON %s", houselog_host());
     echttp_loop();

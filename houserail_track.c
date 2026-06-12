@@ -18,7 +18,7 @@
  * Boston, MA  02110-1301, USA.
  *
  *
- * houserail_track.c - Track topology and detectection.
+ * houserail_track.c - Track topology and signaling devices.
  *
  * SYNOPSYS:
  *
@@ -101,9 +101,19 @@
  *     Return the distance a train would have to move by between the two
  *     track points provided.
  *
+ * const char *houserail_track_segment (const struct TrackLocation *point);
+ *
+ *     Return the name of the segment where the specified point is located.
+ *
  * const char *houserail_track_switch (const char *name, const char *state);
  *
  *     Update a switch position. This is designed to be used as a listener
+ *     or through a web request. Return 0 on success, an error message on
+ *     failure.
+ *
+ * const char *houserail_track_signal (const char *name, const char *state);
+ *
+ *     Update a signal state. This is designed to be used as a listener
  *     or through a web request. Return 0 on success, an error message on
  *     failure.
  */
@@ -165,6 +175,7 @@ struct TrackDetector {
     unsigned int signature; // Seach accelerator.
 
     int segment;
+    int next;     // Next detector on the same segment.
     struct TrackRange area; // RESTRICTION: a detector covers only one segment.
 
     // The following is the live status.
@@ -363,6 +374,7 @@ const char *houserail_track_reload (void) {
 
         segment->start = houseconfig_integer (element, ".start");
         segment->low = segment->high = -1; // To be calculated later.
+        segment->detector = -1; // List will be built later.
 
         temp[i].previous = houseconfig_string (element, ".previous");
         temp[i].next = houseconfig_string (element, ".next");
@@ -444,7 +456,10 @@ const char *houserail_track_reload (void) {
         detector->segment =
             houserail_track_search_by_location (detector->area.line, detector->area.low);
         if (detector->segment < 0) continue;
-        detector->area.segment = LayoutSegments[detector->segment].id;
+        struct TrackSegment *segment = LayoutSegments + detector->segment;
+        detector->next = segment->detector;
+        segment->detector = i;
+        detector->area.segment = segment->id;
 
         detector->live.occupied = 0;
         detector->live.timestamp = 0;
@@ -460,13 +475,92 @@ int houserail_track_export (char *buffer, int size, const char *separator) {
     return 0; // TBD: export track topology as JSON.
 }
 
+static int houserail_track_status_track (char *buffer, int size) {
+
+    int cursor = 0;
+    const char *prefix = ",\"track\":[";
+
+    int i;
+    for (i = 0; i < LayoutSegmentsCount; ++i) {
+        struct TrackSegment *segment = LayoutSegments + i;
+        const char *state = "off";
+        int j;
+        for (j = segment->detector; j >= 0; j = LayoutDetectors[j].next) {
+            if (LayoutDetectors[j].live.occupied) {
+                state = "on";
+                break;
+            }
+        }
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s[\"%s\",\"%s\"]", prefix, segment->id, state);
+        prefix = ",";
+    }
+    if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
+    return cursor;
+}
+
+static int houserail_track_status_detector (char *buffer, int size) {
+
+    int cursor = 0;
+    const char *prefix = ",\"detector\":[";
+
+    int i;
+    for (i = 0; i < LayoutDetectorsCount; ++i) {
+        struct TrackDetector *detector = LayoutDetectors + i;
+        const char *state = detector->live.occupied?"on":"off";
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s[\"%s\",\"%s\"]", prefix, detector->id, state);
+        prefix = ",";
+    }
+    if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
+    return cursor;
+}
+
+static int houserail_track_status_switch (char *buffer, int size) {
+
+    int cursor = 0;
+    const char *prefix = ",\"switch\":[";
+
+    int i;
+    for (i = 0; i < LayoutSegmentsCount; ++i) {
+        struct TrackSegment *segment = LayoutSegments + i;
+        if (segment->branch >= 0) {
+            const char *state = "invalid";
+            if (segment->needle == segment->branch)
+                state = "reverse";
+            if (segment->needle == segment->next)
+                state = "normal";
+            else if (segment->needle == segment->previous)
+                state = "normal";
+            cursor += snprintf (buffer+cursor, size-cursor,
+                                "%s[\"%s\",\"%s\"]",
+                                prefix, segment->id, state);
+            prefix = ",";
+        }
+    }
+    if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
+    return cursor;
+}
+
 int houserail_track_status (char *buffer, int size) {
-    return 0; // TBD: export track live status as JSON
+
+    int cursor = houserail_track_status_track (buffer, size);
+    cursor += houserail_track_status_switch (buffer+cursor, size-cursor);
+    cursor += houserail_track_status_detector (buffer+cursor, size-cursor);
+    return cursor;
 }
 
 
 void houserail_track_background (time_t now) {
     // TBD: background work needed?
+}
+
+const char *houserail_track_segment (const struct TrackLocation *point) {
+
+    if (point->segment) return point->segment;
+    int segment = houserail_track_search_by_location (point->line, point->post);
+    if (segment < 0) return 0;
+    return LayoutSegments[segment].id;
 }
 
 static int houserail_track_locate (const struct TrackLocation *point) {
@@ -638,5 +732,10 @@ const char *houserail_track_switch (const char *name, const char *state) {
         segment->needle = -1;
     }
     return 0;
+}
+
+const char *houserail_track_signal (const char *name, const char *state) {
+
+    return 0; // TBD: add signal to the topology database, stop trains on red.
 }
 

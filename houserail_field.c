@@ -83,11 +83,16 @@
  *    Returns 0 on success, an error message on failure.
  *
  * const char *houserail_field_switch_set (const char *id, const char *state);
+ * const char *houserail_field_signal_set (const char *id, const char *state);
  *
- *    Change the state of the specified switch to the commanded state.
- *    Returns 0 on success or if the switch is not known, an error message
- *    on failure. Unknown switches are not reported as failure in order to
- *    accomodate reporting the state of manual switches.
+ *    Change the state of the specified switch or signal to the requested state.
+ *    Returns 0 on success or if the accessory is not known, an error message
+ *    on failure. Unknown accessories are not reported as failure in order to
+ *    accomodate reporting the state of manual switches and signals.
+ *
+ * int houserail_field_status (char *buffer, int size);
+ *
+ *     Return the live status of field accessories in JSON format.
  *
  * void houserail_field_background (time_t now);
  *
@@ -137,7 +142,7 @@ static FleetListener *FleetSubscribed = 0;
 static const char *FieldLayout = 0;
 static long long FieldKnown = 0;
 
-static char *FleetControlUri = 0;
+static char *FieldControlUri = 0;
 
 static void houserail_field_fleet_noop (const char *id, int index) {
     // Do nothing.
@@ -346,14 +351,14 @@ static void houserail_field_discovered
     }
 
     const char *uri = (const char *)origin;
-    if (uri != FleetControlUri) {
-        if (FleetControlUri) {
-            if (strcmp (FleetControlUri, uri)) {
-                free (FleetControlUri);
-                FleetControlUri = strdup (uri);
+    if (uri != FieldControlUri) {
+        if (FieldControlUri) {
+            if (strcmp (FieldControlUri, uri)) {
+                free (FieldControlUri);
+                FieldControlUri = strdup (uri);
             }
         } else {
-            FleetControlUri = strdup (uri);
+            FieldControlUri = strdup (uri);
         }
     }
 
@@ -390,28 +395,50 @@ static void houserail_field_scan_server
 
 const char *houserail_field_fleet_move (const char *id, int speed) {
 
-    if (!FleetControlUri) return "No train server identified yet";
+    if (!FieldControlUri) return "No train server identified yet";
 
     char url[256];
     snprintf (url, sizeof(url),
-              "%s/fleet/move?id=%s&speed=%d", FleetControlUri, id, speed);
+              "%s/fleet/move?id=%s&speed=%d", FieldControlUri, id, speed);
 
-    return houserail_field_request (url, FleetControlUri);
+    return houserail_field_request (url, FieldControlUri);
 }
 
 const char *houserail_field_fleet_stop (const char *id, int emergency) {
 
-    if (!FleetControlUri) return "No train server identified yet";
+    if (!FieldControlUri) return "No train server identified yet";
 
     char url[256];
     snprintf (url, sizeof(url),
-              "%s/fleet/stop?id=%s&urgent=%d", FleetControlUri, id, emergency);
+              "%s/fleet/stop?id=%s&urgent=%d", FieldControlUri, id, emergency);
 
-    return houserail_field_request (url, FleetControlUri);
+    return houserail_field_request (url, FieldControlUri);
 }
 
 const char *houserail_field_switch_set (const char *id, const char *state) {
-    return 0; // TBD: DCC switches not implemented yet.
+
+    if (!FieldControlUri) return "No train server identified yet";
+
+    char url[256];
+    snprintf (url, sizeof(url),
+              "%s/switch/set?id=%s&cmd=%s", FieldControlUri, id, state);
+
+    return houserail_field_request (url, FieldControlUri);
+}
+
+const char *houserail_field_signal_set (const char *id, const char *state) {
+
+    if (!FieldControlUri) return "No train server identified yet";
+
+    char url[256];
+    snprintf (url, sizeof(url),
+              "%s/signal/set?id=%s&cmd=%s", FieldControlUri, id, state);
+
+    return houserail_field_request (url, FieldControlUri);
+}
+
+int houserail_field_status (char *buffer, int size) {
+    return 0;
 }
 
 void houserail_field_background (time_t now) {
