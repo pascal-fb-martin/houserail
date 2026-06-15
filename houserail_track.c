@@ -472,7 +472,101 @@ const char *houserail_track_reload (void) {
 }
 
 int houserail_track_export (char *buffer, int size, const char *separator) {
-    return 0; // TBD: export track topology as JSON.
+
+    int cursor = snprintf (buffer, size, "%s\"track\":{", separator);
+    if (cursor >= size) goto overflow;
+
+    // Populate the models array.
+
+    const char *prefix = "\"models\":[";
+    int start = cursor;
+    int i;
+    for (i = 0; i < LayoutModelsCount; ++i) {
+        struct TrackModel *model = LayoutModels + i;
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s{\"id\":\"%s\""
+                                ",\"length\":%d,\"reverse\":%d,\"civil\":%d}",
+                            prefix, model->id, model->length,
+                                    model->reverse, model->civil);
+        if (cursor >= size) goto overflow;
+        prefix = ",";
+    }
+    if (cursor > start) {
+        cursor += snprintf (buffer+cursor, size-cursor, "]");
+        if (cursor >= size) goto overflow;
+    }
+
+    // Populate the segments array.
+
+    prefix = "\"segments\":[";
+    start = cursor;
+    for (i = 0; i < LayoutSegmentsCount; ++i) {
+        struct TrackSegment *segment = LayoutSegments + i;
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s{\"id\":\"%s\",\"model\":\"%s\","
+                                "\"line\":\"%s\",\"start\":%d",
+                            prefix,
+                            segment->id, LayoutModels[segment->model].id,
+                            segment->line, segment->start);
+        if (cursor >= size) goto overflow;
+        if (segment->previous >= 0) {
+            cursor += snprintf (buffer+cursor, size-cursor,
+                                ",\"previous\":\"%s\"",
+                                LayoutSegments[segment->previous].id);
+            if (cursor >= size) goto overflow;
+        }
+        if (segment->next >= 0) {
+            cursor += snprintf (buffer+cursor, size-cursor,
+                                ",\"next\":\"%s\"",
+                                LayoutSegments[segment->next].id);
+            if (cursor >= size) goto overflow;
+        }
+        if (segment->branch >= 0) {
+            cursor += snprintf (buffer+cursor, size-cursor,
+                                ",\"branch\":\"%s\"",
+                                LayoutSegments[segment->branch].id);
+            if (cursor >= size) goto overflow;
+        }
+        if (segment->common >= 0) {
+            cursor += snprintf (buffer+cursor, size-cursor,
+                                ",\"common\":\"%s\"",
+                                LayoutSegments[segment->common].id);
+            if (cursor >= size) goto overflow;
+        }
+        cursor += snprintf (buffer+cursor, size-cursor, "}");
+        if (cursor >= size) goto overflow;
+        prefix = ",";
+    }
+    if (cursor > start) {
+        cursor += snprintf (buffer+cursor, size-cursor, "]");
+        if (cursor >= size) goto overflow;
+    }
+
+    // Populate the detectors array.
+
+    prefix = "\"detectors\":[";
+    start = cursor;
+    for (i = 0; i < LayoutDetectorsCount; ++i) {
+        struct TrackDetector *detector = LayoutDetectors + i;
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s{\"id\":\"%s\",\"line\":\"%s\","
+                                "\"low\":%d,\"high\":%d}",
+                            prefix,
+                            detector->id, detector->area.line,
+                            detector->area.low, detector->area.high);
+        if (cursor >= size) goto overflow;
+        prefix = ",";
+    }
+    if (cursor > start) {
+        cursor += snprintf (buffer+cursor, size-cursor, "]");
+        if (cursor >= size) goto overflow;
+    }
+    cursor += snprintf (buffer+cursor, size-cursor, "}");
+
+    return cursor;
+
+overflow:
+    return 0;
 }
 
 static int houserail_track_status_track (char *buffer, int size) {
