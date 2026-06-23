@@ -1,4 +1,4 @@
-# HouseTrain - a model train control service
+# HouseRail - a model train control service
 #
 # Copyright 2025, Pascal Martin
 #

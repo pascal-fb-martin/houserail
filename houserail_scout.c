@@ -22,12 +22,7 @@
  *
  * SYNOPSYS:
  *
- * This module handles searches based on lines and posts. The operations are:
- *
- * - searching for a specific segment matching a given location, or
- *
- * - searching for the closest segment or detector to a given location
- *   in a given direction of travel.
+ * This module handles searches a segment based on line name and post.
  *
  * The implementation uses dichotomy through a list sorted by line and post.
  *
@@ -42,15 +37,6 @@
  *
  *    Clear up the whole index and free all its resources.
  *
- * int houserail_scout_nearest (const struct RangeIndex *index,
- *                              const char *line, int post, int direction);
- *
- *    Search the limit that is the nearest to the given location in the given
- *    direction. Direction is either increasing (1) or decreasing (-1).
- *
- *    This function returns the index that was provided when the element
- *    was added (see houserail_scout_add() above).
- *
  * int houserail_scout_inside (const struct RangeIndex *index,
  *                             const char *line, int post);
  *
@@ -60,9 +46,6 @@
  *    was added (see houserail_scout_add() above).
  *
  * LIMITATIONS:
- *
- *    This implementation only supports up to 32767 items referenced.
- *    It was estimated that no layout would have that many segments.
  *
  *    This implementation does not support overlapping ranges (no strict
  *    order is possible).
@@ -137,72 +120,6 @@ void houserail_scout_erase (struct RangeIndex *index) {
     }
     index->count = 0;
     index->size = 0;
-}
-
-static int houserail_search_dichotomy_up (const struct RangeIndex *index,
-                                          const char *line, int post) {
-
-    int bottom = 0;
-    int top = index->count - 1;
-
-    // Eliminate indirections
-    const struct RangeElement *elements = index->elements;
-    const struct RangeElement *element;
-
-    while (bottom < top - 1) {
-        int mid = bottom + (top - bottom) / 2;
-        element = elements + mid;
-
-        int lineorder = strcmp (element->line, line);
-        int order = lineorder ? lineorder : (element->low - post);
-
-        if (order == 0) return element->value; // Exact location was found.
-
-        if (order > 0) top = mid;
-        else           bottom = mid;
-    }
-    element = elements + top;
-    int lineorder = strcmp (element->line, line);
-    if ((!lineorder) && (post < element->low)) return element->value;
-
-    return -1; // Could not find something that matches.
-}
-
-static int houserail_search_dichotomy_down (const struct RangeIndex *index,
-                                            const char *line, int post) {
-
-    int bottom = 0;
-    int top = index->count - 1;
-
-    // Eliminate indirections
-    const struct RangeElement *elements = index->elements;
-    const struct RangeElement *element;
-
-    while (bottom < top - 1) {
-        int mid = bottom + (top - bottom) / 2;
-        element = elements + mid;
-
-        int lineorder = strcmp (element->line, line);
-        int order = lineorder ? lineorder : (element->high - post);
-
-        if (order == 0) return element->value; // Exact location was found.
-
-        if (order > 0) top = mid;    // The mid point is higher.
-        else           bottom = mid; // The mid point is lower.
-    }
-    element = elements + bottom;
-    int lineorder = strcmp (element->line, line);
-    if ((!lineorder) && (post > element->high)) return element->value;
-
-    return -1; // Could not find something that matches.
-}
-                                
-int houserail_scout_nearest (const struct RangeIndex *index,
-                             const char *line, int post, int direction) {
-
-    if (direction >= 0)
-        return houserail_search_dichotomy_up (index, line, post);
-    return houserail_search_dichotomy_down (index, line, post);
 }
 
 int houserail_scout_inside (const struct RangeIndex *index,

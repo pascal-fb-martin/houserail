@@ -45,6 +45,3 @@ void houserail_scout_erase (struct RangeIndex *index);
 int houserail_scout_inside (const struct RangeIndex *index,
                             const char *line, int post);
 
-int houserail_scout_nearest (const struct RangeIndex *index,
-                             const char *line, int post, int direction);
-
