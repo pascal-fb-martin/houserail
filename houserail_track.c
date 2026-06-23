@@ -74,6 +74,12 @@
  * The functions below are used to move a train along the track. The path
  * followed depend on the position of the switches, like a train would.
  *
+ * int houserail_track_vicinity (struct TrackLocation *point,
+ *                               const char *id, int direction);
+ *
+ *     Retrieve a location near the specified detector, or within
+ *     the specified segment. Return 0 on failure, 1 otherwise.
+ *
  * int houserail_track_walk (struct TrackRange *path, int size,
  *                           const struct TrackLocation *limit1,
  *                           const struct TrackLocation *limit2,
@@ -116,6 +122,11 @@
  *     Update a signal state. This is designed to be used as a listener
  *     or through a web request. Return 0 on success, an error message on
  *     failure.
+ *
+ * LIMITATIONS:
+ *
+ * This design is limited to 256 segments for now. To remove this restriction,
+ * change echttp_hash.[hc] to allow the caller to set the size of the hash.
  */
 
 #include <time.h>
@@ -128,6 +139,7 @@
 
 #include <houseconfig.h>
 
+#include "houserail_scout.h"
 #include "houserail_track.h"
 
 #define DEBUG if (echttp_isdebug()) printf
@@ -194,6 +206,14 @@ static int                  LayoutSegmentsCount = 0;
 static struct TrackDetector *LayoutDetectors = 0;
 static int                   LayoutDetectorsCount = 0;
 
+static echttp_hash       LayoutSegmentsHash;
+static int              *LayoutSegmentsMap = 0;
+static struct RangeIndex LayoutSegmentsIndex;
+
+static echttp_hash LayoutDetectorsHash;
+static int        *LayoutDetectorsMap = 0;
+
+
 static int houserail_track_search_model (const char *id) {
 
     if (!id) return -1;
@@ -210,9 +230,17 @@ static int houserail_track_search_model (const char *id) {
 static int houserail_track_search_by_id (const char *id) {
 
     if (!id) return -1;
+
+    int i = echttp_hash_find (&LayoutSegmentsHash, id);
+    if ((i > 0) && (i <= LayoutSegmentsCount)) {
+        return LayoutSegmentsMap[i];
+    }
+
+    // For now: if not in the hash, fallback to linear search.
+    // FIXME: improve echttp_hash to support variable size.
+
     int signature = echttp_hash_signature (id);
 
-    int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         if (LayoutSegments[i].signature != signature) continue;
         if (!strcmp (LayoutSegments[i].id, id)) return i;
@@ -222,25 +250,23 @@ static int houserail_track_search_by_id (const char *id) {
 
 static int houserail_track_search_by_location (const char *line, int post) {
 
-    if (!line) return -1;
-
-    int i;
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
-        struct TrackSegment *segment = LayoutSegments + i;
-        if (post < segment->low) continue;
-        if (post >= segment->high) continue;
-        if (strcasecmp (line, segment->line)) continue;
-        return i;
-    }
-    return -1;
+    return houserail_scout_inside (&LayoutSegmentsIndex, line, post);
 }
 
 static struct TrackDetector *houserail_track_search_detector (const char *id) {
 
     if (!id) return 0;
+
+    int i = echttp_hash_find (&LayoutDetectorsHash, id);
+    if ((i > 0) && (i <= LayoutDetectorsCount)) {
+        return LayoutDetectors + LayoutDetectorsMap[i];
+    }
+
+    // For now: if not in the hash, fallback to linear search.
+    // FIXME: improve echttp_hash to support variable size.
+
     int signature = echttp_hash_signature (id);
 
-    int i;
     for (i = 0; i < LayoutDetectorsCount; ++i) {
         struct TrackDetector *detector = LayoutDetectors + i;
         if (detector->signature != signature) continue;
@@ -252,6 +278,7 @@ static struct TrackDetector *houserail_track_search_detector (const char *id) {
 
 const char *houserail_track_initialize (int argc, const char **argv) {
 
+    houserail_scout_initialize (&LayoutSegmentsIndex, 0);
     return 0;
 }
 
@@ -306,6 +333,19 @@ const char *houserail_track_reload (void) {
        LayoutSegments = 0;
        LayoutSegmentsCount = 0;
     }
+    if (LayoutSegmentsMap) {
+       free (LayoutSegmentsMap);
+       LayoutSegmentsMap = 0;
+    }
+    if (LayoutDetectors) {
+        free (LayoutDetectors);
+        LayoutDetectors= 0;
+    }
+    if (LayoutDetectorsMap) {
+        free (LayoutDetectorsMap);
+        LayoutDetectorsMap = 0;
+    }
+    houserail_scout_erase (&LayoutSegmentsIndex);
 
     // Calculate the size needed for each array.
 
@@ -361,6 +401,9 @@ const char *houserail_track_reload (void) {
         const char *branch;
     } *temp = calloc (LayoutSegmentsCount, sizeof(struct Linkage));
 
+    echttp_hash_reset (&LayoutSegmentsHash, 0);
+    LayoutSegmentsMap = calloc (LayoutSegmentsCount+1, sizeof(int));
+
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         int element = list[i];
         struct TrackSegment *segment = LayoutSegments + i;
@@ -380,9 +423,15 @@ const char *houserail_track_reload (void) {
         temp[i].next = houseconfig_string (element, ".next");
         temp[i].common = houseconfig_string (element, ".common");
         temp[i].branch = houseconfig_string (element, ".branch");
+
+        int index = echttp_hash_insert (&LayoutSegmentsHash, segment->id);
+        if ((index > 0) && (index <= LayoutSegmentsCount))
+            LayoutSegmentsMap[index] = i;
     }
 
     // Resolve the segment linkages
+
+    int switchcount = 0;
 
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         struct TrackSegment *segment = LayoutSegments + i;
@@ -392,6 +441,7 @@ const char *houserail_track_reload (void) {
         if (segment->branch >= 0) {
             segment->common = houserail_track_search_by_id (temp[i].common);
             segment->needle = (segment->common == segment->next)? segment->previous : segment->next;
+            switchcount += 1;
         } else {
             segment->common = segment->needle = -1;
         }
@@ -437,8 +487,27 @@ const char *houserail_track_reload (void) {
         }
     }
 
+    // Create the segment index to accelerate segment retrieval by location.
+    //
+    houserail_scout_initialize (&LayoutSegmentsIndex,
+                                LayoutSegmentsCount + switchcount);
+    for (i = 0; i < LayoutSegmentsCount; ++i) {
+        struct TrackSegment *segment = LayoutSegments + i;
+        houserail_scout_add (&LayoutSegmentsIndex,
+                             i, segment->line, segment->low, segment->high);
+        if (segment->branch >= 0) {
+            const char *line = LayoutSegments[segment->branch].line;
+            houserail_scout_add (&LayoutSegmentsIndex,
+                                 i, line, segment->low, segment->high);
+        }
+    }
+    houserail_scout_finalize (&LayoutSegmentsIndex);
+
     // Populate the detectors array and sort by line and (low) post.
 
+    echttp_hash_reset (&LayoutDetectorsHash, 0);
+
+    LayoutDetectorsMap = calloc (LayoutDetectorsCount+1, sizeof(int));
     LayoutDetectors = calloc (LayoutDetectorsCount, sizeof(struct TrackDetector));
     houseconfig_enumerate (detectors, list, LayoutDetectorsCount);
 
@@ -463,6 +532,10 @@ const char *houserail_track_reload (void) {
 
         detector->live.occupied = 0;
         detector->live.timestamp = 0;
+
+        int index = echttp_hash_insert (&LayoutDetectorsHash, detector->id);
+        if ((index > 0) && (index <= LayoutDetectorsCount))
+            LayoutDetectorsMap[index] = i;
     }
 
     qsort (LayoutDetectors, LayoutDetectorsCount, sizeof(struct TrackDetector),
@@ -663,6 +736,34 @@ static int houserail_track_locate (const struct TrackLocation *point) {
         return houserail_track_search_by_id (point->segment);
 
     return houserail_track_search_by_location (point->line, point->post);
+}
+
+int houserail_track_vicinity (struct TrackLocation *point,
+                              const char *id, int direction) {
+
+    int index = houserail_track_search_by_id (id);
+    if (index > 0) {
+        struct TrackSegment *segment = LayoutSegments + index;
+        point->line = segment->line;
+        point->segment = segment->id;
+        point->post = (segment->high + segment->low) / 2;
+        return 1;
+    }
+    struct TrackDetector *detector = houserail_track_search_detector (id);
+    if (detector) {
+        point->line = detector->area.line;
+        point->segment = 0;
+        int low = detector->area.low;
+        int high = detector->area.high;
+        if (low > high) {
+           low = high;
+           high = detector->area.low;
+        }
+        // Just take a point close by and outside the detection area.
+        point->post = (direction >= 0)? low - 1 : high + 1;
+        return 1;
+    }
+    return 0;
 }
 
 int houserail_track_civil (const struct TrackLocation *point, int direction) {

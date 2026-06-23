@@ -34,6 +34,10 @@ struct TrackPath {
 int houserail_path_covers (const struct TrackPath *path,
                            const struct TrackRange *area);
 
+int houserail_path_span (struct TrackPath *path,
+                         const struct TrackLocation *limit1,
+                         int direction, int length);
+
 int houserail_path_set (struct TrackPath *path,
                         const struct TrackLocation *limit1,
                         const struct TrackLocation *limit2, int direction);

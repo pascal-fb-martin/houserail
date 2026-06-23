@@ -37,6 +37,13 @@
  *
  *    Return 1 if the area intersects with the specified path.
  *
+ * int houserail_path_span (struct TrackPath *path,
+ *                          const struct TrackLocation *limit1,
+ *                          int direction, int length);
+ *
+ *    Set a new path that spans the specified length from the specified
+ *    limit. Any existing section in the path is erased.
+ *
  * int houserail_path_set (struct TrackPath *path,
  *                         const struct TrackLocation *limit1,
  *                         const struct TrackLocation *limit2,
@@ -170,6 +177,25 @@ int houserail_path_covers (const struct TrackPath *path,
     for (i = 0; i < path->count; ++i) {
         if (houserail_path_within (sections+i, &point1)) return 1;
         if (houserail_path_within (sections+i, &point2)) return 1;
+    }
+    return 0;
+}
+
+int houserail_path_span (struct TrackPath *path,
+                         const struct TrackLocation *limit1,
+                         int direction, int length) {
+
+    if (path->count > 0) houserail_path_erase (path);
+
+    if (path->size <= 0) {
+        path->size = 16; // FIXME: arbitrary.
+        path->sections = calloc (path->size, sizeof(struct TrackRange));
+    }
+    int count = houserail_track_walk (path->sections, path->size,
+                                      limit1, 0, direction, length);
+    if (count > 0) {
+        path->count = count;
+        return 1;
     }
     return 0;
 }

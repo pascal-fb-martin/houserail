@@ -34,6 +34,8 @@ const char *houserail_train_stop (const char *id, int emergency);
 const char *houserail_train_enter (const char *id,
                                    const char *facing, int orientation);
 const char *houserail_train_park (const char *id);
+const char *houserail_train_consist (const char *id,
+                                     const char *cars[], int count);
 const char *houserail_train_delete (const char *id);
 
 const char *houserail_train_reload (void);

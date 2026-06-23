@@ -22,6 +22,9 @@
  *
  * SYNOPSYS:
  *
+ * This module manages vehicles and train. A car is a vehicle that is part
+ * of a train consist.
+ *
  * const char *houserail_train_initialize (int argc, const char **argv);
  *
  *     Initialize this module.
@@ -46,6 +49,13 @@
  *
  *     Park a train, i.e. remove it from the layout but keep it as a consist
  *     in the database.
+ *
+ * const char *houserail_train_consist (const char *id,
+ *                                      const char *cars[], int count);
+ *
+ *     Set (or change) a train consist. This creates a new train if none
+ *     existed; the new train is made parked. if the train exists, it must
+ *     be parked.
  *
  * const char *houserail_train_delete (const char *id);
  *
@@ -81,6 +91,7 @@
 #include <string.h>
 
 #include <echttp.h>
+#include <echttp_libc.h>
 #include <echttp_hash.h>
 
 #include "houserail_field.h"
@@ -100,7 +111,7 @@ static int TrainRestrictedSpeed = 3; // FIXME: make it configurable.
 
 #define TRAINMAXDISTANCE 4 // FIXME: make it configurable?
 
-struct CarModel {
+struct VehicleModel {
     const char *id;
     unsigned int signature; // Seach accelerator.
 
@@ -110,27 +121,20 @@ struct CarModel {
 };
 
 // This holds the permanent properties of a owned vehicle
-struct CarVehicle {
+struct Vehicle {
     char id[10];
     unsigned int signature; // Seach accelerator.
 
-    char model[10];
+    int index;   // Self reference.
+    int model;   // Reference the array of vehicle models
 
     // The following is learned from the data reported by HouseDCC.
     int hasdcc;
 
     int consist; // -1 if the vehicle is not listed in a train consist.
-};
 
-// This holds the properties of a vehicle as part of a train consist.
-struct TrainCar {
-    char id[10];
-    unsigned int signature; // Seach accelerator.
-
-    int vehicle; // Reference the array of vehicles.
-
+    // This holds the properties of a vehicle as part of a train consist.
     int head;
-    int tail;
     struct TrackLocation spots[TRAINMAXSPOT]; // From head to tail.
     int count;
 };
@@ -143,25 +147,28 @@ struct TrainConsist {
     int parked;         // Not currently on this layout.
     struct TrackLocation head;
     struct TrackLocation tail;
-    struct TrainCar      cars[TRAINMAXCARS]; // From head to tail.
-    int                  count;
-    long long updated;
+
+    int cars[TRAINMAXCARS]; // From head to tail.
+    int count;
 
     struct TrackPath     path; // The sections of track the train is on.
 
+    long long updated;
     int orientation;    // -1: decreasing, 1: increasing, 0: unknown.
+    int length;         // Calculated from the consist.
     int speed;          // Reported by HouseDCC.
     int active;         // 1 if reported by HouseDCC.
 };
 
-static struct CarModel *LayoutCarModels = 0;
-static int              LayoutCarModelsCount = 0;
+static struct VehicleModel *LayoutVehicleModels = 0;
+static int                  LayoutVehicleModelsCount = 0;
 
-static struct CarVehicle *LayoutVehicles = 0;
-static int                LayoutVehiclesCount = 0;
+static struct Vehicle *LayoutVehicles = 0;
+static int             LayoutVehiclesCount = 0;
 
 static struct TrainConsist *LayoutTrains = 0;
 static int                  LayoutTrainsCount = 0;
+static int                  LayoutTrainsSize = 0;
 
 static struct TrainConsist *houserail_train_search (const char *id) {
 
@@ -177,28 +184,37 @@ static struct TrainConsist *houserail_train_search (const char *id) {
     return 0;
 }
 
-static void houserail_train_fleet (const char *id, int index) {
-
-    int speed = houserail_field_fleet_speed (index);
-    DEBUG (__FILE__ ": received fleet update for %s, speed = %d\n", id, speed);
+static struct Vehicle *houserail_train_search_car (const char *id) {
 
     unsigned int signature = echttp_hash_signature (id);
     int i;
     for (i = LayoutVehiclesCount - 1; i >= 0; --i) {
         if (LayoutVehicles[i].signature != signature) continue; // Fast filter
 
-        struct CarVehicle *vehicle = LayoutVehicles + i;
+        struct Vehicle *vehicle = LayoutVehicles + i;
         if (strcmp (id, vehicle->id)) continue;
 
+        return vehicle; // Found it.
+    }
+    return 0;
+}
+
+static void houserail_train_fleet (const char *id, int index) {
+
+    int speed = houserail_field_fleet_speed (index);
+    DEBUG (__FILE__ ": received fleet update for %s, speed = %d\n", id, speed);
+
+    struct Vehicle *vehicle = houserail_train_search_car (id);
+    if (vehicle) {
         vehicle->hasdcc = 1; // Now we can control it.
         if (vehicle->consist >= 0) {
             struct TrainConsist *train = LayoutTrains + vehicle->consist;
             train->speed = speed;
             train->active = 1;
         }
-        break;
+    } else {
+        DEBUG (__FILE__ ": %s not found\n", id);
     }
-    if (i < 0) DEBUG (__FILE__ ": %s not found\n", id);
 
     if (TrainNextFleetListener) TrainNextFleetListener (id, index);
 }
@@ -221,10 +237,11 @@ static int houserail_train_maxspeed (struct TrainConsist *train) {
 
     int i;
     for (i = 0; i < train->count; ++i) {
-       int count = train->cars[i].count;
+       struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
+       int count = vehicle->count;
        int j;
        for (j = 0; j < count; ++j) {
-           speed2 = houserail_track_civil (&(train->cars[i].spots[j]), 0);
+           speed2 = houserail_track_civil (&(vehicle->spots[j]), 0);
            if (speed2 < speed) speed = speed2;
        }
     }
@@ -265,10 +282,10 @@ static int houserail_train_distance (struct TrainConsist *train,
     // spot of the consist.
     struct TrackLocation *lead;
     if (train->speed >= 0) {
-        lead = &(train->cars[0].spots[0]); // First spot.
+        lead = &(LayoutVehicles[train->cars[0]].spots[0]); // First spot.
     } else {
-        struct TrainCar *car = train->cars + train->count - 1;
-        lead = &(car->spots[car->count-1]); // Last spot.
+        struct Vehicle *vehicle = LayoutVehicles + train->cars[train->count];
+        lead = &(vehicle->spots[vehicle->count-1]); // Last spot.
     }
 
     return houserail_train_spotdistance
@@ -291,10 +308,11 @@ static void houserail_train_pull (struct TrainConsist *train,
     houserail_path_move (&(train->path), &(train->head), distance, direction);
     int i;
     for (i = train->count - 1; i >= 0; --i) {
-        struct TrainCar *car = train->cars + i;
+        struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
         int j;
-        for (j = car->count - 1; j >= 0; --j) {
-            houserail_path_move (&(train->path), car->spots+j, distance, direction);
+        for (j = vehicle->count - 1; j >= 0; --j) {
+            houserail_path_move (&(train->path),
+                                 vehicle->spots+j, distance, direction);
         }
     }
     houserail_path_move (&(train->path), &(train->tail), distance, direction);
@@ -322,10 +340,11 @@ static void houserail_train_pull_occupied (struct TrainConsist *train,
     int i;
     for (i = 0; i < train->count; ++i) {
         int j;
-        struct TrainCar *car = train->cars + i;
-        for (j = car->count - 1; j >= 0; --j) {
+        struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
+        for (j = vehicle->count - 1; j >= 0; --j) {
             int distance;
-            distance = houserail_track_distance (car->spots+j, &point, direction, min);
+            distance = houserail_track_distance (vehicle->spots+j,
+                                                 &point, direction, min);
             if ((distance > 0) && (distance < min)) {
                 min = distance;
                 found = 1;
@@ -347,40 +366,59 @@ static void houserail_train_pull_vacant (struct TrainConsist *train,
     int direction = houserail_train_direction (train);
 
     struct {
-        int car;
+        int vehicle;
         int spot;
     } first, last;
-    first.spot = -1;
+    last.spot = -1;
 
     int i;
-    for (i = 0; i < train->count; ++i) {
+    for (i = train->count - 1; i >= 0; --i) {
+        struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
         int j;
-        struct TrainCar *car = train->cars + i;
-        for (j = 0; j < car->count; ++j) {
-            int post = car->spots[j].post;
+        for (j = vehicle->count - 1; j >= 0; --j) {
+            int post = vehicle->spots[j].post;
             if ((post < area->low) || (post > area->high)) continue;
-            if (strcmp (area->segment, car->spots[j].segment)) continue;
-            if (first.spot < 0) {
-                first.car = i;
-                first.spot = j;
-            }
-            last.car = i;
-            last.spot = j;
+            if (strcmp (area->line, vehicle->spots[j].line)) continue;
+            first.vehicle = train->cars[i];
+            first.spot = j;
+            if (last.spot < 0) last = first;
         }
     }
-    if (first.spot < 0) return; // No more spot over the detector.
+    if (last.spot < 0) return; // No more spot over the detector.
 
     if (direction < 0) last = first;
 
     // Move the train so that the last spot exits the detector's range.
     int distance = houserail_train_spotdistance
-                       (&(train->cars[last.car].spots[last.spot]),
+                       (&(LayoutVehicles[last.vehicle].spots[last.spot]),
                         area, TRAINMAXDISTANCE, direction, 0);
     if (distance < 0) return;
     houserail_train_pull (train, distance, timestamp);
 
     // Iterate using tail recursion.
     houserail_train_pull_vacant (train, area, timestamp);
+}
+
+static void houserail_train_recalculate_spots (struct TrainConsist *train,
+                                               int orientation) {
+
+    // Calculate the track location of each car's spots backward.
+    // (Since these locations are between the head and tail, no need
+    // to check if the move succeeded here.)
+
+    int i;
+    for (i = 0; i < train->count; ++i) {
+        struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
+        struct VehicleModel *model = LayoutVehicleModels + vehicle->model;
+        vehicle->count = model->count;
+        int offset = vehicle->head;
+        int j;
+        for (j = 0; j < vehicle->count; ++j) {
+            houserail_path_move (&(train->path),
+                                 vehicle->spots+j,
+                                 offset+model->spots[j], orientation);
+        }
+    }
 }
 
 void houserail_train_track (const struct TrackRange *area,
@@ -458,8 +496,11 @@ void houserail_train_track (const struct TrackRange *area,
         if (train->orientation < 0) {
             // Reverse the train orientation. The default consist assumed
             // that the orientation was going to be positive.
+            struct TrackLocation temp = train->head;
+            train->head = train->tail;
+            train->tail = temp;
+            houserail_train_recalculate_spots (train, 1);
             houserail_path_reverse (&(train->path));
-            // TBD: reverse head and tail, detectors.
         }
     }
     houserail_train_pull (train, min, timestamp);
@@ -511,8 +552,74 @@ const char *houserail_train_enter (const char *id,
 
     struct TrainConsist *train = houserail_train_search (id);
     if (!train) return "unknown train";
+    if (!train->count) return "this train has no consist";
+    if (!train->parked) return "this train was not parked";
 
-    // TBD: create new train or activate an existing train
+    if (! houserail_track_vicinity (&(train->head), facing, orientation))
+        return "unknown track location";
+
+    train->path.size = train->path.count = 0;
+    train->path.sections = 0;
+
+    // Calculate the train's head and tail location, and its (reverse) path.
+
+    int reverse = (orientation >= 0)?-1:1;
+    if (! houserail_path_span (&(train->path),
+                               &(train->head), reverse, train->length))
+        return "invalid location (train too long?)";
+    houserail_path_move (&(train->path),
+                         &(train->tail), train->length, reverse);
+
+    // Calculate the track location of each car's spots backward.
+    // (Since these locations are between the head and tail, no need
+    // to check if the move succeeded here.)
+    houserail_train_recalculate_spots (train, reverse);
+
+    houserail_path_reverse (&(train->path));
+    train->orientation = orientation;
+    train->parked = 0;
+    train->speed = 0;
+    return 0;
+}
+
+const char *houserail_train_consist (const char *id,
+                                     const char *cars[], int count) {
+
+    struct TrainConsist *train = houserail_train_search (id);
+    if (train && (!train->parked)) return "Please park this train first";
+
+    if (LayoutTrainsCount >= LayoutTrainsSize) {
+        LayoutTrainsSize += 16;
+        LayoutTrains = (struct TrainConsist *)
+            realloc (LayoutTrains,
+                     sizeof(struct TrainConsist) * LayoutTrainsSize);
+    }
+
+    int v;
+    for (v = 0; v < count; ++v) {
+        struct Vehicle *vehicle = houserail_train_search_car (cars[v]);
+        if (!vehicle) return "unknown vehicle";
+        if (vehicle->consist >= 0) return "conflict with another consist";
+    }
+    int i = LayoutTrainsCount++;
+    train = LayoutTrains + i;
+
+    strtcpy (train->id, id, sizeof(train->id));
+    train->signature = echttp_hash_signature (id);
+    train->parked = 1;
+
+    int length = 0;
+    for (v = 0; v < count; ++v) {
+        struct Vehicle *vehicle = houserail_train_search_car (cars[v]);
+        struct VehicleModel *model = LayoutVehicleModels + vehicle->model;
+        vehicle->consist = i;
+        vehicle->head = length;
+        length += model->length;
+    }
+    train->count = count;
+    train->length = length;
+    train->active = 0;
+
     return 0;
 }
 
@@ -521,19 +628,37 @@ const char *houserail_train_delete (const char *id) {
     struct TrainConsist *train = houserail_train_search (id);
     if (!train) return "unknown train";
 
-    // TBD: delete a train entry.
+    // The cars are not longer part of a consist.
+    int i;
+    for (i = train->count - 1; i >= 0; --i) {
+        struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
+        vehicle->consist = -1;
+    }
+
+    // Move the last train to the new empty train slot, unless the deleted
+    // train was the last one, and decrease the count.
+    struct TrainConsist *last = LayoutTrains + (--LayoutTrainsCount);
+    if (train != last) {
+        // Move the last train to the new empty slot.
+        int index = train - LayoutTrains;
+        *train = *last;
+        for (i = train->count - 1; i >= 0; --i) {
+            struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
+            vehicle->consist = index;
+        }
+    }
     return 0;
 }
 
 const char *houserail_train_reload (void) {
-   // TBD: reload the list of trains from the saved status, keep known locations.
-   LayoutCarModelsCount = 0;
-   LayoutCarModels = 0;
+   // TBD: reload the list of vehicles and trains from the saved status, keep known locations.
+   LayoutVehicleModelsCount = 0;
+   LayoutVehicleModels = 0;
    return "Not yet implemented";
 }
 
 int houserail_train_export (char *buffer, int size, const char *separator) {
-    return 0; // TBD: save train state in JSON.
+    return houserail_train_status (buffer, size); // For now, same content
 }
 
 int houserail_train_status (char *buffer, int size) {
@@ -571,8 +696,9 @@ int houserail_train_status (char *buffer, int size) {
         int empty = cursor;
         int j;
         for (j = 0; j < train->count; ++j) {
+            struct Vehicle *vehicle = LayoutVehicles + train->cars[j];
             cursor += snprintf (buffer+cursor, size-cursor,
-                                "%s\"%s\"", prefix2, train->cars[j].id);
+                                "%s\"%s\"", prefix2, vehicle->id);
             prefix2 = ",";
         }
         if (cursor > empty)
