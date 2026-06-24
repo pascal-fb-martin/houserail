@@ -21,8 +21,6 @@
  * houserail_path.h - A module to create, merge or adjust track paths.
  */
 
-#include "houserail_track.h"
-
 struct TrackPath {
    int count;
    int size;

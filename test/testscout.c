@@ -26,34 +26,13 @@
  *
  * testscout
  */
-#include <unistd.h>
-
-#include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "echttp.h"
 
 #include "../houserail_scout.h"
 
-static int Errors = 0;
-
-static void assert (int passed, const char *label) {
-    if (passed) {
-        printf ("== %s: passed\n", label);
-    } else {
-        printf ("** %s: failed\n", label);
-        Errors += 1;
-    }
-}
-
-static int summary (const char *label) {
-    int passed = (Errors == 0);
-    if (passed) printf ("== %s: passed\n", label);
-    else        printf ("** %s: %d failures\n", label, Errors);
-    return passed;
-}
+#include "testlib.h"
 
 int main (int argc, const char **argv) {
 

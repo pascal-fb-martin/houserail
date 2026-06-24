@@ -87,7 +87,8 @@
  *
  *     This is the main function to walk along the track starting at limit1 in
  *     the specified direction. The logic follows the state of the switches,
- *     as a train would.
+ *     as a train would. Return 1 on success, or 0 if the path could not be
+ *     retrieved.
  *
  *     Three modes are supported here:
  *     Limit based:

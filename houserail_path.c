@@ -238,9 +238,16 @@ int houserail_path_lengthen (struct TrackPath *path,
     start.segment = last->segment;
     start.post = houserail_path_front (last, direction);
 
-    int count = houserail_track_walk (last, path->size - path->count,
-                                       &start, 0, distance, direction);
+    int count = houserail_track_walk (last+1, path->size - path->count,
+                                       &start, 0, direction, distance);
     if (count > 0) {
+        if (!strcmp (last->line, last[1].line) && (last->high == last[1].low)) {
+            // Merge these two segments that are in continuity.
+            last->high = last[1].high;
+            count -= 1;
+            int i;
+            for (i = 1 ; i <= count; ++i) last[i] = last[i+1];
+        }
         path->count += count;
         return 1;
     }
