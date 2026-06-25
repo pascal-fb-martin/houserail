@@ -70,6 +70,11 @@
  *
  *    Shorten an existing path so that it starts at the provided point.
  *
+ * int houserail_path_truncate (struct TrackPath *path,
+                                const struct TrackLocation *point, int direction);
+ *
+ *    Shorten an existing path so that it ends at the provided point.
+ *
  * int houserail_path_distance (const struct TrackPath *path,
  *                              const struct TrackLocation *point1,
  *                              const struct TrackLocation *point2,
@@ -227,6 +232,20 @@ int houserail_path_set (struct TrackPath *path,
     return 0;
 }
 
+static void houserail_path_merge (struct TrackPath *path, int added) {
+
+    struct TrackRange *last = path->sections + path->count - 1;
+
+    if (!strcmp (last->line, last[1].line) && (last->high == last[1].low)) {
+        // Merge these two segments that are in continuity.
+        last->high = last[1].high;
+        added -= 1;
+        int i;
+        for (i = 1 ; i <= added; ++i) last[i] = last[i+1];
+    }
+    path->count += added;
+}
+
 int houserail_path_lengthen (struct TrackPath *path,
                              int distance, int direction) {
 
@@ -241,14 +260,7 @@ int houserail_path_lengthen (struct TrackPath *path,
     int count = houserail_track_walk (last+1, path->size - path->count,
                                        &start, 0, direction, distance);
     if (count > 0) {
-        if (!strcmp (last->line, last[1].line) && (last->high == last[1].low)) {
-            // Merge these two segments that are in continuity.
-            last->high = last[1].high;
-            count -= 1;
-            int i;
-            for (i = 1 ; i <= count; ++i) last[i] = last[i+1];
-        }
-        path->count += count;
+        houserail_path_merge (path, count);
         return 1;
     }
     return 0;
@@ -282,7 +294,7 @@ int houserail_path_extend (struct TrackPath *path,
     int count = houserail_track_walk (last+1, path->size - path->count,
                                       &start, point, direction, 0);
     if (count > 0) {
-        path->count += count;
+        houserail_path_merge (path, count);
         return 1;
     }
     return 0;
@@ -388,8 +400,17 @@ void houserail_path_reverse (struct TrackPath *path) {
     int end = path->count - 1;
     for (i = 0; i < loop; ++i) {
         temp = sections[i];
-        sections[i] = sections[end-i];
-        sections[end-i] = temp;
+        sections[i].line = sections[end-i].line;
+        sections[i].low = sections[end-i].high;
+        sections[i].high = sections[end-i].low;
+        sections[end-i].line = temp.line;
+        sections[end-i].low = temp.high;
+        sections[end-i].high = temp.low;
+    }
+    if (path->count & 1) {
+        int temp = sections[loop].low;
+        sections[loop].low = sections[loop].high;
+        sections[loop].high = temp;
     }
 }
 
