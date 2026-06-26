@@ -350,19 +350,22 @@ const char *houserail_track_reload (void) {
 
     // Calculate the size needed for each array.
 
-    int models = houseconfig_array (0, ".track.models");
+    int track = houseconfig_object (0, ".rail.track");
+    if (track < 0) return "No track topology found";
+
+    int models = houseconfig_array (track, ".models");
     if (models < 0) return "No track models found";
 
     LayoutModelsCount = houseconfig_array_length (models);
     if (LayoutModelsCount <= 0) return "Empty track model list";
 
-    int segments = houseconfig_array (0, ".track.segments");
+    int segments = houseconfig_array (track, ".segments");
     if (segments < 0) return "No track segments found";
 
     LayoutSegmentsCount = houseconfig_array_length (segments);
     if (LayoutSegmentsCount <= 0) return "Empty track segment list";
 
-    int detectors = houseconfig_array (0, ".track.detectors");
+    int detectors = houseconfig_array (track, ".detectors");
     if (detectors < 0) return "No track detectors found";
 
     LayoutDetectorsCount = houseconfig_array_length (detectors);

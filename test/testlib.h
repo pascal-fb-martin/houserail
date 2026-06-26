@@ -33,9 +33,8 @@ static void assert (int passed, const char *label) {
 }
 
 static int summary (const char *label) {
-    int passed = (Errors == 0);
-    if (passed) printf ("== %s: passed\n", label);
+    if (Errors == 0) printf ("== %s: passed\n", label);
     else        printf ("** %s: %d failures\n", label, Errors);
-    return passed;
+    return Errors;
 }
 
