@@ -549,6 +549,7 @@ int houserail_track_export (char *buffer, int size, const char *separator) {
 
     int cursor = snprintf (buffer, size, "%s\"track\":{", separator);
     if (cursor >= size) goto overflow;
+    int preamble = cursor;
 
     // Populate the models array.
 
@@ -572,7 +573,7 @@ int houserail_track_export (char *buffer, int size, const char *separator) {
 
     // Populate the segments array.
 
-    prefix = "\"segments\":[";
+    prefix = (cursor > preamble)?",\"segments\":[":"\"segments\":[";
     start = cursor;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         struct TrackSegment *segment = LayoutSegments + i;
@@ -618,7 +619,7 @@ int houserail_track_export (char *buffer, int size, const char *separator) {
 
     // Populate the detectors array.
 
-    prefix = "\"detectors\":[";
+    prefix = (cursor > preamble)?",\"detectors\":[":"\"detectors\":[";
     start = cursor;
     for (i = 0; i < LayoutDetectorsCount; ++i) {
         struct TrackDetector *detector = LayoutDetectors + i;

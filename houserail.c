@@ -304,6 +304,8 @@ int main (int argc, const char **argv) {
 
     error = houserail_field_initialize (housedepositor_group(), argc, argv);
     if (error) goto fatal;
+    error = houserail_track_initialize (argc, argv);
+    if (error) goto fatal;
     error = houserail_train_initialize (argc, argv);
     if (error) goto fatal;
 
