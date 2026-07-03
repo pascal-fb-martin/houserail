@@ -9,7 +9,7 @@
                  {"id":"curve","length":20,"reverse":0,"civil":30}
              ],
              "segments":[
-                 {"id":"main-1","model":"straight","line":"main","previous":"main-16","next":"main-2"},
+                 {"id":"main-1","model":"straight","line":"main","previous":"main-16","next":"main-2","start":0},
                  {"id":"main-2","model":"straight","line":"main","previous":"main-1","next":"main-3"},
                  {"id":"main-3","model":"straight","line":"main","previous":"main-2","next":"main-4"},
                  {"id":"main-4","model":"straight","line":"main","previous":"main-3","next":"main-5"},

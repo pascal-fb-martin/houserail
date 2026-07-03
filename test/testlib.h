@@ -23,13 +23,15 @@
 
 static int Errors = 0;
 
-static void assert (int passed, const char *label) {
+static int assert (int passed, const char *label) {
+
     if (passed) {
         printf ("== %s: passed\n", label);
     } else {
         printf ("** %s: failed\n", label);
         Errors += 1;
     }
+    return passed;
 }
 
 static int summary (const char *label) {
