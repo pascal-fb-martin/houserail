@@ -34,6 +34,10 @@ static int assert (int passed, const char *label) {
     return passed;
 }
 
+static void digest (int passed, const char *label) {
+    if (passed) printf ("== %s: passed\n", label);
+}
+
 static int summary (const char *label) {
     if (Errors == 0) printf ("== %s: passed\n", label);
     else        printf ("** %s: %d failures\n", label, Errors);

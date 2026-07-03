@@ -28,6 +28,7 @@
  */
 #include <time.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "echttp.h"
 #include "houseconfig.h"
@@ -110,6 +111,66 @@ int main (int argc, const char **argv) {
     assert (result <= 0, "houserail_track_civil() at invalid location _invalid_ post 330");
 
     // Test houserail_track_vicinity (struct TrackLocation *point, const char *id, int direction);
+
+    point.line = 0;
+    point.post = -1;
+    point.segment = 0;
+    result = houserail_track_vicinity (&point, "main-2", 1);
+    int passed =
+    assert (result == 1, "houserail_track_vicinity(main-2, forward) return status") &&
+    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(main-2, forward) return line") &&
+    assert (point.post == 20, "houserail_track_vicinity(main-2, forward) return post");
+    digest (passed, "houserail_track_vicinity(main-2, forward)");
+
+    point.line = 0;
+    point.post = -1;
+    point.segment = 0;
+    result = houserail_track_vicinity (&point, "main-2", 0);
+    passed =
+    assert (result == 1, "houserail_track_vicinity(main-2, still) return status") &&
+    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(main-2, still) return line") &&
+    assert (point.post == 30, "houserail_track_vicinity(main-2, still) return post");
+    digest (passed, "houserail_track_vicinity(main-2, still)");
+
+    point.line = 0;
+    point.post = -1;
+    point.segment = 0;
+    result = houserail_track_vicinity (&point, "main-2", -1);
+    passed =
+    assert (result == 1, "houserail_track_vicinity(main-2, backward) return status") &&
+    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(main-2, backward) return line") &&
+    assert (point.post == 40, "houserail_track_vicinity(main-2, backward) return post");
+    digest (passed, "houserail_track_vicinity(main-2, backward)");
+
+    point.line = 0;
+    point.post = -1;
+    point.segment = 0;
+    result = houserail_track_vicinity (&point, "reed-3", 1);
+    passed =
+    assert (result == 1, "houserail_track_vicinity(reed-3,forward) return status") &&
+    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(reed-3,forward) return line") &&
+    assert (point.post == 49, "houserail_track_vicinity(reed-3,forward) return post");
+    digest (passed, "houserail_track_vicinity(reed-3,forward)");
+
+    point.line = 0;
+    point.post = -1;
+    point.segment = 0;
+    result = houserail_track_vicinity (&point, "reed-3", 0);
+    passed =
+    assert (result == 1, "houserail_track_vicinity(reed-3, still) return status") &&
+    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(reed-3, still) return line") &&
+    assert (point.post == 50, "houserail_track_vicinity(reed-3, still) return status");
+    digest (passed, "houserail_track_vicinity(reed-3, still)");
+
+    point.line = 0;
+    point.post = -1;
+    point.segment = 0;
+    result = houserail_track_vicinity (&point, "reed-3", -1);
+    passed =
+    assert (result == 1, "houserail_track_vicinity(reed-3, backward) return status") &&
+    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(reed-3, backward) return line") &&
+    assert (point.post == 51, "houserail_track_vicinity(reed-3, backward) return status");
+    digest (passed, "houserail_track_vicinity(reed-3, backward)");
 
     // Test houserail_track_walk (struct TrackRange *path, int size,
     //                            const struct TrackLocation *limit1,

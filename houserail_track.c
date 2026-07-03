@@ -786,29 +786,42 @@ static int houserail_track_locate (const struct TrackLocation *point) {
 int houserail_track_vicinity (struct TrackLocation *point,
                               const char *id, int direction) {
 
+    int low = -1;
+    int high = -1;
+    point->line = 0;
+
     int index = houserail_track_search_by_id (id);
     if (index > 0) {
         struct TrackSegment *segment = LayoutSegments + index;
         point->line = segment->line;
         point->segment = segment->id;
-        point->post = (segment->high + segment->low) / 2;
-        return 1;
-    }
-    struct TrackDetector *detector = houserail_track_search_detector (id);
-    if (detector) {
-        point->line = detector->area.line;
-        point->segment = 0;
-        int low = detector->area.low;
-        int high = detector->area.high;
-        if (low > high) {
-           low = high;
-           high = detector->area.low;
+        low = segment->low;
+        high = segment->high;
+    } else {
+        struct TrackDetector *detector = houserail_track_search_detector (id);
+        if (detector) {
+           point->line = detector->area.line;
+           point->segment = LayoutSegments[detector->segment].id;
+           low = detector->area.low;
+           high = detector->area.high;
         }
-        // Just take a point close by and outside the detection area.
-        point->post = (direction >= 0)? low - 1 : high + 1;
-        return 1;
     }
-    return 0;
+    if (!point->line) return 0; // Not found.
+
+    if (! direction) {
+       // Not moving: choose a point in the middle.
+       point->post = (high + low) / 2;
+       return 1;
+    }
+
+    // Choose the limit according to the direction of travel.
+    if (low > high) {
+        int temp = low;
+        low = high;
+        high = temp;
+    }
+    point->post = (direction > 0)? low : high;
+    return 1;
 }
 
 int houserail_track_civil (const struct TrackLocation *point, int direction) {
