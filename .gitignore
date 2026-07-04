@@ -58,6 +58,7 @@ dkms.conf
 build
 donotcommit
 houserail
+railvalidate
 testscout
 testpath
 testtrack

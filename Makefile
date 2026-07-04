@@ -27,15 +27,14 @@ HCAT=Train
 
 # Application build. --------------------------------------------
 
-OBJS= houserail.o \
-      houserail_scout.o \
+OBJS= houserail_scout.o \
       houserail_field.o \
       houserail_track.o \
       houserail_path.o \
       houserail_train.o
 LIBOJS=
 
-all: houserail
+all: houserail railvalidate
 
 clean:
 	rm -rf build
@@ -46,8 +45,11 @@ rebuild: clean all
 %.o: %.c
 	gcc -c -Wall -g -O2 -o $@ $<
 
-houserail: $(OBJS)
-	gcc -g -O -o houserail $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+houserail: houserail.o $(OBJS)
+	gcc -g -O -o houserail houserail.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+
+railvalidate: houserail_validate.o $(OBJS)
+	gcc -g -O -o railvalidate houserail_validate.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 
 # Distribution agnostic file installation -----------------------
 
