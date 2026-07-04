@@ -54,8 +54,8 @@ int main (int argc, const char **argv) {
     houserail_track_initialize (argc, argv);
     const char *error = houseconfig_initialize ("testtrack", test_update, argc, argv);
     if (error) {
-        printf ("Config error: %s\n", error);
-        return 1;
+        printf ("** Config error: %s\n", error);
+        return Errors + 1;
     }
 
     // Test int houserail_track_civil (const struct TrackLocation *point, int direction);
@@ -224,7 +224,7 @@ int main (int argc, const char **argv) {
     assert (path[0].low == 30, "houserail_track_walk(main from 30 to 280, forward) start post") &&
     assert (path[0].high == 280, "houserail_track_walk(main from 30 to 280, forward) end post");
     digest (passed, "houserail_track_walk(main from 30 to 280, forward)");
-    if (!passed) printf ("path[0].low == %d, path[0].high == %d\n",
+    if (!passed) printf ("   path[0].low == %d, path[0].high == %d\n",
                          path[0].low, path[0].high);
 
     result = houserail_track_walk (path, 16, &limit2, &limit1, -1, 0);
@@ -234,7 +234,7 @@ int main (int argc, const char **argv) {
     assert (path[0].low == 280, "houserail_track_walk(main from 280 to 30, backward) start post") &&
     assert (path[0].high == 30, "houserail_track_walk(main from 280 to 30, backward) end post");
     digest (passed, "houserail_track_walk(main from 280 to 30, backward)");
-    if (!passed) printf ("path[0].low == %d, path[0].high == %d\n",
+    if (!passed) printf ("   path[0].low == %d, path[0].high == %d\n",
                          path[0].low, path[0].high);
 
     result = houserail_track_walk (path, 16, &limit1, &limit2, 1, 100);
@@ -244,7 +244,7 @@ int main (int argc, const char **argv) {
     assert (path[0].low == 30, "houserail_track_walk(main from 30 to 280 max 100, forward) start post") &&
     assert (path[0].high == 130, "houserail_track_walk(main from 30 to 280 max 100, forward) end post");
     digest (passed, "houserail_track_walk(main from 30 to 280 max 100, forward)");
-    if (!passed) printf ("path[0].low == %d, path[0].high == %d\n",
+    if (!passed) printf ("   path[0].low == %d, path[0].high == %d\n",
                          path[0].low, path[0].high);
 
     result = houserail_track_walk (path, 16, &limit2, &limit1, -1, 100);
@@ -254,7 +254,7 @@ int main (int argc, const char **argv) {
     assert (path[0].low == 280, "houserail_track_walk(main from 280 to 30 max 100, backward) start post") &&
     assert (path[0].high == 180, "houserail_track_walk(main from 280 to 30 max 100, backward) end post");
     digest (passed, "houserail_track_walk(main from 280 to 30 max 100, backward)");
-    if (!passed) printf ("path[0].low == %d, path[0].high == %d\n",
+    if (!passed) printf ("   path[0].low == %d, path[0].high == %d\n",
                          path[0].low, path[0].high);
 
     result = houserail_track_walk (path, 16, &limit1, 0, 1, 200);
@@ -264,7 +264,7 @@ int main (int argc, const char **argv) {
     assert (path[0].low == 30, "houserail_track_walk(main from 30 max 200, forward) start post") &&
     assert (path[0].high == 230, "houserail_track_walk(main from 30 max 200, forward) end post");
     digest (passed, "houserail_track_walk(main from 30 max 200, forward)");
-    if (!passed) printf ("path[0].low == %d, path[0].high == %d\n",
+    if (!passed) printf ("   path[0].low == %d, path[0].high == %d\n",
                          path[0].low, path[0].high);
 
     result = houserail_track_walk (path, 16, &limit2, 0, -1, 200);
@@ -274,7 +274,7 @@ int main (int argc, const char **argv) {
     assert (path[0].low == 280, "houserail_track_walk(main from 280 max 200, backward) start post") &&
     assert (path[0].high == 80, "houserail_track_walk(main from 280 max 200, backward) end post");
     digest (passed, "houserail_track_walk(main from 280 max 200, backward)");
-    if (!passed) printf ("path[0].low == %d, path[0].high == %d\n",
+    if (!passed) printf ("   path[0].low == %d, path[0].high == %d\n",
                          path[0].low, path[0].high);
 
     // These two specific tests walk over the loop junction, where the post
@@ -293,7 +293,7 @@ int main (int argc, const char **argv) {
     if (!passed) {
         int i;
         for (i = 0; i < result; ++i)
-            printf ("path[%d].low == %d, path[%d].high == %d\n",
+            printf ("   path[%d].low == %d, path[%d].high == %d\n",
                     i, path[i].low, i, path[i].high);
     }
 
@@ -310,7 +310,7 @@ int main (int argc, const char **argv) {
     if (!passed) {
         int i;
         for (i = 0; i < result; ++i)
-            printf ("path[%d].low == %d, path[%d].high == %d\n",
+            printf ("   path[%d].low == %d, path[%d].high == %d\n",
                     i, path[i].low, i, path[i].high);
     }
 
