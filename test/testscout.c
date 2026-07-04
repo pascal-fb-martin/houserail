@@ -49,14 +49,26 @@ int main (int argc, const char **argv) {
 
     houserail_scout_finalize (&testindex);
 
-    int result = houserail_scout_inside (&testindex, "mmm", 20);
+    int result = houserail_scout_inside (&testindex, "mmm", 0);
+    assert (result == 1, "Search segment for (mmm,0)");
+
+    result = houserail_scout_inside (&testindex, "mmm", 20);
     assert (result == 1, "Search segment for (mmm,20)");
+
+    result = houserail_scout_inside (&testindex, "mmm", 100);
+    assert ((result == 1) || (result == 2), "Search segment for (mmm,100)");
 
     result = houserail_scout_inside (&testindex, "mmm", 120);
     assert (result == 2, "Search segment for (mmm,120)");
 
+    result = houserail_scout_inside (&testindex, "mmm", 150);
+    assert ((result == 2) || (result == 3), "Search segment for (mmm,150)");
+
     result = houserail_scout_inside (&testindex, "mmm", 170);
     assert (result == 3, "Search segment for (mmm,170)");
+
+    result = houserail_scout_inside (&testindex, "mmm", 250);
+    assert (result == 3, "Search segment for (mmm,250)");
 
     result = houserail_scout_inside (&testindex, "aaa", 20);
     assert (result == 4, "Search segment for (aaa,20)");
@@ -69,6 +81,9 @@ int main (int argc, const char **argv) {
 
     result = houserail_scout_inside (&testindex, "zzz", 100);
     assert (result == 7, "Search segment for (zzz,100)");
+
+    result = houserail_scout_inside (&testindex, "zzz", 125);
+    assert (result == 7, "Search segment for (zzz,125)");
 
     houserail_scout_erase (&testindex);
 

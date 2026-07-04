@@ -49,6 +49,12 @@
  *
  *    This implementation does not support overlapping ranges (no strict
  *    order is possible).
+ *
+ * BUGS:
+ *
+ *    All segments overlap at their limits. The overlap length is 0,
+ *    but querying an exact limit will return one segment or the other,
+ *    depending on the search iterations.
  */
 
 #include <unistd.h>
@@ -150,14 +156,14 @@ int houserail_scout_inside (const struct RangeIndex *index,
 
     const struct RangeElement *element = elements + top;
     if (!strcmp (element->line, line)) {
-        if ((post > element->low) && (post < element->high))
+        if ((post >= element->low) && (post <= element->high))
             return element->value; // Within the top segment.
     }
     if (bottom == top) return -1;
 
     element = elements + bottom;
     if (!strcmp (element->line, line)) {
-        if ((post > element->low) && (post < element->high))
+        if ((post >= element->low) && (post <= element->high))
             return element->value; // Within the bottom segment.
     }
     return -1; // Could not find something that matches.
