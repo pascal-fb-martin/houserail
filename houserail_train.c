@@ -672,14 +672,15 @@ int houserail_train_status (char *buffer, int size) {
         cursor += snprintf (buffer+cursor, size-cursor,
                             "%s{\"id\":\"%s\"", prefix, train->id);
         if (!train->parked) {
-            const char *segment = houserail_track_segment (&(train->head));
+            int dir = houserail_train_direction (train);
+            const char *segment = houserail_track_segment (&(train->head), dir);
             train->head.segment = segment; // Cache the result.
             if (segment)
                cursor += snprintf (buffer+cursor, size-cursor,
                                    ",\"head\":[\"%s\",%d,\"%s\"]",
                                    train->head.line, train->head.post, segment);
 
-            segment = houserail_track_segment (&(train->tail));
+            segment = houserail_track_segment (&(train->tail), 0-dir);
             train->tail.segment = segment; // Cache the result.
             if (segment)
                cursor += snprintf (buffer+cursor, size-cursor,
@@ -721,7 +722,8 @@ int houserail_train_locate (char *buffer, int size) {
         struct TrainConsist *train = LayoutTrains + i;
 
         if (train->parked) continue;
-        const char *segment = houserail_track_segment (&(train->head));
+        int dir = houserail_train_direction (train);
+        const char *segment = houserail_track_segment (&(train->head), dir);
         train->head.segment = segment; // Cache the result.
         if (!segment) continue;
 

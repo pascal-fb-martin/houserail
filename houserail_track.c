@@ -112,9 +112,19 @@
  *     Return the distance a train would have to move by between the two
  *     track points provided.
  *
- * const char *houserail_track_segment (const struct TrackLocation *point);
+ * const char *houserail_track_segment (const struct TrackLocation *point,
+ *                                      int direction);
  *
  *     Return the name of the segment where the specified point is located.
+ *     The direction indicates a preferred orientation:
+ *     >0:  if the point is at the limit between two segments, prefer the
+ *         the segment where this point is the high limit, if any.
+ *     0:  no preference.
+ *     <0: if the point is at the limit between two segments, prefer the
+ *         the segment where this point is the low limit, if any.
+ *
+ *     The logic here is that one want to locate a train on the segment that
+ *     it covers, not the segment it is going to enter or has just vacated.
  *
  * const char *houserail_track_switch (const char *name, const char *state);
  *
@@ -499,14 +509,20 @@ const char *houserail_track_reload (void) {
            DEBUG ("Segment %s is a starting point for line %s\n", segment->id, segment->line);
            segment->low = (segment->start >= 0) ? segment->start : startpost;
            segment->high = segment->low + LayoutModels[segment->model].length;
-           DEBUG ("Segment %s from post %d to %d\n", segment->id, segment->low, segment->high);
+           DEBUG ("Segment %s from post %d to %d (between %s and %s)\n",
+                  segment->id, segment->low, segment->high,
+                  (segment->previous >= 0)?LayoutSegments[segment->previous].id:"(none)",
+                  (segment->next >= 0)?LayoutSegments[segment->next].id:"(none)");
            struct TrackSegment *cursor = segment;
            int next;
            for (next = segment->next; next >= 0; next = cursor->next) {
                LayoutSegments[next].low = cursor->high;
                cursor = LayoutSegments + next;
                cursor->high = cursor->low + LayoutModels[cursor->model].length;
-               DEBUG ("Segment %s from post %d to %d\n", cursor->id, cursor->low, cursor->high);
+               DEBUG ("Segment %s from post %d to %d (between %s and %s)\n",
+                      cursor->id, cursor->low, cursor->high,
+                      (cursor->previous >= 0)?LayoutSegments[cursor->previous].id:"(none)",
+                      (cursor->next >= 0)?LayoutSegments[cursor->next].id:"(none)");
 
                // Stop when the following segment was already processed, or
                // when reaching a different line (usually a switch).
@@ -764,12 +780,44 @@ void houserail_track_background (time_t now) {
     // TBD: background work needed?
 }
 
-const char *houserail_track_segment (const struct TrackLocation *point) {
+const char *houserail_track_segment (const struct TrackLocation *point,
+                                     int direction) {
 
     if (point->segment) return point->segment;
-    int segment = houserail_track_search_by_location (point->line, point->post);
-    if (segment < 0) return 0;
-    return LayoutSegments[segment].id;
+    int index = houserail_track_search_by_location (point->line, point->post);
+    if (index < 0) return 0;
+
+    // If the point is at the limit between two segments, each of these two
+    // segments would be a valid response. The direction parameter is used
+    // to indicate which of the two segments is preferred.
+
+    if (direction) {
+        struct TrackSegment *segment = LayoutSegments + index;
+        if (direction > 0) {
+            if ((segment->low == point->post) && (segment->previous >= 0)) {
+                DEBUG ("On the low edge of segment %s\n", segment->id);
+                int alternative = segment->previous;
+                segment = LayoutSegments + alternative;
+                DEBUG ("Trying segment %s\n", segment->id);
+                if ((segment->high == point->post) &&
+                    (!strcmp (segment->line, point->line))) {
+                    index = alternative;
+                }
+            }
+        } else {
+            if ((segment->high == point->post) && (segment->next >= 0)) {
+                DEBUG ("on the high edge of segment %s\n", segment->id);
+                int alternative = segment->next;
+                segment = LayoutSegments + alternative;
+                DEBUG ("Trying segment %s\n", segment->id);
+                if ((segment->low == point->post) &&
+                    (!strcmp (segment->line, point->line))) {
+                    index = alternative;
+                }
+            }
+        }
+    }
+    return LayoutSegments[index].id;
 }
 
 static int houserail_track_locate (const struct TrackLocation *point) {

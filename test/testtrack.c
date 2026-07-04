@@ -325,7 +325,93 @@ int main (int argc, const char **argv) {
     assert (result == -1, "houserail_track_distance (main from 30 to 280 max 240, forward)");
     if (!passed) printf ("   distance = %d\n", result);
 
-    // Test houserail_track_segment (const struct TrackLocation *point);
+    // Test houserail_track_segment (const struct TrackLocation *point,
+    //                               int direction);
+
+    const char *segment = houserail_track_segment (&limit1, -1);
+    passed =
+    assert (!strcmp (segment, "main-2"), "houserail_track_segment (main 30 backward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit1, 0);
+    passed =
+    assert (!strcmp (segment, "main-2"), "houserail_track_segment (main 30 still)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit1, 1);
+    passed =
+    assert (!strcmp (segment, "main-2"), "houserail_track_segment (main 30 forward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit2, -1);
+    passed =
+    assert (!strcmp (segment, "main-15"), "houserail_track_segment (main 280 backward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit2, 1);
+    passed =
+    assert (!strcmp (segment, "main-14"), "houserail_track_segment (main 280 forward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    limit2.post = 270;
+    segment = houserail_track_segment (&limit2, -1);
+    passed =
+    assert (!strcmp (segment, "main-14"), "houserail_track_segment (main 270 backward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit2, 0);
+    passed =
+    assert (!strcmp (segment, "main-14"), "houserail_track_segment (main 270 still)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit2, 1);
+    passed =
+    assert (!strcmp (segment, "main-14"), "houserail_track_segment (main 270 forward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    limit2.post = 260;
+    segment = houserail_track_segment (&limit2, -1);
+    passed = (!strcmp (segment, "main-14"));
+    assert (passed, "houserail_track_segment (main 260 backward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit2, 1);
+    passed = (!strcmp (segment, "main-13"));
+    assert (passed, "houserail_track_segment (main 260, forward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    limit2.post = 320;
+    segment = houserail_track_segment (&limit2, -1);
+    passed =
+    assert (segment != 0, "houserail_track_segment (main 320 backward) valid") &&
+    assert (!strcmp (segment, "main-16"), "houserail_track_segment (main 320 backward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit2, 0);
+    passed = (!strcmp (segment, "main-16"));
+    assert (passed, "houserail_track_segment (main 320 still)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit2, 1);
+    passed = (!strcmp (segment, "main-16"));
+    assert (passed, "houserail_track_segment (main 320 forward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    limit2.post = 0;
+    segment = houserail_track_segment (&limit2, -1);
+    passed = (!strcmp (segment, "main-1"));
+    assert (passed, "houserail_track_segment (main 0 backward)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit2, 0);
+    passed = (!strcmp (segment, "main-1"));
+    assert (passed, "houserail_track_segment (main 0 still)");
+    if (!passed) printf ("   segment %s\n", segment);
+
+    segment = houserail_track_segment (&limit2, 1);
+    passed = (!strcmp (segment, "main-1"));
+    assert (passed, "houserail_track_segment (main 0 forward)");
+    if (!passed) printf ("   segment %s\n", segment);
 
     // Test houserail_track_switch ()
 
