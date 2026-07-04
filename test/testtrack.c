@@ -239,23 +239,15 @@ int main (int argc, const char **argv) {
 
     result = houserail_track_walk (path, 16, &limit1, &limit2, 1, 100);
     passed =
-    assert (result == 1, "houserail_track_walk(main from 30 to 280 max 100, forward) status") &&
-    assert (!strcmp(path[0].line, "main"), "houserail_track_walk(main from 30 to 280 max 100, forward) line") &&
-    assert (path[0].low == 30, "houserail_track_walk(main from 30 to 280 max 100, forward) start post") &&
-    assert (path[0].high == 130, "houserail_track_walk(main from 30 to 280 max 100, forward) end post");
-    digest (passed, "houserail_track_walk(main from 30 to 280 max 100, forward)");
-    if (!passed) printf ("   path[0].low == %d, path[0].high == %d\n",
-                         path[0].low, path[0].high);
+    assert (result <= 0, "houserail_track_walk(main from 30 to 280 max 100, forward) status");
+    if (!passed) printf ("   count == %d, path[0].low == %d, path[0].high == %d\n",
+                         result, path[0].low, path[0].high);
 
     result = houserail_track_walk (path, 16, &limit2, &limit1, -1, 100);
     passed =
-    assert (result == 1, "houserail_track_walk(main from 280 to 30 max 100, backward) status") &&
-    assert (!strcmp(path[0].line, "main"), "houserail_track_walk(main from 280 to 30 max 100, backward) line") &&
-    assert (path[0].low == 280, "houserail_track_walk(main from 280 to 30 max 100, backward) start post") &&
-    assert (path[0].high == 180, "houserail_track_walk(main from 280 to 30 max 100, backward) end post");
-    digest (passed, "houserail_track_walk(main from 280 to 30 max 100, backward)");
-    if (!passed) printf ("   path[0].low == %d, path[0].high == %d\n",
-                         path[0].low, path[0].high);
+    assert (result <= 0, "houserail_track_walk(main from 280 to 30 max 100, backward) status");
+    if (!passed) printf ("   count == %d, path[0].low == %d, path[0].high == %d\n",
+                         result, path[0].low, path[0].high);
 
     result = houserail_track_walk (path, 16, &limit1, 0, 1, 200);
     passed =
@@ -317,6 +309,21 @@ int main (int argc, const char **argv) {
     // Test houserail_track_distance (const struct TrackLocation *point1,
     //                                const struct TrackLocation *point2,
     //                                int direction, int max);
+    // houserail_track_testmode ();
+    result = houserail_track_distance (&limit1, &limit2, 1, 0);
+    passed =
+    assert (result == 250, "houserail_track_distance (main from 30 to 280, forward)");
+    if (!passed) printf ("   distance = %d\n", result);
+
+    result = houserail_track_distance (&limit1, &limit2, 1, 260);
+    passed =
+    assert (result == 250, "houserail_track_distance (main from 30 to 280 max 260, forward)");
+    if (!passed) printf ("   distance = %d\n", result);
+
+    result = houserail_track_distance (&limit1, &limit2, 1, 240);
+    passed =
+    assert (result == -1, "houserail_track_distance (main from 30 to 280 max 240, forward)");
+    if (!passed) printf ("   distance = %d\n", result);
 
     // Test houserail_track_segment (const struct TrackLocation *point);
 

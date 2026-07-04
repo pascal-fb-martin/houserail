@@ -855,21 +855,8 @@ int houserail_track_walk (struct TrackRange *path, int size,
                           const struct TrackLocation *limit2,
                           int direction, int max) {
 
+    if (!limit1) return 0; // Must have a starting point.
     if ((!limit2) && (!max)) return 0; // Must have at least one end criteria.
-
-    if (limit2 && strcasecmp (limit1->line, limit2->line) == 0) {
-        // The two limits are on the same line: there is only one section
-        // in the path.
-        int end = limit2->post;
-        if ((max > 0) && (abs(end - limit1->post) > max)) {
-            end = (direction > 0) ? limit1->post + max : limit1->post - max;
-        }
-        path[0].line = limit2->line;
-        path[0].segment = 0;
-        path[0].low  = limit1->post;
-        path[0].high = end;
-        return 1;
-    }
 
     // Walk the tracks from one limit until we meet the other limit, the
     // max distance or the end of the rails.
@@ -879,8 +866,7 @@ int houserail_track_walk (struct TrackRange *path, int size,
     struct TrackSegment *segment = LayoutSegments + index;
 
     int cursor = 0;
-    const char *line = limit1->line;
-    path[0].line = limit1->line;
+    const char *line = path[0].line = limit1->line;
     path[0].segment = segment->id;
     path[0].low = path[0].high = limit1->post;
 
@@ -889,8 +875,18 @@ int houserail_track_walk (struct TrackRange *path, int size,
 
     DEBUG ("Start walking at segment %s\n", segment->id);
     int nextsegment = houserail_track_step (segment, direction);
+
     while (nextsegment >= 0) {
+
         DEBUG ("Walking segment %s\n", segment->id);
+        if (limit2 &&
+            (limit2->post >= segment->low) &&
+            (limit2->post <= segment->high) &&
+            (!strcmp (limit2->line, line))) {
+
+            path[cursor].high = limit2->post;
+            return cursor+1; // Reached the destination.
+        }
         if (max > 0) {
             int end = (direction > 0)? segment->high : segment->low;
             behind = distance;
@@ -898,7 +894,6 @@ int houserail_track_walk (struct TrackRange *path, int size,
             DEBUG ("Walked %d posts so far\n", distance);
             if (distance >= max) goto toofar;
         }
-
         int join1 = (direction > 0)? segment->high : segment->low;
 
         struct TrackSegment *next = LayoutSegments + nextsegment;
@@ -912,6 +907,27 @@ int houserail_track_walk (struct TrackRange *path, int size,
                struct TrackSegment *branch = LayoutSegments + next->branch;
                line = branch->line;
 
+               // Start a new section at the entry of the switch, but
+               // refer to the branch line.
+               if (++cursor >= size) return 0; // Overflow.
+               path[cursor].line = line;
+               path[cursor].segment = next->id;
+               int low, high;
+               if (direction > 0) {
+                   low = path[cursor].low = branch->low - model->reverse;
+                   high = path[cursor].high = branch->low;
+               } else {
+                   high = path[cursor].low = branch->high + model->reverse;
+                   low = path[cursor].high = branch->high;
+               }
+
+               if (limit2 &&
+                   (limit2->post >= low) && (limit2->post <= high) &&
+                   (!strcmp (limit2->line, line))) {
+
+                   path[cursor].high = limit2->post;
+                   return cursor+1; // Reached the destination.
+               }
                if (max > 0) {
                    behind = distance;
                    distance += model->reverse;
@@ -919,32 +935,16 @@ int houserail_track_walk (struct TrackRange *path, int size,
                    if (distance >= max) goto toofar;
                }
 
-               // The current section ends at the exit of the segment before
-               // the switch.
-               path[cursor++].high =
-                   (direction > 0) ? segment->low : segment->high;
-               if (cursor >= size) return 0; // Overflow.
-
-               // The next section starts at the entry of the switch, but
-               // refer to the branch line.
-               path[cursor].line = line;
-               path[cursor].segment = next->id;
-               if (direction > 0) {
-                   path[cursor].low = branch->low - model->reverse;
-                   path[cursor].high = branch->low;
-               } else {
-                   path[cursor].low = branch->high + model->reverse;
-                   path[cursor].high = branch->high;
-               }
-
                segment = next;
                next = LayoutSegments + next->branch; // Pass that switch.
                join1 = path[cursor].low;
            }
         }
+
         int join2 = (direction > 0)? next->low : next->high;
         DEBUG ("Segments %s and %s join at %s.%d and %s.%d\n",
                segment->id, next->id, segment->line, join1, next->line, join2);
+
         if ((join1 != join2) || strcasecmp (line, next->line)) {
 
            // The name of the line changed or a loop junction was reached:
@@ -960,24 +960,21 @@ int houserail_track_walk (struct TrackRange *path, int size,
            DEBUG ("Section %d starts at post %d\n", cursor, path[cursor].low);
         } else {
            // The point that was reached in the path.. for now.
+           path[cursor].segment = segment->id;
            path[cursor].high = (direction > 0) ? segment->high : segment->low;
         }
-
-        if (limit2 &&
-            strcasecmp (line, limit2->line) == 0) break; // End of path
 
         segment = next;
         nextsegment = houserail_track_step (segment, direction);
     }
-    if (nextsegment < 0) return 0; // Could not find the other end.
-    if (!limit2) return 0; // Not possible: while did it break the loop?
-
-    if (limit2) path[cursor++].high = limit2->post;
-    return cursor;
+    if (limit2 && (nextsegment < 0)) return 0; // Could not find the endpoint.
+    return cursor+1;
 
 toofar:
 
+    if (limit2) return 0; // Max limit reached before the endpoint.
     int left = max - behind;
+    path[cursor].segment = segment->id;
     path[cursor].high =
       (direction > 0) ? path[cursor].high + left : path[cursor].high - left;
     return cursor+1;
@@ -994,10 +991,10 @@ int houserail_track_distance (const struct TrackLocation *point1,
    int distance = 0;
    int i;
    for (i = 0; i < count; ++i) {
-       int delta = path[i].high - path[i].low;
-       if (delta >= 0) distance += delta;
-       else            distance -= delta;
-       if (distance > max) return -1;
+       distance += abs(path[i].high - path[i].low);
+       DEBUG ("distance %d after section %d: %s from %d to %d\n",
+              distance, i, path[i].line, path[i].low, path[i].high);
+       if (max && (distance > max)) return -1;
    }
    return distance;
 }
