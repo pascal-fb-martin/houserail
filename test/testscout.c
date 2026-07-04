@@ -83,7 +83,8 @@ int main (int argc, const char **argv) {
     assert (result == 7, "Search segment for (zzz,100)");
 
     result = houserail_scout_inside (&testindex, "zzz", 125);
-    assert (result == 7, "Search segment for (zzz,125)");
+    int passed = assert (result == 7, "Search segment for (zzz,125)");
+    if (!passed) digest (passed, "should not be seen"); // Calm gcc down.
 
     houserail_scout_erase (&testindex);
 
