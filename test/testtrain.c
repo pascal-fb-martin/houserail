@@ -150,7 +150,15 @@ int main (int argc, const char **argv) {
     digest (passed, "houserail_train_park (train1)");
     if (error) printf ("   error: %s\n", error);
 
+    error = houserail_train_park ("train1");
+    passed =
+    assert (error == 0, "2nd houserail_train_park (train1) status");
+
     // Test const char *houserail_train_delete (const char *id);
+
+    error = houserail_train_delete ("train2");
+    passed =
+    assert (error != 0, "houserail_train_delete (train2) status");
 
     char buffer[16000];
     error = houserail_train_delete ("train1");
@@ -160,6 +168,14 @@ int main (int argc, const char **argv) {
             "houserail_train_delete (train1) train list");
     digest (passed, "houserail_train_delete (train1)");
     if (error) printf ("   error: %s\n", error);
+
+    error = houserail_train_delete ("train1");
+    passed =
+    assert (error != 0, "2nd houserail_train_delete (train1) status");
+
+    // Test void houserail_train_track (const struct TrackRange *area,
+    //                                  int occupied,
+    //                                  long long timestamp);
 
     return summary ("houserail_train.c");
 }
