@@ -577,7 +577,9 @@ const char *houserail_track_reload (void) {
             continue;
         }
         struct TrackSegment *segment = LayoutSegments + detector->segment;
-        DEBUG ("Detector %s is on segment %s\n", detector->id, segment->id);
+        DEBUG ("Detector %s is on segment %s covers %s %d to %d\n",
+               detector->id, segment->id,
+               detector->area.line, detector->area.low, detector->area.high);
         detector->next = segment->detector;
         segment->detector = i;
         detector->area.segment = segment->id;
