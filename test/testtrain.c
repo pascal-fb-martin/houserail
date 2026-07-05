@@ -88,6 +88,21 @@ const char *houserail_field_signal_set (const char *id, const char *state) {
     return 0;
 }
 
+static void trainlist (const char *label) {
+    char buffer[16000];
+    int size = houserail_train_status (buffer, sizeof(buffer));
+    if (size > 0) {
+       buffer[size] = 0;
+       printf ("== Trains data (%d bytes): %s\n", size, buffer);
+    }
+    assert (size > 0, label);
+    size = houserail_train_locate (buffer, sizeof(buffer));
+    if (size > 0) {
+       buffer[size] = 0;
+       printf ("== Trains location (%d bytes): %s\n", size, buffer);
+    }
+}
+
 int main (int argc, const char **argv) {
 
     // Initialize the track module.
@@ -112,8 +127,14 @@ int main (int argc, const char **argv) {
     digest (passed, "houserail_train_consist (train1)");
     if (!passed) printf ("   error: %s\n", error);
 
+    trainlist ("After houserail_train_consist (train1)");
+
     // Test const char *houserail_train_enter (const char *id,
     //                                         const char *facing, int orientation);
+
+    error = houserail_train_enter ("train1", "reed-2", 1);
+
+    trainlist ("After houserail_train_enter (train1)");
 
     // Test const char *houserail_train_park (const char *id);
 

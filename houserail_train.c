@@ -316,12 +316,17 @@ static void houserail_train_pull (struct TrainConsist *train,
     houserail_path_lengthen (&(train->path), distance, direction);
 
     houserail_path_move (&(train->path), &(train->head), distance, direction);
+    train->head.segment = houserail_track_segment (&(train->head), direction);
+
     int i;
     for (i = train->spotcount - 1; i >= 0; --i) {
         houserail_path_move (&(train->path),
                              train->spots+i, distance, direction);
+        train->spots[i].segment =
+            houserail_track_segment (train->spots+i, 0);
     }
     houserail_path_move (&(train->path), &(train->tail), distance, direction);
+    train->tail.segment = houserail_track_segment (&(train->tail), 0-direction);
 
     houserail_path_rollup (&(train->path), &(train->tail), direction);
     train->updated = timestamp;
@@ -391,8 +396,7 @@ static void houserail_train_pull_vacant (struct TrainConsist *train,
     houserail_train_pull_vacant (train, area, timestamp);
 }
 
-static void houserail_train_recalculate_spots (struct TrainConsist *train,
-                                               int orientation) {
+static void houserail_train_recalculate_spots (struct TrainConsist *train) {
 
     // Calculate the track location of each car's spots backward.
     // (Since these locations are between the head and tail, no need
@@ -414,8 +418,11 @@ static void houserail_train_recalculate_spots (struct TrainConsist *train,
         cursor += model->length;
     }
     for (i = 0; i < train->spotcount; ++i) {
+        int distance = train->length - offset[i];
+        train->spots[i] = train->tail;
         houserail_path_move (&(train->path),
-                             train->spots+i, offset[i], orientation);
+                             train->spots+i, distance, train->orientation);
+        train->spots[i].segment = houserail_track_segment (train->spots+i, 0);
     }
 }
 
@@ -497,8 +504,8 @@ void houserail_train_track (const struct TrackRange *area,
             struct TrackLocation temp = train->head;
             train->head = train->tail;
             train->tail = temp;
-            houserail_train_recalculate_spots (train, 1);
             houserail_path_reverse (&(train->path));
+            houserail_train_recalculate_spots (train);
         }
     }
     houserail_train_pull (train, min, timestamp);
@@ -555,6 +562,7 @@ const char *houserail_train_enter (const char *id,
 
     if (! houserail_track_vicinity (&(train->head), facing, orientation))
         return "unknown track location";
+    train->head.segment = houserail_track_segment (&(train->head), orientation);
 
     train->path.size = train->path.count = 0;
     train->path.sections = 0;
@@ -565,15 +573,17 @@ const char *houserail_train_enter (const char *id,
     if (! houserail_path_span (&(train->path),
                                &(train->head), reverse, train->length))
         return "invalid location (train too long?)";
+    train->tail = train->head;
     houserail_path_move (&(train->path),
                          &(train->tail), train->length, reverse);
-
-    // Calculate the track location of each car's spots backward.
-    // (Since these locations are between the head and tail, no need
-    // to check if the move succeeded here.)
-    houserail_train_recalculate_spots (train, reverse);
-
+    train->tail.segment = houserail_track_segment (&(train->tail), reverse);
     houserail_path_reverse (&(train->path));
+
+    // Calculate the track location of each car's spots.
+    // (Since these locations are within the path, no need
+    // to check if the move succeeded here.)
+    houserail_train_recalculate_spots (train);
+
     train->orientation = orientation;
     train->parked = 0;
     train->speed = 0;
@@ -612,6 +622,7 @@ const char *houserail_train_consist (const char *id,
         struct VehicleModel *model = LayoutVehicleModels + vehicle->model;
         vehicle->consist = i;
         length += model->length;
+        train->cars[v] = vehicle->index;
     }
     train->carcount = count;
     train->length = length;
@@ -743,7 +754,7 @@ const char *houserail_train_reload (void) {
               }
           }
           if (!train->parked) {
-              houserail_train_recalculate_spots (train, train->orientation);
+              houserail_train_recalculate_spots (train);
           }
       }
       free (oldvehicles);
@@ -767,28 +778,36 @@ int houserail_train_status (char *buffer, int size) {
         cursor += snprintf (buffer+cursor, size-cursor,
                             "%s{\"id\":\"%s\"", prefix, train->id);
         if (!train->parked) {
-            int dir = houserail_train_direction (train);
-            const char *segment = houserail_track_segment (&(train->head), dir);
-            train->head.segment = segment; // Cache the result.
-            if (segment)
+            if (train->head.segment)
                cursor += snprintf (buffer+cursor, size-cursor,
                                    ",\"head\":[\"%s\",%d,\"%s\"]",
-                                   train->head.line, train->head.post, segment);
+                                   train->head.line,
+                                   train->head.post, train->head.segment);
 
-            segment = houserail_track_segment (&(train->tail), 0-dir);
-            train->tail.segment = segment; // Cache the result.
-            if (segment)
+            if (train->tail.segment)
                cursor += snprintf (buffer+cursor, size-cursor,
                                    ",\"tail\":[\"%s\",%d,\"%s\"]",
-                                   train->tail.line, train->tail.post, segment);
+                                   train->tail.line, train->tail.post, train->tail.segment);
 
             int direction = houserail_train_direction (train);
             cursor += snprintf (buffer+cursor, size-cursor,
                                 ",\"proceed\":[\"%s\",%d]",
                                 (direction >= 0)?"up":"down",
                                 abs(train->speed));
+
+            const char *prefix2 = ",\"spots\":[";
+            int j;
+            for (j = 0; j < train->spotcount; ++j) {
+                cursor += snprintf (buffer+cursor, size-cursor,
+                                    "%s[\"%s\",%d,\"%s\"]",
+                                    prefix2, train->spots[j].line,
+                                             train->spots[j].post,
+                                             train->spots[j].segment);
+                prefix2 = ",";
+            }
+            cursor += snprintf (buffer+cursor, size-cursor, "]");
         }
-        const char *prefix2 = "\"cars\":[";
+        const char *prefix2 = ",\"cars\":[";
         int empty = cursor;
         int j;
         for (j = 0; j < train->carcount; ++j) {
@@ -818,10 +837,7 @@ int houserail_train_locate (char *buffer, int size) {
         struct TrainConsist *train = LayoutTrains + i;
 
         if (train->parked) continue;
-        int dir = houserail_train_direction (train);
-        const char *segment = houserail_track_segment (&(train->head), dir);
-        train->head.segment = segment; // Cache the result.
-        if (!segment) continue;
+        if (!train->head.segment) continue;
 
         int direction = houserail_train_direction (train);
         if (direction == 0) direction = train->orientation;
@@ -829,10 +845,11 @@ int houserail_train_locate (char *buffer, int size) {
                             "%s{\"id\":\"%s\",\"head\":[\"%s\",%d,\"%s\"],"
                                              "\"proceed\":[\"%s\":%d]}",
                             prefix, train->id,
-                            train->head.line, train->head.post, segment,
+                            train->head.line, train->head.post, train->head.segment,
                             (direction >= 0)?"up":"down", abs(train->speed));
         prefix = ",";
     }
+    if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
     return cursor;
 }
 

@@ -375,6 +375,7 @@ int houserail_path_move (const struct TrackPath *path,
     // Move the point forward. If the point exits the current section, iterate
     // to the subsequent sections until the point is within a section.
     int post = point->post;
+    point->segment = 0; // This point may be moving out of the known segment.
     for (;;) {
         point->post = (direction >= 0) ? post + distance : post - distance;
         if (houserail_path_within (sections+i, point)) return 1;
