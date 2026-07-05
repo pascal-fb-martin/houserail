@@ -88,19 +88,20 @@ const char *houserail_field_signal_set (const char *id, const char *state) {
     return 0;
 }
 
-static void trainlist (const char *label) {
+static int trainlist (const char *label) {
     char buffer[16000];
     int size = houserail_train_status (buffer, sizeof(buffer));
     if (size > 0) {
        buffer[size] = 0;
        printf ("== Trains data (%d bytes): %s\n", size, buffer);
     }
-    assert (size > 0, label);
+    int passed = assert (size > 0, label);
     size = houserail_train_locate (buffer, sizeof(buffer));
-    if (size > 0) {
+    if (size > 0) { // This may return nothing if all trains are parked.
        buffer[size] = 0;
        printf ("== Trains location (%d bytes): %s\n", size, buffer);
     }
+    return passed;
 }
 
 int main (int argc, const char **argv) {
@@ -120,25 +121,45 @@ int main (int argc, const char **argv) {
 
     // Test const char *houserail_train_consist (const char *id,
     //                                           const char *cars[], int count);
+
     const char *cars[] = {"pfm4001", "pfm1001", "pfm1002", "pfm1003"};
     error = houserail_train_consist ("train1", cars, 4);
     int passed =
-    assert (error == 0, "houserail_train_consist (train1) status");
-    digest (passed, "houserail_train_consist (train1)");
-    if (!passed) printf ("   error: %s\n", error);
-
+    assert (error == 0, "houserail_train_consist (train1) status") &&
     trainlist ("After houserail_train_consist (train1)");
+    digest (passed, "houserail_train_consist (train1)");
+    if (error) printf ("   error: %s\n", error);
+
 
     // Test const char *houserail_train_enter (const char *id,
     //                                         const char *facing, int orientation);
 
     error = houserail_train_enter ("train1", "reed-2", 1);
-
+    passed =
+    assert (error == 0, "houserail_train_enter (train1) status") &&
     trainlist ("After houserail_train_enter (train1)");
+    digest (passed, "houserail_train_enter (train1)");
+    if (error) printf ("   error: %s\n", error);
 
     // Test const char *houserail_train_park (const char *id);
 
+    error = houserail_train_park ("train1");
+    passed =
+    assert (error == 0, "houserail_train_park (train1) status") &&
+    trainlist ("After houserail_train_park (train1)");
+    digest (passed, "houserail_train_park (train1)");
+    if (error) printf ("   error: %s\n", error);
+
     // Test const char *houserail_train_delete (const char *id);
+
+    char buffer[16000];
+    error = houserail_train_delete ("train1");
+    passed =
+    assert (error == 0, "houserail_train_delete (train1) status") &&
+    assert (houserail_train_status (buffer, sizeof(buffer)) == 0,
+            "houserail_train_delete (train1) train list");
+    digest (passed, "houserail_train_delete (train1)");
+    if (error) printf ("   error: %s\n", error);
 
     return summary ("houserail_train.c");
 }
