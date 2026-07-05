@@ -3,6 +3,18 @@
     "timestamp": 0,
     "rail":{
          "layout":"testloop",
+         "train":{
+             "models":[
+                 {"id":"gp40","length":13,"spots":[2,11]},
+                 {"id":"hopper","length":8,"spots":[3,5]}
+             ],
+             "vehicles":[
+                 {"id":"pfm4001","model":"gp40"},
+                 {"id":"pfm1001","model":"hopper"},
+                 {"id":"pfm1002","model":"hopper"},
+                 {"id":"pfm1003","model":"hopper"}
+             ]
+         },
          "track": {
              "models":[
                  {"id":"straight","length":20,"reverse":0,"civil":60},

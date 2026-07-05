@@ -18,13 +18,13 @@
  * Boston, MA  02110-1301, USA.
  *
  *
- * testtraain.c - test houserail_traain.c
+ * testtrain.c - test houserail_train.c
  *
  * SYNOPSYS:
  *
  * Command line:
  *
- * testtraain
+ * testtrain
  */
 #include <time.h>
 #include <stdio.h>
@@ -46,6 +46,12 @@ static const char *test_update (void) {
         return error;
     }
     printf ("== Track topology loaded.\n");
+    error = houserail_train_reload ();
+    if (error) {
+        printf ("** Cannot load rolling stock: %s\n", error);
+        return error;
+    }
+    printf ("== Rolling stock loaded.\n");
     return error;
 }
 
@@ -91,7 +97,7 @@ int main (int argc, const char **argv) {
     houseconfig_default ("--config=./testloop.json");
     houserail_track_initialize (argc, argv);
     houserail_train_initialize (argc, argv);
-    const char *error = houseconfig_initialize ("testtraain", test_update, argc, argv);
+    const char *error = houseconfig_initialize ("testtrain", test_update, argc, argv);
     if (error) {
         printf ("** Config error: %s\n", error);
         return Errors + 1;
@@ -99,6 +105,12 @@ int main (int argc, const char **argv) {
 
     // Test const char *houserail_train_consist (const char *id,
     //                                           const char *cars[], int count);
+    const char *cars[] = {"pfm4001", "pfm1001", "pfm1002", "pfm1003"};
+    error = houserail_train_consist ("train1", cars, 4);
+    int passed =
+    assert (error == 0, "houserail_train_consist (train1) status");
+    digest (passed, "houserail_train_consist (train1)");
+    if (!passed) printf ("   error: %s\n", error);
 
     // Test const char *houserail_train_enter (const char *id,
     //                                         const char *facing, int orientation);
