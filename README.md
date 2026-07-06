@@ -90,10 +90,10 @@ Each `detector`, `track`, `switch` and `signal` entry is an array of arrays, whe
 The train status subset contains enough information to locate the train on a track display: `id`, `head` and `procees`. (The last item provides the direction of travel.)
 
 ```
-/rail/move?id=STRING&dir=STRING[&slow=1|0]
+/rail/move?id=STRING[&dir=STRING][&slow=1|0]
 ```
 
-Order a train to move in a specified direction. The slow option forces the train to move at restricted speed. Otherwise the train will follow the track's civil speed at each location.
+Order a train to move in a specified direction. The slow option forces the train to move at restricted speed. Otherwise the train will follow the track's civil speed at each location. The `dir` parameter is either `forward` or `backward`. The default value for `dir` is `forward`.
 
 This returns an updated status of the trains.
 

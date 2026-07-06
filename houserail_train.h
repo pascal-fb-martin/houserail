@@ -39,6 +39,10 @@ const char *houserail_train_consist (const char *id,
 const char *houserail_train_delete (const char *id);
 
 const char *houserail_train_reload (void);
+
+const struct TrackLocation *houserail_train_head (const char *id);
+const struct TrackLocation *houserail_train_tail (const char *id);
+
 int houserail_train_export (char *buffer, int size, const char *separator);
 int houserail_train_status (char *buffer, int size);
 int houserail_train_locate (char *buffer, int size);

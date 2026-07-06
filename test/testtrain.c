@@ -29,6 +29,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "echttp.h"
 #include "houseconfig.h"
@@ -55,8 +56,18 @@ static const char *test_update (void) {
     return error;
 }
 
+static FleetListener *TestListener = 0;
+
 FleetListener *houserail_field_fleet_subscribe (FleetListener *listener) {
+    TestListener = listener;
     return 0;
+}
+
+static long long now (void) {
+    struct timeval tv;
+    gettimeofday (&tv, 0);
+    long long result = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+    return result;
 }
 
 static int LastSpeedOrder = 0;
@@ -68,6 +79,7 @@ int houserail_field_fleet_speed (int index) {
 const char *houserail_field_fleet_move (const char *id, int speed) {
     printf ("   houserail_field_fleet_move (%s, %d)\n", id, speed);
     LastSpeedOrder = speed;
+    if (TestListener) TestListener (id, 1);
     return 0;
 }
 
@@ -75,6 +87,7 @@ const char *houserail_field_fleet_stop (const char *id, int emergency) {
     printf ("   houserail_field_fleet_stop (%s, %s)\n",
             id, emergency?"emergency":"normal");
     LastSpeedOrder = 0;
+    if (TestListener) TestListener (id, 1);
     return 0;
 }
 
@@ -118,6 +131,7 @@ int main (int argc, const char **argv) {
         printf ("** Config error: %s\n", error);
         return Errors + 1;
     }
+    if (TestListener) TestListener ("pfm4001", 1);
 
     // Test const char *houserail_train_consist (const char *id,
     //                                           const char *cars[], int count);
@@ -177,6 +191,62 @@ int main (int argc, const char **argv) {
     //                                  int occupied,
     //                                  long long timestamp);
 
+    // Create a new train and set it moving.
+    error = houserail_train_consist ("train3", cars, 4);
+    if (!assert (error == 0, "houserail_train_consist(train3) return")) {
+        printf ("   error: %s\n", error);
+        goto canceltest;
+    }
+    error = houserail_train_enter ("train3", "reed-2", 1);
+    if (!assert (error == 0, "houserail_train_enter(train3, reed-2) return")) {
+        printf ("   error: %s\n", error);
+        goto canceltest;
+    }
+    error = houserail_train_move ("train3", 0, 0);
+    if (!assert (error == 0, "houserail_train_move(train3) return")) {
+        printf ("   error: %s\n", error);
+        goto canceltest;
+    }
+    if (!assert (LastSpeedOrder == 30, "houserail_train_move (train3) speed")) {
+        goto canceltest;
+    }
+    trainlist ("Before houserail_train_track (reed-2 occupied)");
+
+    struct TrackRange detected;
+    detected.line = "main";
+    detected.low = 29;
+    detected.high = 31;
+    houserail_train_track (&detected, 1, now());
+    const struct TrackLocation *after = houserail_train_head ("train3");
+    passed =
+    assert (after != 0, "houserail_train_head (train3) return") &&
+    assert (after->post == 31, "houserail_train_head (train3) post");
+    digest (passed, "houserail_train_head (train3)");
+    if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
+
+    trainlist ("After houserail_train_track (reed-2 occupied)");
+
+    detected.low = 9;
+    detected.high = 11;
+    houserail_train_track (&detected, 1, now());
+    after = houserail_train_head ("train3");
+    passed =
+    assert (after != 0, "houserail_train_head (train3) return") &&
+    assert (after->post == 33, "houserail_train_head (train3) post");
+    digest (passed, "houserail_train_head (train3)");
+    if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
+
+    trainlist ("After houserail_train_track (reed-1 occupied)");
+
+    // Test void houserail_train_stop (const char *id, int emergency);
+
+    error = houserail_train_stop ("train3", 0);
+    passed =
+    assert (error == 0, "houserail_train_stop (train3) status") &&
+    assert (LastSpeedOrder == 0, "houserail_train_stop (train3) speed");
+    digest (passed, "houserail_train_stop (train3)");
+
+canceltest:
     return summary ("houserail_train.c");
 }
 
