@@ -253,6 +253,18 @@ int main (int argc, const char **argv) {
 
     trainlist ("After houserail_train_track (reed-1 vacant)");
 
+    starting ("houserail_train_track (reed-3 occupied)");
+    detected.low = 49; // reed-3
+    detected.high = 51;
+    houserail_train_track (&detected, 1, now());
+    after = houserail_train_head ("train3");
+    passed =
+    assert ((after != 0) && (after->post == 51), "houserail_train_track (reed-3 occupied) head");
+    digest (passed, "houserail_train_track (reed-3 occupied)");
+    if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
+
+    trainlist ("After houserail_train_track (reed-3 occupied)");
+
     // Test void houserail_train_stop (const char *id, int emergency);
 
     starting ("houserail_train_stop (train3)");

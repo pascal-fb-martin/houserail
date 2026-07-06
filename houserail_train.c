@@ -118,7 +118,7 @@ static int TrainRestrictedSpeed = 3; // FIXME: make it configurable.
 #define CARMAXSPOT    4 // FIXME: arbitrary limit.
 #define TRAINMAXSPOT (TRAINMAXCARS*CARMAXSPOT) // FIXME: arbitrary limit.
 
-#define TRAINMAXDISTANCE 4 // FIXME: make it configurable?
+#define TRAINMAXDISTANCE 50 // FIXME: make it configurable?
 
 struct VehicleModel {
     const char *id;
@@ -317,7 +317,6 @@ static int houserail_train_distance (struct TrainConsist *train,
     } else {
         lead = train->spots + (train->spotcount-1);
     }
-
     return houserail_train_spotdistance
                (lead, area, max, direction, occupied);
 }
