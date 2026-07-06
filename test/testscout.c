@@ -49,6 +49,7 @@ int main (int argc, const char **argv) {
 
     houserail_scout_finalize (&testindex);
 
+    starting ("houserail_scout_inside ()");
     int result = houserail_scout_inside (&testindex, "mmm", 0);
     assert (result == 1, "Search segment for (mmm,0)");
 

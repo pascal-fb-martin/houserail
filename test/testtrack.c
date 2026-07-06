@@ -50,6 +50,7 @@ int main (int argc, const char **argv) {
 
     // houserail_track_testmode ();
 
+    starting ("Loading layout configuration");
     houseconfig_default ("--config=./testloop.json");
     houserail_track_initialize (argc, argv);
     const char *error = houseconfig_initialize ("testtrack", test_update, argc, argv);
@@ -60,6 +61,7 @@ int main (int argc, const char **argv) {
 
     // Test int houserail_track_civil (const struct TrackLocation *point, int direction);
 
+    starting ("houserail_track_civil()");
     struct TrackLocation point;
     point.line = "main";
     point.segment = 0;
@@ -145,6 +147,7 @@ int main (int argc, const char **argv) {
 
     // Test houserail_track_vicinity (struct TrackLocation *point, const char *id, int direction);
 
+    starting ("houserail_track_vicinity()");
     point.line = 0;
     point.post = -1;
     point.segment = 0;
@@ -210,6 +213,7 @@ int main (int argc, const char **argv) {
     //                            const struct TrackLocation *limit2,
     //                            int direction, int max);
 
+    starting ("houserail_track_walk()");
     struct TrackLocation limit1;
     struct TrackLocation limit2;
     struct TrackRange path[16];
@@ -310,6 +314,7 @@ int main (int argc, const char **argv) {
     //                                const struct TrackLocation *point2,
     //                                int direction, int max);
     // houserail_track_testmode ();
+    starting ("houserail_track_distance()");
     result = houserail_track_distance (&limit1, &limit2, 1, 0);
     passed =
     assert (result == 250, "houserail_track_distance (main from 30 to 280, forward)");
@@ -328,6 +333,7 @@ int main (int argc, const char **argv) {
     // Test houserail_track_segment (const struct TrackLocation *point,
     //                               int direction);
 
+    starting ("houserail_track_segment()");
     const char *segment = houserail_track_segment (&limit1, -1);
     passed =
     assert (!strcmp (segment, "main-2"), "houserail_track_segment (main 30 backward)");
@@ -414,7 +420,7 @@ int main (int argc, const char **argv) {
     if (!passed) printf ("   segment %s\n", segment);
 
     // Test houserail_track_switch ()
-
+    // TBD..
     return summary ("houserail_track.c");
 }
 

@@ -23,6 +23,10 @@
 
 static int Errors = 0;
 
+static void starting (const char *label) {
+    printf ("\n== %s: starting\n", label);
+}
+
 static int assert (int passed, const char *label) {
 
     if (passed) {

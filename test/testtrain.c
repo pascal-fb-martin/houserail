@@ -108,13 +108,12 @@ static int trainlist (const char *label) {
        buffer[size] = 0;
        printf ("== Trains data (%d bytes): %s\n", size, buffer);
     }
-    int passed = assert (size > 0, label);
-    size = houserail_train_locate (buffer, sizeof(buffer));
-    if (size > 0) { // This may return nothing if all trains are parked.
-       buffer[size] = 0;
-       printf ("== Trains location (%d bytes): %s\n", size, buffer);
+    int size2 = houserail_train_locate (buffer, sizeof(buffer));
+    if (size2 > 0) { // This may return nothing if all trains are parked.
+       buffer[size2] = 0;
+       printf ("== Trains location (%d bytes): %s\n", size2, buffer);
     }
-    return passed;
+    return assert (size > 0, label);
 }
 
 int main (int argc, const char **argv) {
@@ -123,6 +122,7 @@ int main (int argc, const char **argv) {
 
     // houserail_track_testmode ();
 
+    starting ("Loading layout configuration");
     houseconfig_default ("--config=./testloop.json");
     houserail_track_initialize (argc, argv);
     houserail_train_initialize (argc, argv);
@@ -136,6 +136,7 @@ int main (int argc, const char **argv) {
     // Test const char *houserail_train_consist (const char *id,
     //                                           const char *cars[], int count);
 
+    starting ("houserail_train_consist(train1, pfm4001 pfm1001 pfm1002 pfm1003)");
     const char *cars[] = {"pfm4001", "pfm1001", "pfm1002", "pfm1003"};
     error = houserail_train_consist ("train1", cars, 4);
     int passed =
@@ -148,6 +149,7 @@ int main (int argc, const char **argv) {
     // Test const char *houserail_train_enter (const char *id,
     //                                         const char *facing, int orientation);
 
+    starting ("houserail_train_enter(train1)");
     error = houserail_train_enter ("train1", "reed-2", 1);
     passed =
     assert (error == 0, "houserail_train_enter (train1) status") &&
@@ -157,6 +159,7 @@ int main (int argc, const char **argv) {
 
     // Test const char *houserail_train_park (const char *id);
 
+    starting ("houserail_train_park(train1)");
     error = houserail_train_park ("train1");
     passed =
     assert (error == 0, "houserail_train_park (train1) status") &&
@@ -170,6 +173,7 @@ int main (int argc, const char **argv) {
 
     // Test const char *houserail_train_delete (const char *id);
 
+    starting ("houserail_train_delete()");
     error = houserail_train_delete ("train2");
     passed =
     assert (error != 0, "houserail_train_delete (train2) status");
@@ -192,6 +196,7 @@ int main (int argc, const char **argv) {
     //                                  long long timestamp);
 
     // Create a new train and set it moving.
+    starting ("Prepare for houserail_train_track() test");
     error = houserail_train_consist ("train3", cars, 4);
     if (!assert (error == 0, "houserail_train_consist(train3) return")) {
         printf ("   error: %s\n", error);
@@ -212,34 +217,45 @@ int main (int argc, const char **argv) {
     }
     trainlist ("Before houserail_train_track (reed-2 occupied)");
 
+    starting ("houserail_train_track (reed-2 occupied)");
     struct TrackRange detected;
     detected.line = "main";
-    detected.low = 29;
+    detected.low = 29; // reed-2
     detected.high = 31;
     houserail_train_track (&detected, 1, now());
     const struct TrackLocation *after = houserail_train_head ("train3");
     passed =
-    assert (after != 0, "houserail_train_head (train3) return") &&
-    assert (after->post == 31, "houserail_train_head (train3) post");
-    digest (passed, "houserail_train_head (train3)");
+    assert ((after != 0) && (after->post == 31), "houserail_train_track (reed-2 occupied) head");
+    digest (passed, "houserail_train_track (reed-2 occupied)");
     if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
 
     trainlist ("After houserail_train_track (reed-2 occupied)");
 
-    detected.low = 9;
+    starting ("houserail_train_track (reed-1 occupied)");
+    detected.low = 9; // reed-1
     detected.high = 11;
     houserail_train_track (&detected, 1, now());
     after = houserail_train_head ("train3");
     passed =
-    assert (after != 0, "houserail_train_head (train3) return") &&
-    assert (after->post == 33, "houserail_train_head (train3) post");
-    digest (passed, "houserail_train_head (train3)");
+    assert ((after != 0) && (after->post == 33), "houserail_train_track (reed-1 occupied) head");
+    digest (passed, "houserail_train_track (reed-1 occupied)");
     if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
 
     trainlist ("After houserail_train_track (reed-1 occupied)");
 
+    starting ("houserail_train_track (reed-1 vacant)");
+    houserail_train_track (&detected, 0, now());
+    after = houserail_train_head ("train3");
+    passed =
+    assert ((after != 0) && (after->post == 37), "houserail_train_track (reed-1 vacant) head");
+    digest (passed, "houserail_train_track (reed-1 vacant)");
+    if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
+
+    trainlist ("After houserail_train_track (reed-1 vacant)");
+
     // Test void houserail_train_stop (const char *id, int emergency);
 
+    starting ("houserail_train_stop (train3)");
     error = houserail_train_stop ("train3", 0);
     passed =
     assert (error == 0, "houserail_train_stop (train3) status") &&
