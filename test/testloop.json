@@ -18,25 +18,31 @@
          "track": {
              "models":[
                  {"id":"straight","length":20,"reverse":0,"civil":60},
-                 {"id":"curve","length":20,"reverse":0,"civil":30}
+                 {"id":"curve","length":20,"reverse":0,"civil":30},
+                 {"id":"switch","length":20,"reverse":15,"civil":60},
+                 {"id":"branch","length":5,"reverse":0,"civil":20}
              ],
              "segments":[
-                 {"id":"main-1","model":"straight","line":"main","previous":"main-16","next":"main-2","start":0},
-                 {"id":"main-2","model":"straight","line":"main","previous":"main-1","next":"main-3"},
-                 {"id":"main-3","model":"straight","line":"main","previous":"main-2","next":"main-4"},
-                 {"id":"main-4","model":"straight","line":"main","previous":"main-3","next":"main-5"},
-                 {"id":"main-5","model":"curve","line":"main","previous":"main-4","next":"main-6"},
-                 {"id":"main-6","model":"curve","line":"main","previous":"main-5","next":"main-7"},
-                 {"id":"main-7","model":"curve","line":"main","previous":"main-6","next":"main-8"},
-                 {"id":"main-8","model":"curve","line":"main","previous":"main-7","next":"main-9"},
-                 {"id":"main-9","model":"straight","line":"main","previous":"main-8","next":"main-10"},
-                 {"id":"main-10","model":"straight","line":"main","previous":"main-9","next":"main-11"},
-                 {"id":"main-11","model":"straight","line":"main","previous":"main-10","next":"main-12"},
-                 {"id":"main-12","model":"straight","line":"main","previous":"main-11","next":"main-13"},
-                 {"id":"main-13","model":"curve","line":"main","previous":"main-12","next":"main-14"},
-                 {"id":"main-14","model":"curve","line":"main","previous":"main-13","next":"main-15"},
-                 {"id":"main-15","model":"curve","line":"main","previous":"main-14","next":"main-16"},
-                 {"id":"main-16","model":"curve","line":"main","previous":"main-15","next":"main-1"}
+                 {"id":"main-1","model":"switch","line":"main","next":"main-2","start":0,"common":"main-16","branch":"side-1"},
+                 {"id":"main-2","model":"straight","line":"main","next":"main-3"},
+                 {"id":"main-3","model":"straight","line":"main","next":"main-4"},
+                 {"id":"main-4","model":"switch","line":"main","next":"main-5","common":"main-5","branch":"side-4"},
+                 {"id":"main-5","model":"curve","line":"main","next":"main-6"},
+                 {"id":"main-6","model":"curve","line":"main","next":"main-7"},
+                 {"id":"main-7","model":"curve","line":"main","next":"main-8"},
+                 {"id":"main-8","model":"curve","line":"main","next":"main-9"},
+                 {"id":"main-9","model":"straight","line":"main","next":"main-10"},
+                 {"id":"main-10","model":"straight","line":"main","next":"main-11"},
+                 {"id":"main-11","model":"straight","line":"main","next":"main-12"},
+                 {"id":"main-12","model":"straight","line":"main","next":"main-13"},
+                 {"id":"main-13","model":"curve","line":"main","next":"main-14"},
+                 {"id":"main-14","model":"curve","line":"main","next":"main-15"},
+                 {"id":"main-15","model":"curve","line":"main","next":"main-16"},
+                 {"id":"main-16","model":"curve","line":"main","next":"main-1"},
+                 {"id":"side-1","model":"branch","line":"side","previous":"main-1","next":"side-2"},
+                 {"id":"side-2","model":"straight","line":"side","next":"side-3"},
+                 {"id":"side-3","model":"straight","line":"side","next":"side-4"},
+                 {"id":"side-4","model":"branch","line":"side","next":"main-4"}
              ],
              "detectors":[
                  {"id":"reed-1","line":"main","low":9,"high":11},
@@ -54,7 +60,13 @@
                  {"id":"reed-13","line":"main","low":249,"high":251},
                  {"id":"reed-14","line":"main","low":269,"high":271},
                  {"id":"reed-15","line":"main","low":289,"high":291},
-                 {"id":"reed-16","line":"main","low":309,"high":311}
+                 {"id":"reed-16","line":"main","low":309,"high":311},
+                 {"id":"reed-17","line":"side","low":12,"high":14},
+                 {"id":"reed-18","line":"side","low":16,"high":18},
+                 {"id":"reed-19","line":"side","low":29,"high":31},
+                 {"id":"reed-20","line":"side","low":49,"high":51},
+                 {"id":"reed-21","line":"side","low":62,"high":64},
+                 {"id":"reed-22","line":"side","low":66,"high":68}
              ]
         }
     }

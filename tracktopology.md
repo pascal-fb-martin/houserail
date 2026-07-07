@@ -40,7 +40,7 @@ The segments are specific to a layout and are stored in the `track.segments` arr
 
 * `id`: an identifier for this segment, unique within the layout.
 * `line`: a line identifier. All standard tracks connected to each other belong to the same line. In the case of a switch, this refers to the normal direction.
-* `previous`: the ID of the previous segment (increasing milepost order).
+* `previous`: the ID of the previous segment (increasing milepost order). This field is optional if the previous segment is on the same line (the missing link will be retrieved based on the `next` links).
 * `next`: the ID of the subsequent segment (decreasing milepost order).
 * `common`: the ID of the linked segment leading to the common point of the switch. This is the same as `previous` or `next`, depending on the orientation of the switch: if `common` is the same as `previous`, the switch is 'diverging', otherwise it is 'converging' (switch only).
 * `branch`: the ID of the subsequent segment attached to the reverse point (switch only).

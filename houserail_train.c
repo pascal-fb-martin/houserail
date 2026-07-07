@@ -112,7 +112,7 @@
 static FleetListener *TrainNextFleetListener = 0;
 static DetectionListener *TrainNextDetectionListener = 0;
 
-static int TrainRestrictedSpeed = 3; // FIXME: make it configurable.
+static int TrainRestrictedSpeed = 20; // FIXME: make it configurable.
 
 #define TRAINMAXCARS 16 // FIXME: arbitrary limit.
 #define CARMAXSPOT    4 // FIXME: arbitrary limit.

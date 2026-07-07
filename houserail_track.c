@@ -160,6 +160,8 @@
 static int TestMode = 0;
 #define DEBUG if (TestMode || echttp_isdebug()) printf
 
+static int SwitchReverseSpeed = 20; // TBD: make it configurable?
+
 static DetectionListener *TrackNextListener = 0;
 
 struct TrackModel {
@@ -413,8 +415,13 @@ const char *houserail_track_reload (void) {
         model->length = houseconfig_integer (element, ".length");
         model->reverse = houseconfig_integer (element, ".reverse");
         model->civil = houseconfig_integer (element, ".civil");
-        DEBUG ("Model %s length %d (on reverse branch %d) civil speed %d\n",
-               model->id, model->length, model->reverse, model->civil);
+        if (model->reverse > 0) {
+            DEBUG ("Model %s civil speed %d length %d (%d on reverse branch)\n",
+                   model->id, model->civil, model->length, model->reverse);
+        } else {
+            DEBUG ("Model %s civil speed %d length %d\n",
+                   model->id, model->civil, model->length);
+        }
     }
 
     // Populate the segments array.
@@ -436,13 +443,23 @@ const char *houserail_track_reload (void) {
         int element = list[i];
         struct TrackSegment *segment = LayoutSegments + i;
         segment->id = houseconfig_string (element, ".id");
+        if (!segment->id) {
+            DEBUG ("Error on segment at index %d\n", i);
+            return "invalid segment (no id)";
+        }
         segment->signature =
             echttp_hash_signature (segment->id);
 
         segment->line = houseconfig_string (element, ".line");
-        if (!segment->line) return "invalid segment (no line)";
+        if (!segment->line) {
+            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            return "invalid segment (no line)";
+        }
         const char *modelid = houseconfig_string (element, ".model");
-        if (!modelid) return "invalid segment (no model)";
+        if (!modelid) {
+            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            return "invalid segment (no model)";
+        }
         segment->model = houserail_track_search_model (modelid);
 
         if (houseconfig_present (element, ".start"))
@@ -456,7 +473,6 @@ const char *houserail_track_reload (void) {
         temp[i].next = houseconfig_string (element, ".next");
         temp[i].common = houseconfig_string (element, ".common");
         temp[i].branch = houseconfig_string (element, ".branch");
-        if ((!temp[i].previous) && (!temp[i].next)) return "isolated segment";
 
         int index = echttp_hash_insert (&LayoutSegmentsHash, segment->id);
         if ((index > 0) && (index <= LayoutSegmentsCount))
@@ -469,20 +485,45 @@ const char *houserail_track_reload (void) {
 
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         struct TrackSegment *segment = LayoutSegments + i;
+
+        // Allow the 'previous' field to be optional in the simple case:
+        // same line.
+        // TBD: use a faster method than linear search inside a loop..
+        if (!temp[i].previous) {
+            int j;
+            for (j = 0; j < LayoutSegmentsCount; ++j) {
+                if ((!strcmp (temp[j].next, segment->id)) &&
+                    (!strcmp (LayoutSegments[j].line, segment->line))) {
+                    temp[i].previous = LayoutSegments[j].id;
+                    break;
+                }
+            }
+        }
+        if ((!temp[i].previous) && (!temp[i].next)) {
+            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            return "isolated segment";
+        }
+
         segment->previous = houserail_track_search_by_id (temp[i].previous);
-        if ((segment->previous < 0) && temp[i].previous) return "invalid previous link";
+        if ((segment->previous < 0) && temp[i].previous) {
+            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            return "invalid previous link";
+        }
         segment->next = houserail_track_search_by_id (temp[i].next);
-        if ((segment->next < 0) && temp[i].next) return "invalid previous link";
+        if ((segment->next < 0) && temp[i].next) {
+            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            return "invalid previous link";
+        }
 
         segment->branch = houserail_track_search_by_id (temp[i].branch);
         if (segment->branch >= 0) {
+            // Default state of switch is 'normal'.
             segment->common = houserail_track_search_by_id (temp[i].common);
             segment->needle = (segment->common == segment->next)? segment->previous : segment->next;
             switchcount += 1;
         } else {
             segment->common = segment->needle = -1;
         }
-        DEBUG ("Segment %s at %d: next %d, previous %d\n", segment->id, i, segment->next, segment->previous);
     }
     free (temp);
 
@@ -493,8 +534,7 @@ const char *houserail_track_reload (void) {
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         struct TrackSegment *segment = LayoutSegments + i;
         if (segment->low >= 0) continue; // Already processed.
-        DEBUG ("Calculating posts starting at segment %s..\n", segment->id);
-        int startpost = 0;
+        int startpost = (segment->start > 0)?segment->start:0;
         int isstart = ((segment->start >= 0) || (segment->previous < 0));
         if (!isstart) {
            // A branch starts at the common point of a switch, if the current
@@ -506,23 +546,17 @@ const char *houserail_track_reload (void) {
            }
         }
         if (isstart) {
-           DEBUG ("Segment %s is a starting point for line %s\n", segment->id, segment->line);
+           DEBUG ("Segment %s is a starting point for line %s post %d\n",
+                  segment->id, segment->line, startpost);
            segment->low = (segment->start >= 0) ? segment->start : startpost;
            segment->high = segment->low + LayoutModels[segment->model].length;
-           DEBUG ("Segment %s from post %d to %d (between %s and %s)\n",
-                  segment->id, segment->low, segment->high,
-                  (segment->previous >= 0)?LayoutSegments[segment->previous].id:"(none)",
-                  (segment->next >= 0)?LayoutSegments[segment->next].id:"(none)");
+
            struct TrackSegment *cursor = segment;
            int next;
            for (next = segment->next; next >= 0; next = cursor->next) {
                LayoutSegments[next].low = cursor->high;
                cursor = LayoutSegments + next;
                cursor->high = cursor->low + LayoutModels[cursor->model].length;
-               DEBUG ("Segment %s from post %d to %d (between %s and %s)\n",
-                      cursor->id, cursor->low, cursor->high,
-                      (cursor->previous >= 0)?LayoutSegments[cursor->previous].id:"(none)",
-                      (cursor->next >= 0)?LayoutSegments[cursor->next].id:"(none)");
 
                // Stop when the following segment was already processed, or
                // when reaching a different line (usually a switch).
@@ -543,10 +577,34 @@ const char *houserail_track_reload (void) {
         struct TrackSegment *segment = LayoutSegments + i;
         houserail_scout_add (&LayoutSegmentsIndex,
                              i, segment->line, segment->low, segment->high);
+        DEBUG ("Segment %s on %s %d to %d (between %s and %s)\n",
+               segment->id, segment->line, segment->low, segment->high,
+               (segment->previous >= 0)?LayoutSegments[segment->previous].id:"(none)",
+               (segment->next >= 0)?LayoutSegments[segment->next].id:"(none)");
         if (segment->branch >= 0) {
-            const char *line = LayoutSegments[segment->branch].line;
+            struct TrackSegment *branch = LayoutSegments + segment->branch;
+            int low, high;
+            int reverse = LayoutModels[segment->model].reverse;
+            int branchprevious, branchnext;
+            if (branch->previous == i) {
+                // Increasing posts
+                low = branch->low - reverse;
+                high = branch->low;
+                branchprevious = segment->previous;
+                branchnext = segment->branch;
+            } else {
+                // Decreasing posts
+                low = branch->high;
+                high = low + reverse;
+                branchprevious = segment->branch;
+                branchnext = segment->next;
+            }
             houserail_scout_add (&LayoutSegmentsIndex,
-                                 i, line, segment->low, segment->high);
+                                 i, branch->line, low, high);
+            DEBUG ("Segment %s is a switch, branch on %s %d to %d (between %s and %s)\n",
+                   segment->id, branch->line, low, high,
+                   LayoutSegments[branchprevious].id,
+                   LayoutSegments[branchnext].id);
         }
     }
     houserail_scout_finalize (&LayoutSegmentsIndex);
@@ -876,22 +934,28 @@ int houserail_track_vicinity (struct TrackLocation *point,
 
 int houserail_track_civil (const struct TrackLocation *point, int direction) {
 
-    int segment = houserail_track_locate (point);
-    if (segment < 0) {
+    int index = houserail_track_locate (point);
+    if (index < 0) {
         DEBUG ("invalid location %s.%d\n", point->line, point->post);
         return 0; // Stop whenever there is any doubt.
     }
 
-    int speed1 = LayoutModels[LayoutSegments[segment].model].civil;
+    struct TrackSegment *segment = LayoutSegments + index;
+    int speed1 = LayoutModels[segment->model].civil;
     DEBUG ("Consider civil speed %d for segment %s (model %s)\n",
-           speed1, LayoutSegments[segment].id, LayoutModels[LayoutSegments[segment].model].id);
+           speed1, segment->id, LayoutModels[segment->model].id);
+    if ((segment->branch >= 0) && (segment->needle == segment->branch)) {
+       speed1 = SwitchReverseSpeed;
+       DEBUG ("use branch speed %d instead for switch %s in reverse state",
+              speed1, segment->id);
+    }
     if (!direction) return speed1;
 
-    segment = (direction > 0) ? LayoutSegments[segment].next
-                              : LayoutSegments[segment].previous;
-    int speed2 = LayoutModels[LayoutSegments[segment].model].civil;
+    index = (direction > 0) ? segment->next : segment->previous;
+    segment = LayoutSegments + index;
+    int speed2 = LayoutModels[segment->model].civil;
     DEBUG ("Consider civil speed %d from segment %s (model %s)\n",
-           speed2, LayoutSegments[segment].id, LayoutModels[LayoutSegments[segment].model].id);
+           speed2, segment->id, LayoutModels[segment->model].id);
     if (speed1 < speed2) return speed1;
     return speed2;
 }
