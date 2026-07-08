@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel=stylesheet type="text/css" href="/house.css" title="House">
+<script>
+
+var RailLastStatus = 0;
+
+function newAction (vehicle, text, command, state) {
+    var button = document.createElement("button");
+    button.innerHTML = text;
+    button.type = 'button';
+    button.disabled = false;
+    button.resourceId = vehicle;
+    button.resourceState = state;
+    button.onclick = command;
+    return button;
+}
+
+function railCommand (url) {
+    var command = new XMLHttpRequest();
+    command.open("GET", url);
+    command.onreadystatechange = function () {
+        if (command.readyState === 4 && command.status === 200) {
+            railShowStatus (JSON.parse(command.responseText));
+        }
+    }
+    command.send(null);
+}
+
+function railMoveCommand (id, dir) {
+    railCommand ("/rail/move?id="+ id + "&dir=" + dir);
+}
+
+function railMove () {
+    railMoveCommand (this.resourceId, this.resourceState);
+}
+
+function railStop () {
+    railCommand ("/rail/stop?id="+ this.resourceId);
+}
+
+function railStopAll () {
+    railCommand ("/rail/stop?urgent=1");
+}
+
+function railSortTrains (a, b) {
+    return a.id > b.id;
+}
+
+function railShowTrains (response) {
+
+   var table = document.getElementById ('trains');
+   for (var i = table.rows.length-1; i > 0; i--) {
+      table.deleteRow(i);
+   }
+   if (!response.train) return;
+
+   var trains = response.train.sort (railSortTrains);
+   for (var i = 0; i < trains.length; i++) {
+
+        var train = trains[i];
+
+        var row = table.insertRow();
+
+        var column = document.createElement("td");
+        column.innerHTML = train.id;
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.innerHTML = train.dcc ? train.dcc : '';
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.innerHTML = vehicle.proceed?train.proceed[0]:'';
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.innerHTML = train.proceed?''+train.proceed[1]:'';
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.innerHTML = train.head?train.head[0]+' '+train.head[1]:'';
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.innerHTML = train.tail?train.tail[0]+' '+train.tail[1]:'';
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.innerHTML = train.cars?train.cars.join(' '):'';
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.appendChild (newAction (train.id, railMove, "Forward", "forward"));
+        column.appendChild (newAction (train.id, railStop, "Stop", ""));
+        column.appendChild (newAction (train.id, railMove, "Backward", "backward"));
+        row.appendChild(column);
+    }
+}
+
+function railShowStatus (response) {
+   railShowTrains (response);
+   RailLastStatus = response.latest;
+}
+
+function railStatus () {
+    var url = "/rail/train/status";
+    if (RailLastStatus) url += "?known=" + RailLastStatus;
+    railCommand (url);
+}
+
+window.onload = function() {
+   railStatus();
+   setInterval (railStatus, 1000);
+};
+</script>
+<head>
+   <title>Trains</title>
+</head>
+<body>
+   <nav>
+   <table>
+   <tr>
+   <td><span>Trains</span></td>
+   <td><a href="/rail/events.html">Events</a></td>
+   </tr>
+   </table>
+   </nav>
+   <main>
+   <article>
+   <section>
+   <table class="housewidetable" border="0">
+   <tr>
+      <td width="90%"></td>
+      <td width="10%"><button class="housepanelbutton" style="background-color: red;" onclick="railStopAll()">STOP</button></td>
+   </td></tr>
+   </table>
+   </section>
+   <section>
+   <h1>Locomotives</h1>
+   <table id="trains" class="housewidetable" border="0">
+      <tr>
+         <th width="6%">ID</th>
+         <th width="6%">DCC</th>
+         <th width="6%">GOING</th>
+         <th width="6%">SPEED</th>
+         <th width="10%">HEAD</th>
+         <th width="10%">TAIL</th>
+         <th width="28%">CONSIST</th>
+         <th width="28%">CONTROLS</th>
+      </tr>
+   </table>
+   </section>
+   </article>
+   </main>
+</body>
+</html>
+
