@@ -25,13 +25,12 @@ A typical train traffic control system runs the following services:
 * Install the OpenSSL development package(s).
 * Install [echttp](https://github.com/pascal-fb-martin/echttp).
 * Install [houseportal](https://github.com/pascal-fb-martin/houseportal).
-* Install [HouseRail](https://github.com/pascal-fb-martin/houserail).
 * Clone this GitHub repository.
 * make
 * sudo make install, or
 * make debian-package and install the generated package.
 
-The [HouseDCC](https://github.com/pascal-fb-martin/housedcc) and [PiDCC](https://github.com/pascal-fb-martin/pidcc) applications must have been install on a Raspberry Pi computer accessible on the local network. (This HouseRail service does not need to run on a Raspberry Pi board.)
+The [HouseDCC](https://github.com/pascal-fb-martin/housedcc) and [PiDCC](https://github.com/pascal-fb-martin/pidcc) applications must have been install on a Raspberry Pi computer accessible on the local network. (This HouseRail service may, but does not need to, run on a Raspberry Pi board.)
 
 One or more [HouseRelays](https://github.com/pascal-fb-martin/houserelays) services must have been installed on Raspberry Pi boards.
 
@@ -63,9 +62,12 @@ The `rail.train` item is an array of objects, each one reprenting a single train
 * head:    An array describing the location of the train's head.
 * tail:    An array describing the location of the train's tail.
 * proceed: An array containing the train's direction ("up" or "down") and speed.
-* cars:    An array containing the ordered list of cars.
+* spots:   An array containing the ordered list of detectable spots locations.
+* cars:    An array containing the ordered list of cars (an array of IDs).
 
 If a train is parked (i.e not present on the layout), items `head`, `tail` and `proceed` are not present.
+
+A location is an array of 3 items: line name, post and segment ID.
 
 ```
 /rail/track/status[?known=NUMBER]
