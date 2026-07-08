@@ -139,6 +139,55 @@ static const char *rail_status_train (const char *method, const char *uri,
     return JsonBuffer;
 }
 
+static const char *rail_enter (const char *method, const char *uri,
+                               const char *data, int length) {
+
+    const char *id = echttp_parameter_get("id");
+    const char *dir = echttp_parameter_get("dir");
+    const char *at = echttp_parameter_get("at");
+
+    if (!id) {
+        echttp_error (404, "missing device ID");
+        return "";
+    }
+    if (!at) {
+        echttp_error (404, "missing track location (detector id)");
+        return "";
+    }
+    int direction = 0;
+    if (dir && (!strcmp (dir, "up"))) direction = 1;
+    else if (dir && (!strcmp (dir, "down"))) direction = -1;
+    else {
+        echttp_error (400, "invalid train orientation");
+        return "";
+    }
+    const char *error = houserail_train_enter (id, at, direction);
+    if (error) {
+        echttp_error (500, error);
+        return "";
+    }
+    housestate_changed (LiveState);
+    return rail_status_train (method, uri, data, length);
+}
+
+static const char *rail_park (const char *method, const char *uri,
+                              const char *data, int length) {
+
+    const char *id = echttp_parameter_get("id");
+
+    if (!id) {
+        echttp_error (404, "missing device ID");
+        return "";
+    }
+    const char *error = houserail_train_park (id);
+    if (error) {
+        echttp_error (500, error);
+        return "";
+    }
+    housestate_changed (LiveState);
+    return rail_status_train (method, uri, data, length);
+}
+
 static const char *rail_move (const char *method, const char *uri,
                              const char *data, int length) {
 
@@ -318,6 +367,8 @@ int main (int argc, const char **argv) {
 
     echttp_route_uri ("/rail/train/status", rail_status_train);
     echttp_route_uri ("/rail/track/status", rail_status_track);
+    echttp_route_uri ("/rail/enter",  rail_enter);
+    echttp_route_uri ("/rail/park",   rail_park);
     echttp_route_uri ("/rail/move",   rail_move);
     echttp_route_uri ("/rail/stop",   rail_stop);
     echttp_route_uri ("/rail/switch", rail_switch);

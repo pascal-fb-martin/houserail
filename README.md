@@ -90,6 +90,18 @@ Each `detector`, `track`, `switch` and `signal` entry is an array of arrays, whe
 The train status subset contains enough information to locate the train on a track display: `id`, `head` and `procees`. (The last item provides the direction of travel.)
 
 ```
+/rail/enter?id=STRING&dir=STRING&at=STRING
+```
+
+Position a train on the layout. The `dir` parameter is either `up` or `down` and represents the orientation of the train (see DCC consist concepts). When the train has only one locomotive, this is the orientation of that locomotive (i.e. the direction that the cabin faces). The `at` parameter denotes a detector or segment that the train was positioned in front of.
+
+```
+/rail/park?id=STRING
+```
+
+Park a train off the layout.
+
+```
 /rail/move?id=STRING[&dir=STRING][&slow=1|0]
 ```
 
