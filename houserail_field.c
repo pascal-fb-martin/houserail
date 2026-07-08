@@ -78,9 +78,9 @@
  *
  * const char *houserail_field_fleet_stop (const char *id, int emergency);
  *
- *    Force the vehicle to stop. An emergency stop is immediate, a normal
- *    stop follows a desceleration curve.
- *    Returns 0 on success, an error message on failure.
+ *    Request the vehicle to stop. An emergency stop is immediate, a normal
+ *    stop follows a desceleration curve. If id is null, this becomes a "stop
+ *    all" request. Returns 0 on success, an error message on failure.
  *
  * const char *houserail_field_switch_set (const char *id, const char *state);
  * const char *houserail_field_signal_set (const char *id, const char *state);
@@ -409,8 +409,12 @@ const char *houserail_field_fleet_stop (const char *id, int emergency) {
     if (!FieldControlUri) return "No train server identified yet";
 
     char url[256];
-    snprintf (url, sizeof(url),
-              "%s/fleet/stop?id=%s&urgent=%d", FieldControlUri, id, emergency);
+    if (!id) // Stop all.
+        snprintf (url, sizeof(url),
+                  "%s/fleet/stop?urgent=%d", FieldControlUri, emergency);
+    else
+        snprintf (url, sizeof(url),
+                 "%s/fleet/stop?id=%s&urgent=%d", FieldControlUri, id, emergency);
 
     return houserail_field_request (url, FieldControlUri);
 }
