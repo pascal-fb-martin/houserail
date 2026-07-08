@@ -104,6 +104,7 @@
 #include <echttp_libc.h>
 #include <echttp_hash.h>
 
+#include "houselog.h"
 #include "houseconfig.h"
 
 #include "houserail_field.h"
@@ -140,8 +141,6 @@ struct Vehicle {
     unsigned int signature; // Seach accelerator.
 
     int index;   // Self reference.
-
-    const char *modelid;
     int model;   // Reference the array of vehicle models
 
     // The following is learned from the data reported by HouseDCC.
@@ -365,6 +364,9 @@ static void houserail_train_pull (struct TrainConsist *train,
 
     houserail_path_rollup (&(train->path), &(train->tail));
     train->updated = timestamp;
+    houselog_event ("TRAIN", train->id, "MOVED", "HEAD %s %d TAIL %s %d",
+                    train->head.line, train->head.post,
+                    train->tail.line, train->tail.post);
 }
 
 static void houserail_train_pull_occupied (struct TrainConsist *train,
@@ -481,6 +483,9 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
     if (train->speed * speed < 0)
         return "Stop the train before reversing direction";
 
+    houselog_event ("TRAIN", train->id, "SPEED",
+                    "CHANGED FROM %d TO %d", train->speed, speed);
+
     if (train->hasdcc) // This is a DCC consist.
         return houserail_field_fleet_move (train->id, speed);
 
@@ -501,6 +506,9 @@ const char *houserail_train_break (struct TrainConsist *train, int emergency) {
 
     // Send the stop request even if the train was already stopped:
     // to stop is a safety concern, do it regardless of context.
+
+    houselog_event ("TRAIN", train->id, "STOP",
+                    "AT %s %d", train->head.line, train->head.post);
 
     if (train->hasdcc) // This is a DCC consist.
         return houserail_field_fleet_stop (train->id, emergency);
@@ -613,6 +621,9 @@ const char *houserail_train_move (const char *id, const char *dir, int slow) {
 
 const char *houserail_train_stop (const char *id, int emergency) {
 
+    if (id == 0) { // This is a "stop all" command
+        return 0;
+    }
     struct TrainConsist *train = houserail_train_search (id);
     if (!train) return "Invalid train ID";
 
@@ -676,6 +687,10 @@ const char *houserail_train_enter (const char *id,
     train->parked = 0;
     train->awry = 1;
     train->speed = 0;
+
+    houselog_event ("TRAIN", train->id, "ENTER", "AT %s %d %s",
+                    train->head.line, train->head.post,
+                    (orientation >= 0)?"UP":"DOWN");
     return 0;
 }
 
@@ -683,6 +698,7 @@ const char *houserail_train_consist (const char *id,
                                      const char *cars[], int count) {
 
     struct TrainConsist *train = houserail_train_search (id);
+    int isnew = 0;
 
     int v;
     for (v = 0; v < count; ++v) {
@@ -717,6 +733,8 @@ const char *houserail_train_consist (const char *id,
         strtcpy (train->id, id, sizeof(train->id));
         train->signature = echttp_hash_signature (id);
         train->index = LayoutTrainsCount++;
+        houselog_event ("TRAIN", train->id, "CREATED", "");
+        isnew = 1;
     }
     train->parked = 1;
     train->active = 0;
@@ -730,6 +748,9 @@ const char *houserail_train_consist (const char *id,
         length += model->length;
         train->cars[v] = vehicle->index;
     }
+    houselog_event ("TRAIN", train->id, "CONSIST",
+                    "%s (%d CARS)", isnew?"SET":"CHANGED", train->carcount);
+
     train->hasdcc = 0; // Will reevaluate on the next DCC status report.
     train->carcount = count;
     train->length = length;
@@ -763,6 +784,7 @@ const char *houserail_train_delete (const char *id) {
             vehicle->consist = index;
         }
     }
+    houselog_event ("TRAIN", id, "DELETED", "");
     return 0;
 }
 
@@ -832,8 +854,8 @@ const char *houserail_train_reload (void) {
       vehicle->id = houseconfig_string (element, ".id");
       vehicle->signature = echttp_hash_signature (vehicle->id);
       vehicle->index = i;
-      vehicle->modelid = houseconfig_string (element, ".model");
-      vehicle->model = houserail_train_search_model (vehicle->modelid);
+      const char *modelid = houseconfig_string (element, ".model");
+      vehicle->model = houserail_train_search_model (modelid);
       vehicle->hasdcc = 0;
       vehicle->consist = -1;
    }
