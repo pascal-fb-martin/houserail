@@ -885,6 +885,29 @@ int houserail_train_export (char *buffer, int size, const char *separator) {
     return houserail_train_status (buffer, size); // For now, same content
 }
 
+static const char *houserail_train_dccformat (struct TrainConsist *train) {
+
+    static char dcc[32];
+    dcc[0] = 0;
+
+    const char *format = ",\"dcc\":\"%s\"";
+    if (train->active) {
+        if (train->hasdcc) {
+            snprintf (dcc, sizeof(dcc), format, train->id);
+        } else {
+            int c;
+            for (c = 0; c < train->carcount; ++c) {
+                struct Vehicle *vehicle = LayoutVehicles + train->cars[c];
+                if (vehicle->hasdcc) {
+                    snprintf (dcc, sizeof(dcc), format, vehicle->id);
+                    break;
+                }
+            }
+        }
+    }
+    return dcc; // Must be static!
+}
+
 int houserail_train_status (char *buffer, int size) {
 
     int cursor = 0;
@@ -894,8 +917,9 @@ int houserail_train_status (char *buffer, int size) {
     for (i = 0; i < LayoutTrainsCount; ++i) {
         struct TrainConsist *train = LayoutTrains + i;
         cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s{\"id\":\"%s\",\"length\":%d",
-                            prefix, train->id, train->length);
+                            "%s{\"id\":\"%s\",\"length\":%d%s",
+                            prefix, train->id, train->length,
+                            houserail_train_dccformat (train));
         if (!train->parked) {
             if (train->head.segment)
                cursor += snprintf (buffer+cursor, size-cursor,
@@ -964,11 +988,13 @@ int houserail_train_locate (char *buffer, int size) {
         cursor += snprintf (buffer+cursor, size-cursor,
                             "%s{\"id\":\"%s\",\"head\":[\"%s\",%d,\"%s\"],"
                                              "\"tail\":[\"%s\",%d,\"%s\"],"
-                                             "\"proceed\":[\"%s\":%d]}",
+                                             "\"proceed\":[\"%s\":%d]%s}",
                             prefix, train->id,
                             train->head.line, train->head.post, train->head.segment,
                             train->tail.line, train->tail.post, train->tail.segment,
-                            (direction >= 0)?"up":"down", abs(train->speed));
+                            (direction >= 0)?"up":"down", abs(train->speed),
+                            houserail_train_dccformat (train));
+
         prefix = ",";
     }
     if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
