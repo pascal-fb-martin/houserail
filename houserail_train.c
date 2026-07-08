@@ -157,7 +157,6 @@ struct TrainConsist {
 
     int index;   // Self reference.
 
-    int parked;         // Not currently on this layout.
     struct TrackLocation head;
     struct TrackLocation tail;
 
@@ -171,11 +170,13 @@ struct TrainConsist {
     long long updated;
     int orientation;    // -1: decreasing, 1: increasing, 0: unknown.
     int length;         // Calculated from the consist.
-    int speed;          // Reported by HouseDCC.
-    int active;         // 1 if reported by HouseDCC.
+    int speed;          // As reported by HouseDCC.
+    char parked;        // Not currently on this layout.
 
-    // The following is learned from the data reported by HouseDCC.
-    int hasdcc;
+    // The fields below this point are live field not supposed to be saved.
+    char awry;           // Location not confirmed yet.
+    char active;         // 1 if reported by HouseDCC.
+    char hasdcc;         // Learned from HouseDCC (DCC train consist)
 };
 
 static struct VehicleModel *LayoutVehicleModels = 0;
@@ -541,6 +542,7 @@ void houserail_train_tracking (const struct TrackRange *area,
                    train->id, train->tail.line, train->tail.post,
                               train->head.line, train->head.post,
                               area->line, area->low, area->high);
+            if (train->awry) return; // Uncertain location.
             if (occupied)
                houserail_train_pull_occupied (train, area, timestamp);
             else
@@ -582,6 +584,7 @@ void houserail_train_tracking (const struct TrackRange *area,
     train = LayoutTrains + closest;
 
     houserail_train_pull (train, min, timestamp);
+    train->awry = 0;
 
     // Adjust the train speed based on its new location.
     if (abs(train->speed) > TrainRestrictedSpeed)
@@ -638,12 +641,12 @@ const char *houserail_train_enter (const char *id,
 
     if (! houserail_track_vicinity (&(train->head), facing, orientation))
         return "Unknown track location";
-    train->head.segment = houserail_track_segment (&(train->head), orientation);
 
     train->path.size = train->path.count = 0;
     train->path.sections = 0;
 
     // Calculate the train's head and tail location, and its path.
+    // Apply a small jolt to avoid the train to cover the device.
     // Since the position of the head is known, create the path in
     // the inverse direction, calculate the tail location and then revert.
 
@@ -651,9 +654,16 @@ const char *houserail_train_enter (const char *id,
     if (! houserail_path_span (&(train->path),
                                &(train->head), train->length, inverse))
         return "Invalid location (train too long?)";
+
+    // Apply the jolt backward.
+    houserail_path_move (&(train->path), &(train->head), 1, 1);
+    houserail_path_lengthen (&(train->path), 1);
+    houserail_path_rollup (&(train->path), &(train->head));
+
     train->tail = train->head;
     houserail_path_move (&(train->path),
                          &(train->tail), train->length, 1);
+    train->head.segment = houserail_track_segment (&(train->head), orientation);
     train->tail.segment = houserail_track_segment (&(train->tail), inverse);
     houserail_path_turn (&(train->path), orientation);
 
@@ -664,6 +674,7 @@ const char *houserail_train_enter (const char *id,
 
     train->orientation = orientation;
     train->parked = 0;
+    train->awry = 1;
     train->speed = 0;
     return 0;
 }

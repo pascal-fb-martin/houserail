@@ -220,13 +220,26 @@ int main (int argc, const char **argv) {
     }
     trainlist ("Before houserail_train_tracking (reed-2 occupied)");
 
-    starting ("houserail_train_tracking (reed-2 occupied)");
+    starting ("houserail_train_tracking (reed-1 occupied) -- no move");
     struct TrackRange detected;
+    detected.line = "main";
+    detected.low = 9; // reed-1
+    detected.high = 11;
+    houserail_train_tracking (&detected, 1, now());
+    const struct TrackLocation *head = houserail_train_head ("train3");
+    passed =
+    assert ((head != 0) && (head->post == 28), "houserail_train_tracking (reed-1 occupied) head");
+    digest (passed, "houserail_train_tracking (reed-1 occupied)");
+    if ((!passed) && (head != 0)) printf ("   Head at %s %d\n", head->line, head->post);
+
+    trainlist ("After houserail_train_tracking (reed-1 occupied)");
+
+    starting ("houserail_train_tracking (reed-2 occupied)");
     detected.line = "main";
     detected.low = 29; // reed-2
     detected.high = 31;
     houserail_train_tracking (&detected, 1, now());
-    const struct TrackLocation *head = houserail_train_head ("train3");
+    head = houserail_train_head ("train3");
     passed =
     assert ((head != 0) && (head->post == 31), "houserail_train_tracking (reed-2 occupied) head");
     digest (passed, "houserail_train_tracking (reed-2 occupied)");
