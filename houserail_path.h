@@ -24,6 +24,7 @@
 struct TrackPath {
    int count;
    int size;
+   int direction;
    struct TrackRange *sections;
 };
 
@@ -34,29 +35,28 @@ int houserail_path_covers (const struct TrackPath *path,
 
 int houserail_path_span (struct TrackPath *path,
                          const struct TrackLocation *limit1,
-                         int direction, int length);
+                         int length, int direction);
 
 int houserail_path_set (struct TrackPath *path,
                         const struct TrackLocation *limit1,
                         const struct TrackLocation *limit2, int direction);
 
-int houserail_path_lengthen (struct TrackPath *path,
-                             int distance, int direction);
+int houserail_path_lengthen (struct TrackPath *path, int distance);
 
 int houserail_path_extend (struct TrackPath *path,
-                           const struct TrackLocation *point, int direction);
+                           const struct TrackLocation *point);
 
 int houserail_path_rollup (struct TrackPath *path,
-                           const struct TrackLocation *point, int direction);
+                           const struct TrackLocation *point);
 
 int houserail_path_truncate (struct TrackPath *path,
-                             const struct TrackLocation *point, int direction);
+                             const struct TrackLocation *point);
 
 int houserail_path_move (const struct TrackPath *path,
                          struct TrackLocation *point,
-                         int distance, int direction);
+                         int distance, int orientation);
 
-void houserail_path_reverse (struct TrackPath *path);
+void houserail_path_turn (struct TrackPath *path, int direction);
 
 void houserail_path_erase (struct TrackPath *path);
 

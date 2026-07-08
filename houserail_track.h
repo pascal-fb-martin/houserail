@@ -31,7 +31,7 @@ struct TrackRange {
     int high;
 };
 
-void houserail_track_testmode (void);
+void houserail_track_testmode (int enabled);
 
 typedef void DetectionListener (const struct TrackRange *area,
                                 int occupied,

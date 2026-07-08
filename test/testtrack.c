@@ -48,7 +48,7 @@ int main (int argc, const char **argv) {
 
     // Initialize the track module.
 
-    // houserail_track_testmode ();
+    // houserail_track_testmode (1);
 
     starting ("Loading layout configuration");
     houseconfig_default ("--config=./testloop.json");
@@ -275,7 +275,7 @@ int main (int argc, const char **argv) {
 
     // These two specific tests walk over the loop junction, where the post
     // resets.
-    // houserail_track_testmode ();
+    // houserail_track_testmode (1);
     result = houserail_track_walk (path, 16, &limit2, 0, 1, 200);
     passed =
     assert (result == 2, "houserail_track_walk(main from 280 max 200, forward) status") &&
@@ -313,7 +313,7 @@ int main (int argc, const char **argv) {
     // Test houserail_track_distance (const struct TrackLocation *point1,
     //                                const struct TrackLocation *point2,
     //                                int direction, int max);
-    // houserail_track_testmode ();
+    // houserail_track_testmode (1);
     starting ("houserail_track_distance()");
     result = houserail_track_distance (&limit1, &limit2, 1, 0);
     passed =

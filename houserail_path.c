@@ -29,6 +29,19 @@
  * You can see this module as providing a way to cache existing paths so
  * that the application does not walk the tracks repeatedly.
  *
+ * A path is oriented according to the train's direction of travel. The path
+ * for a stopped train must be in the tail-to-head direction.
+ *
+ * The namig  convention in this module is that the name "direction"
+ * denotes the train's (and path's) direction, while the name "orientation"
+ * denotes an orientation relative to the path's direction.
+ *
+ * A positive train direction will create a path with increasing posts sections.
+ * A negative train direction will create a path with decreasing posts sections.
+ *
+ * A positive orientation follows the path's direction, while a negative
+ * orientation follows the reverse of the path direction.
+ *
  * A path provided to any of these functions must always have been initialized.
  * This is typically done by setting every field to 0 (see TRACKPATHNULL).
  *
@@ -39,59 +52,58 @@
  *
  * int houserail_path_span (struct TrackPath *path,
  *                          const struct TrackLocation *limit1,
- *                          int direction, int length);
+ *                          int length, int direction);
  *
- *    Set a new path that spans the specified length from the specified
- *    limit. Any existing section in the path is erased.
+ *    Set a new path that spans the specified length starting at the specified
+ *    limit in the specified direction. Any existing section in the path is
+ *    erased.
  *
  * int houserail_path_set (struct TrackPath *path,
  *                         const struct TrackLocation *limit1,
  *                         const struct TrackLocation *limit2,
  *                         int direction);
  *
- *    Set a path between two locations. Return 1 on success, 0 on failure.
- *    If there is any existing path sections, the function tries to rollup,
- *    extend and/or truncate what exists if applicable. Otherwise the path
- *    is wiped out and a new path is built.
+ *    Set a path between two locations, in the specified direction.
+ *    Return 1 on success, 0 on failure.
  *
- * int houserail_path_lengthen (struct TrackPath *path,
- *                              int distance, int direction);
+ *    If there is any existing path sections, and the direction is the same
+ *    as the existing direction, the function tries to rollup, extend and/or
+ *    truncate what exists if applicable. Otherwise the path is wiped out
+ *    and a new path is created.
+ *
+ * int houserail_path_lengthen (struct TrackPath *path, int distance);
  *
  * int houserail_path_extend (struct TrackPath *path,
- *                            const struct TrackLocation *point, int direction);
+ *                            const struct TrackLocation *point);
  *
- *    Extend the end of existing path in the provided direction.
- *    The caller may either provide the end point (houserail_path_extend())
- *    or a distance if the exact end point is not known yet.
+ *    Extend the end of an existing path in the direction of the path.
+ *    Function houserail_path_lengthen() extends the path by a defined length.
+ *    Function houserail_path_extend() extends the path to a specified point.
  *    Both functions return 1 on success, 0 on failure.
  *
  * int houserail_path_rollup (struct TrackPath *path,
- *                            const struct TrackLocation *point, int direction);
+ *                            const struct TrackLocation *point);
  *
  *    Shorten an existing path so that it starts at the provided point.
  *
  * int houserail_path_truncate (struct TrackPath *path,
-                                const struct TrackLocation *point, int direction);
+                                const struct TrackLocation *point);
  *
  *    Shorten an existing path so that it ends at the provided point.
  *
- * int houserail_path_distance (const struct TrackPath *path,
- *                              const struct TrackLocation *point1,
- *                              const struct TrackLocation *point2,
- *                              int direction);
- *
- *    Calculate the distance between two points within a given path.
- *    Return -1 if any of the points is not within the path.
- *
  * int houserail_path_move (const struct TrackPath *path,
  *                          struct TrackLocation *point,
- *                          int distance, int direction);
+ *                          int distance, int orientation);
  *
  *    Move a point along the specified path.
  *
  * void houserail_path_reverse (struct TrackPath *path);
  *
  *    Reverse the order of sections in a path.
+ *
+ * void houserail_path_turn (struct TrackPath *path, int direction);
+ *
+ *    Change the direction of the path to the one specified.
  *
  * void houserail_path_erase (struct TrackPath *path);
  *
@@ -127,35 +139,6 @@ static int houserail_path_within (const struct TrackRange *area,
 
 }
 
-static int houserail_path_front (const struct TrackRange *area, int direction) {
-
-    if (area->high > area->low) {
-        return (direction >= 0) ? area->high : area->low;
-    }
-    return (direction >= 0) ? area->low : area->high;
-}
-
-static int houserail_path_back (const struct TrackRange *area, int direction) {
-
-    if (area->high > area->low) {
-        return (direction >= 0) ? area->low : area->high;
-    }
-    return (direction >= 0) ? area->high : area->low;
-}
-
-static void houserail_path_adjust (struct TrackRange *area,
-                                   const struct TrackLocation *point,
-                                   int direction) {
-
-    if (area->high > area->low) {
-        if (direction > 0) area->low = point->post;
-        else area->high = point->post;
-    } else {
-        if (direction > 0) area->high = point->post;
-        else area->low = point->post;
-    }
-}
-
 static void houserail_path_scrub (struct TrackPath *path, int index) {
 
     if (index > 0) {
@@ -188,10 +171,13 @@ int houserail_path_covers (const struct TrackPath *path,
 
 int houserail_path_span (struct TrackPath *path,
                          const struct TrackLocation *limit1,
-                         int direction, int length) {
+                         int length, int direction) {
+
+    if (direction == 0) return 0;
 
     if (path->count > 0) houserail_path_erase (path);
 
+    path->direction = direction;
     if (path->size <= 0) {
         path->size = 16; // FIXME: arbitrary.
         path->sections = calloc (path->size, sizeof(struct TrackRange));
@@ -209,16 +195,20 @@ int houserail_path_set (struct TrackPath *path,
                         const struct TrackLocation *limit1,
                         const struct TrackLocation *limit2, int direction) {
 
+    if (direction == 0) return 0;
+
     // Reuse whatever portion of the existing path is still relevant.
     if (path->count > 0) {
-        if (houserail_path_rollup (path, limit1, direction)) {
-            if (houserail_path_truncate (path, limit2, direction)) return 1;
-            return houserail_path_extend (path, limit2, direction);
+        if ((path->direction == direction) &&
+            (houserail_path_rollup (path, limit1))) {
+            if (houserail_path_truncate (path, limit2)) return 1;
+            return houserail_path_extend (path, limit2);
         }
         houserail_path_erase (path);
     }
 
     // Recalculate a path from scratch.
+    path->direction = direction;
     if (path->size <= 0) {
         path->size = 16; // FIXME: arbitrary.
         path->sections = calloc (path->size, sizeof(struct TrackRange));
@@ -246,16 +236,16 @@ static void houserail_path_merge (struct TrackPath *path, int added) {
     path->count += added;
 }
 
-int houserail_path_lengthen (struct TrackPath *path,
-                             int distance, int direction) {
+int houserail_path_lengthen (struct TrackPath *path, int distance) {
 
     if (path->count <= 0) return 0;
 
+    int direction = path->direction;
     struct TrackRange *last = path->sections + path->count - 1;
     struct TrackLocation start;
     start.line = last->line;
     start.segment = last->segment;
-    start.post = houserail_path_front (last, direction);
+    start.post = last->high;
 
     int count = houserail_track_walk (last+1, path->size - path->count,
                                        &start, 0, direction, distance);
@@ -267,29 +257,24 @@ int houserail_path_lengthen (struct TrackPath *path,
 }
 
 int houserail_path_extend (struct TrackPath *path,
-                           const struct TrackLocation *point, int direction) {
+                           const struct TrackLocation *point) {
 
     if (path->count <= 0) return 0;
 
+    int direction = path->direction;
     struct TrackRange *last = path->sections + (path->count - 1);
 
     // If the new endpoint is on the same line as the last section,
     // just extend the last section.
     if (!strcmp (last->line, point->line)) {
-        if (last->high > last->low) {
-            if (direction > 0) last->high = point->post;
-            else               last->low = point->post;
-        } else {
-            if (direction > 0) last->low = point->post;
-            else               last->high = point->post;
-        }
+        last->high = point->post;
         return 1;
     }
 
     struct TrackLocation start;
     start.line = last->line;
-    start.segment = last->segment;
-    start.post = houserail_path_front (last, direction);
+    start.segment = 0;
+    start.post = last->high;
 
     int count = houserail_track_walk (last+1, path->size - path->count,
                                       &start, point, direction, 0);
@@ -300,44 +285,15 @@ int houserail_path_extend (struct TrackPath *path,
     return 0;
 }
 
-int houserail_path_distance (const struct TrackPath *path,
-                             const struct TrackLocation *point1,
-                             const struct TrackLocation *point2,
-                             int direction) {
-
-    int distance = 0;
-    int i;
-    for (i = 0; i < path->count; ++i) {
-        const struct TrackRange *cursor = path->sections + i;
-        if (!houserail_path_within (cursor, point1)) continue;
-
-        int limit = houserail_path_front (cursor, direction);
-        distance = abs (limit - point1->post);
-    }
-    if (i >= path->count) return -1; // Not within the path.
-
-    for (; i < path->count; ++i) {
-        const struct TrackRange *cursor = path->sections + i;
-        if (!houserail_path_within (cursor, point2)) continue;
-
-        int limit = houserail_path_back (cursor, direction);
-        int delta = limit - point2->post;
-        if (delta > 0) distance += delta;
-        else           distance -= delta;
-        return distance;
-    }
-    return -1; // Not within the path.
-}
-
 int houserail_path_rollup (struct TrackPath *path,
-                           const struct TrackLocation *point, int direction) {
+                           const struct TrackLocation *point) {
 
     struct TrackRange *sections = path->sections;
     int i;
     for (i = 0; i < path->count; ++i) {
         if (!houserail_path_within (sections+i, point)) continue;
 
-        houserail_path_adjust (sections+i, point, direction);
+        sections[i].low = point->post;
         houserail_path_scrub (path, i);
         return 1;
     }
@@ -345,14 +301,14 @@ int houserail_path_rollup (struct TrackPath *path,
 }
 
 int houserail_path_truncate (struct TrackPath *path,
-                             const struct TrackLocation *point, int direction) {
+                             const struct TrackLocation *point) {
 
     struct TrackRange *sections = path->sections;
     int i;
     for (i = 0; i < path->count; ++i) {
         if (!houserail_path_within (sections+i, point)) continue;
 
-        houserail_path_adjust (sections+i, point, (direction > 0)?-1:1);
+        sections[i].high = point->post;
         path->count = i + 1; // Truncate what is left over.
         return 1;
     }
@@ -361,7 +317,7 @@ int houserail_path_truncate (struct TrackPath *path,
 
 int houserail_path_move (const struct TrackPath *path,
                          struct TrackLocation *point,
-                         int distance, int direction) {
+                         int distance, int orientation) {
 
     struct TrackRange *sections = path->sections;
     struct TrackLocation original = *point;
@@ -372,27 +328,40 @@ int houserail_path_move (const struct TrackPath *path,
     }
     if (i >= path->count) return 0; // The point is not within the path?
 
-    // Move the point forward. If the point exits the current section, iterate
-    // to the subsequent sections until the point is within a section.
+    // Move the point forward or backward relative to the path.
+    // If the point exits the current section, iterate to the subsequent
+    // sections until the point is within a section, or the end of the path.
     int post = point->post;
+    int direction = path->direction * orientation;
     point->segment = 0; // This point may be moving out of the known segment.
     for (;;) {
+        struct TrackRange *section = sections + i;
+        point->line = section->line;
         point->post = (direction >= 0) ? post + distance : post - distance;
-        if (houserail_path_within (sections+i, point)) return 1;
+        if (houserail_path_within (section, point)) return 1;
 
-        distance -= abs (houserail_path_front (sections+i, direction) - post);
+        // Remove the distance to the end of the section.
+        int end = (orientation > 0) ? section->high : section->low;
+        distance -= abs(end - post);
 
-        if (++i >= path->count) { // Reached the end of the path: backtrack.
-            *point = original;
-            return 0;
+        if (orientation >= 0) {
+            if (++i >= path->count) { // Reached the end of the path: backtrack.
+                *point = original;
+                return 0;
+            }
+        } else {
+            if (--i < 0) { // Reached the end of the path: backtrack.
+                *point = original;
+                return 0;
+            }
         }
-        point->line = sections[i].line;
-        post = houserail_path_back (sections+i, direction);
+        // Step to the beginning of this new section.
+        post = (orientation > 0) ? sections[i].low : sections[i].high;
     }
     return 0; // Make gcc happy.
 }
 
-void houserail_path_reverse (struct TrackPath *path) {
+static void houserail_path_reverse (struct TrackPath *path) {
 
     struct TrackRange temp;
     struct TrackRange *sections = path->sections;
@@ -413,9 +382,19 @@ void houserail_path_reverse (struct TrackPath *path) {
         sections[loop].low = sections[loop].high;
         sections[loop].high = temp;
     }
+    path->direction = 0 - path->direction;
+}
+
+void houserail_path_turn (struct TrackPath *path, int direction) {
+
+    if (path->direction != direction) {
+        houserail_path_reverse (path);
+        path->direction = direction;
+    }
 }
 
 void houserail_path_erase (struct TrackPath *path) {
     path->count = 0;
+    path->direction = 0;
 }
 

@@ -113,14 +113,16 @@ static int trainlist (const char *label) {
        buffer[size2] = 0;
        printf ("== Trains location (%d bytes): %s\n", size2, buffer);
     }
-    return assert (size > 0, label);
+    int passed = (size > 0);
+    if (label) assert (passed, label);
+    return passed;
 }
 
 int main (int argc, const char **argv) {
 
     // Initialize the track module.
 
-    // houserail_track_testmode ();
+    // houserail_track_testmode (1);
 
     starting ("Loading layout configuration");
     houseconfig_default ("--config=./testloop.json");
@@ -191,12 +193,12 @@ int main (int argc, const char **argv) {
     passed =
     assert (error != 0, "2nd houserail_train_delete (train1) status");
 
-    // Test void houserail_train_track (const struct TrackRange *area,
-    //                                  int occupied,
-    //                                  long long timestamp);
+    // Test void houserail_train_tracking (const struct TrackRange *area,
+    //                                     int occupied,
+    //                                     long long timestamp);
 
     // Create a new train and set it moving.
-    starting ("Prepare for houserail_train_track() test");
+    starting ("Prepare for houserail_train_tracking() test");
     error = houserail_train_consist ("train3", cars, 4);
     if (!assert (error == 0, "houserail_train_consist(train3) return")) {
         printf ("   error: %s\n", error);
@@ -213,57 +215,60 @@ int main (int argc, const char **argv) {
         goto canceltest;
     }
     if (!assert (LastSpeedOrder == 30, "houserail_train_move (train3) speed")) {
+        printf ("   speed: %d\n", LastSpeedOrder);
         goto canceltest;
     }
-    trainlist ("Before houserail_train_track (reed-2 occupied)");
+    trainlist ("Before houserail_train_tracking (reed-2 occupied)");
 
-    starting ("houserail_train_track (reed-2 occupied)");
+    starting ("houserail_train_tracking (reed-2 occupied)");
     struct TrackRange detected;
     detected.line = "main";
     detected.low = 29; // reed-2
     detected.high = 31;
-    houserail_train_track (&detected, 1, now());
-    const struct TrackLocation *after = houserail_train_head ("train3");
+    houserail_train_tracking (&detected, 1, now());
+    const struct TrackLocation *head = houserail_train_head ("train3");
     passed =
-    assert ((after != 0) && (after->post == 31), "houserail_train_track (reed-2 occupied) head");
-    digest (passed, "houserail_train_track (reed-2 occupied)");
-    if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
+    assert ((head != 0) && (head->post == 31), "houserail_train_tracking (reed-2 occupied) head");
+    digest (passed, "houserail_train_tracking (reed-2 occupied)");
+    if ((!passed) && (head != 0)) printf ("   Head at %s %d\n", head->line, head->post);
 
-    trainlist ("After houserail_train_track (reed-2 occupied)");
+    trainlist ("After houserail_train_tracking (reed-2 occupied)");
 
-    starting ("houserail_train_track (reed-1 occupied)");
+    // houserail_track_testmode (1);
+    // houserail_train_testmode (1);
+    starting ("houserail_train_tracking (reed-1 occupied) -- triggerred by middle spot");
     detected.low = 9; // reed-1
     detected.high = 11;
-    houserail_train_track (&detected, 1, now());
-    after = houserail_train_head ("train3");
+    houserail_train_tracking (&detected, 1, now());
+    head = houserail_train_head ("train3");
     passed =
-    assert ((after != 0) && (after->post == 33), "houserail_train_track (reed-1 occupied) head");
-    digest (passed, "houserail_train_track (reed-1 occupied)");
-    if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
+    assert ((head != 0) && (head->post == 33), "houserail_train_tracking (reed-1 occupied) head");
+    digest (passed, "houserail_train_tracking (reed-1 occupied)");
+    if ((!passed) && (head != 0)) printf ("   Head at %s %d\n", head->line, head->post);
 
-    trainlist ("After houserail_train_track (reed-1 occupied)");
+    trainlist ("After houserail_train_tracking (reed-1 occupied)");
 
-    starting ("houserail_train_track (reed-1 vacant)");
-    houserail_train_track (&detected, 0, now());
-    after = houserail_train_head ("train3");
+    starting ("houserail_train_tracking (reed-1 vacant)");
+    houserail_train_tracking (&detected, 0, now());
+    head = houserail_train_head ("train3");
     passed =
-    assert ((after != 0) && (after->post == 37), "houserail_train_track (reed-1 vacant) head");
-    digest (passed, "houserail_train_track (reed-1 vacant)");
-    if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
+    assert ((head != 0) && (head->post == 37), "houserail_train_tracking (reed-1 vacant) head");
+    digest (passed, "houserail_train_tracking (reed-1 vacant)");
+    if ((!passed) && (head != 0)) printf ("   Head at %s %d\n", head->line, head->post);
 
-    trainlist ("After houserail_train_track (reed-1 vacant)");
+    trainlist ("After houserail_train_tracking (reed-1 vacant)");
 
-    starting ("houserail_train_track (reed-3 occupied)");
+    starting ("houserail_train_tracking (reed-3 occupied)");
     detected.low = 49; // reed-3
     detected.high = 51;
-    houserail_train_track (&detected, 1, now());
-    after = houserail_train_head ("train3");
+    houserail_train_tracking (&detected, 1, now());
+    head = houserail_train_head ("train3");
     passed =
-    assert ((after != 0) && (after->post == 51), "houserail_train_track (reed-3 occupied) head");
-    digest (passed, "houserail_train_track (reed-3 occupied)");
-    if ((!passed) && (after != 0)) printf ("   Head at %s %d\n", after->line, after->post);
+    assert ((head != 0) && (head->post == 51), "houserail_train_tracking (reed-3 occupied) head");
+    digest (passed, "houserail_train_tracking (reed-3 occupied)");
+    if ((!passed) && (head != 0)) printf ("   Head at %s %d\n", head->line, head->post);
 
-    trainlist ("After houserail_train_track (reed-3 occupied)");
+    trainlist ("After houserail_train_tracking (reed-3 occupied)");
 
     // Test void houserail_train_stop (const char *id, int emergency);
 
@@ -274,7 +279,95 @@ int main (int argc, const char **argv) {
     assert (LastSpeedOrder == 0, "houserail_train_stop (train3) speed");
     digest (passed, "houserail_train_stop (train3)");
 
-canceltest:
+    // Test train tracking through switches
+
+    starting ("preparing for the up trip");
+    houserail_train_stop ("train3", 0);
+    houserail_train_park ("train3");
+    houserail_train_delete ("train3");
+
+    houserail_train_consist ("train3", cars, 4);
+    houserail_train_enter ("train3", "reed-15", 1);
+    houserail_train_move ("train3", 0, 0);
+
+    error = houserail_track_switch ("main-1", "reverse");
+    assert (error == 0, "houserail_track_switch (main-1 reverse) status");
+    error = houserail_track_switch ("main-4", "reverse");
+    assert (error == 0, "houserail_track_switch (main-4 reverse) status");
+    trainlist ("after preparing for the up trip");
+
+    struct TrackLocation detector;
+    const char *uptrip[] = {"reed-15", "reed-16", "reed-17", "reed-18", "reed-19", "reed-20", "reed-21", "reed-22", "reed-5", "reed-6", "reed-7", "reed-8", 0};
+
+    // houserail_track_testmode (1);
+    // houserail_train_testmode (1);
+    int original = Errors;
+    head = houserail_train_head ("train3");
+    int step;
+    for (step = 0; uptrip[step] != 0; ++step) {
+        char action[128];
+        char message[256];
+        snprintf (action, sizeof(action),
+                  "houserail_train_tracking (%s occupied)", uptrip[step]);
+
+        starting (action);
+        houserail_track_vicinity (&detector, uptrip[step], 1);
+        detected.line = detector.line;
+        detected.low = detector.post;
+        detected.high = detected.low + 2;
+        printf ("   Train train3 moving from %s %d to %s %d\n",
+                head->line, head->post, detector.line, detector.post);
+
+        houserail_train_tracking (&detected, 1, now());
+        trainlist (0);
+        head = houserail_train_head ("train3");
+        snprintf (message, sizeof(message), "%s head", action);
+        assert ((head != 0) && (head->post == detected.low+2), message);
+    }
+    digest (Errors == original, "moving up through the switches");
+
+    starting ("preparing for the down trip");
+    houserail_train_stop ("train3", 0);
+    houserail_train_park ("train3");
+    houserail_train_delete ("train3");
+
+    houserail_train_consist ("train3", cars, 4);
+    houserail_train_enter ("train3", "reed-8", -1);
+    houserail_train_move ("train3", "forward", 0);
+    trainlist ("after preparing for the down trip");
+
+    starting ("moving down through the switches");
+    const char *downtrip[] = {"reed-8", "reed-7", "reed-6", "reed-5", "reed-22", "reed-21", "reed-20", "reed-19", "reed-18", "reed-17", "reed-16", "reed-15", 0};
+
+    // houserail_track_testmode (1);
+    // houserail_train_testmode (1);
+    original = Errors;
+    head = houserail_train_head ("train3");
+    for (step = 0; downtrip[step] != 0; ++step) {
+        char action[128];
+        char message[256];
+        snprintf (action, sizeof(action),
+                  "houserail_train_tracking (%s occupied)", downtrip[step]);
+
+        starting (action);
+        houserail_track_vicinity (&detector, downtrip[step], -1);
+        detected.line = detector.line;
+        detected.high = detector.post;
+        detected.low = detected.high - 2;
+        printf ("   Train train3 moving from %s %d to %s %d\n",
+                head->line, head->post, detector.line, detector.post);
+
+        houserail_train_tracking (&detected, 1, now());
+        trainlist (0);
+        head = houserail_train_head ("train3");
+        snprintf (message, sizeof(message), "%s head", action);
+        assert ((head != 0) && (head->post == detected.high-2), message);
+    }
+    digest (Errors == original, "moving down through the switches");
     return summary ("houserail_train.c");
+
+canceltest:
+    trainlist ("after test cancelled");
+    return summary ("houserail_train.c cancelled");
 }
 

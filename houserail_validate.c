@@ -44,7 +44,7 @@ static const char *validate_update (void) {
 
 int main (int argc, const char **argv) {
 
-    houserail_track_testmode ();
+    houserail_track_testmode (1);
 
     houserail_track_initialize (argc, argv);
     const char *error = houseconfig_initialize ("testtrack", validate_update, argc, argv);

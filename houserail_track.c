@@ -22,7 +22,7 @@
  *
  * SYNOPSYS:
  *
- * void houserail_track_testmode (void);
+ * void houserail_track_testmode (int enabled);
  *
  *    Enable debug traces, for unit tests only.
  *
@@ -232,8 +232,8 @@ static echttp_hash LayoutDetectorsHash;
 static int        *LayoutDetectorsMap = 0;
 
 
-void houserail_track_testmode (void) {
-    TestMode = 1;
+void houserail_track_testmode (int enabled) {
+    TestMode = enabled;
 }
 
 static int houserail_track_search_model (const char *id) {
@@ -397,7 +397,7 @@ const char *houserail_track_reload (void) {
     if (LayoutDetectorsCount > max) max = LayoutDetectorsCount;
     int *list = calloc (max, sizeof(int));
 
-    DEBUG ("%d models, %d segments, %d detectors\n",
+    DEBUG (__FILE__ ": %d models, %d segments, %d detectors\n",
            LayoutModelsCount, LayoutSegmentsCount, LayoutDetectorsCount);
 
     // Populate the models array.
@@ -416,10 +416,10 @@ const char *houserail_track_reload (void) {
         model->reverse = houseconfig_integer (element, ".reverse");
         model->civil = houseconfig_integer (element, ".civil");
         if (model->reverse > 0) {
-            DEBUG ("Model %s civil speed %d length %d (%d on reverse branch)\n",
+            DEBUG (__FILE__ ": Model %s civil speed %d length %d (%d on reverse branch)\n",
                    model->id, model->civil, model->length, model->reverse);
         } else {
-            DEBUG ("Model %s civil speed %d length %d\n",
+            DEBUG (__FILE__ ": Model %s civil speed %d length %d\n",
                    model->id, model->civil, model->length);
         }
     }
@@ -444,7 +444,7 @@ const char *houserail_track_reload (void) {
         struct TrackSegment *segment = LayoutSegments + i;
         segment->id = houseconfig_string (element, ".id");
         if (!segment->id) {
-            DEBUG ("Error on segment at index %d\n", i);
+            DEBUG (__FILE__ ": Error on segment at index %d\n", i);
             return "invalid segment (no id)";
         }
         segment->signature =
@@ -452,12 +452,12 @@ const char *houserail_track_reload (void) {
 
         segment->line = houseconfig_string (element, ".line");
         if (!segment->line) {
-            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
             return "invalid segment (no line)";
         }
         const char *modelid = houseconfig_string (element, ".model");
         if (!modelid) {
-            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
             return "invalid segment (no model)";
         }
         segment->model = houserail_track_search_model (modelid);
@@ -500,18 +500,18 @@ const char *houserail_track_reload (void) {
             }
         }
         if ((!temp[i].previous) && (!temp[i].next)) {
-            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
             return "isolated segment";
         }
 
         segment->previous = houserail_track_search_by_id (temp[i].previous);
         if ((segment->previous < 0) && temp[i].previous) {
-            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
             return "invalid previous link";
         }
         segment->next = houserail_track_search_by_id (temp[i].next);
         if ((segment->next < 0) && temp[i].next) {
-            DEBUG ("Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
             return "invalid previous link";
         }
 
@@ -546,7 +546,7 @@ const char *houserail_track_reload (void) {
            }
         }
         if (isstart) {
-           DEBUG ("Segment %s is a starting point for line %s post %d\n",
+           DEBUG (__FILE__ ": Segment %s is a starting point for line %s post %d\n",
                   segment->id, segment->line, startpost);
            segment->low = (segment->start >= 0) ? segment->start : startpost;
            segment->high = segment->low + LayoutModels[segment->model].length;
@@ -577,7 +577,7 @@ const char *houserail_track_reload (void) {
         struct TrackSegment *segment = LayoutSegments + i;
         houserail_scout_add (&LayoutSegmentsIndex,
                              i, segment->line, segment->low, segment->high);
-        DEBUG ("Segment %s on %s %d to %d (between %s and %s)\n",
+        DEBUG (__FILE__ ": Segment %s on %s %d to %d (between %s and %s)\n",
                segment->id, segment->line, segment->low, segment->high,
                (segment->previous >= 0)?LayoutSegments[segment->previous].id:"(none)",
                (segment->next >= 0)?LayoutSegments[segment->next].id:"(none)");
@@ -601,7 +601,7 @@ const char *houserail_track_reload (void) {
             }
             houserail_scout_add (&LayoutSegmentsIndex,
                                  i, branch->line, low, high);
-            DEBUG ("Segment %s is a switch, branch on %s %d to %d (between %s and %s)\n",
+            DEBUG (__FILE__ ": Segment %s is a switch, branch on %s %d to %d (between %s and %s)\n",
                    segment->id, branch->line, low, high,
                    LayoutSegments[branchprevious].id,
                    LayoutSegments[branchnext].id);
@@ -631,11 +631,11 @@ const char *houserail_track_reload (void) {
         detector->segment =
             houserail_track_search_by_location (detector->area.line, detector->area.low);
         if (detector->segment < 0) {
-            DEBUG ("Invalid location for detector %s\n", detector->id);
+            DEBUG (__FILE__ ": Invalid location for detector %s\n", detector->id);
             continue;
         }
         struct TrackSegment *segment = LayoutSegments + detector->segment;
-        DEBUG ("Detector %s is on segment %s covers %s %d to %d\n",
+        DEBUG (__FILE__ ": Detector %s is on segment %s covers %s %d to %d\n",
                detector->id, segment->id,
                detector->area.line, detector->area.low, detector->area.high);
         detector->next = segment->detector;
@@ -855,10 +855,10 @@ const char *houserail_track_segment (const struct TrackLocation *point,
         struct TrackSegment *segment = LayoutSegments + index;
         if (direction > 0) {
             if ((segment->low == point->post) && (segment->previous >= 0)) {
-                DEBUG ("On the low edge of segment %s\n", segment->id);
+                DEBUG (__FILE__ ": On the low edge of segment %s\n", segment->id);
                 int alternative = segment->previous;
                 segment = LayoutSegments + alternative;
-                DEBUG ("Trying segment %s\n", segment->id);
+                DEBUG (__FILE__ ": Trying segment %s\n", segment->id);
                 if ((segment->high == point->post) &&
                     (!strcmp (segment->line, point->line))) {
                     index = alternative;
@@ -866,10 +866,10 @@ const char *houserail_track_segment (const struct TrackLocation *point,
             }
         } else {
             if ((segment->high == point->post) && (segment->next >= 0)) {
-                DEBUG ("on the high edge of segment %s\n", segment->id);
+                DEBUG (__FILE__ ": on the high edge of segment %s\n", segment->id);
                 int alternative = segment->next;
                 segment = LayoutSegments + alternative;
-                DEBUG ("Trying segment %s\n", segment->id);
+                DEBUG (__FILE__ ": Trying segment %s\n", segment->id);
                 if ((segment->low == point->post) &&
                     (!strcmp (segment->line, point->line))) {
                     index = alternative;
@@ -882,12 +882,7 @@ const char *houserail_track_segment (const struct TrackLocation *point,
 
 static int houserail_track_locate (const struct TrackLocation *point) {
 
-    if (point->segment) {
-        DEBUG ("houserail_track_locate(): use segment %s\n", point->segment);
-        return houserail_track_search_by_id (point->segment);
-    }
-
-    DEBUG ("houserail_track_locate(): use location %s.%d\n", point->line, point->post);
+    DEBUG (__FILE__ ": houserail_track_locate(): use location %s.%d\n", point->line, point->post);
     return houserail_track_search_by_location (point->line, point->post);
 }
 
@@ -936,17 +931,17 @@ int houserail_track_civil (const struct TrackLocation *point, int direction) {
 
     int index = houserail_track_locate (point);
     if (index < 0) {
-        DEBUG ("invalid location %s.%d\n", point->line, point->post);
+        DEBUG (__FILE__ ": invalid location %s.%d\n", point->line, point->post);
         return 0; // Stop whenever there is any doubt.
     }
 
     struct TrackSegment *segment = LayoutSegments + index;
     int speed1 = LayoutModels[segment->model].civil;
-    DEBUG ("Consider civil speed %d for segment %s (model %s)\n",
+    DEBUG (__FILE__ ": Consider civil speed %d for segment %s (model %s)\n",
            speed1, segment->id, LayoutModels[segment->model].id);
     if ((segment->branch >= 0) && (segment->needle == segment->branch)) {
        speed1 = SwitchReverseSpeed;
-       DEBUG ("use branch speed %d instead for switch %s in reverse state",
+       DEBUG (__FILE__ ": use branch speed %d instead for switch %s in reverse state",
               speed1, segment->id);
     }
     if (!direction) return speed1;
@@ -954,14 +949,69 @@ int houserail_track_civil (const struct TrackLocation *point, int direction) {
     index = (direction > 0) ? segment->next : segment->previous;
     segment = LayoutSegments + index;
     int speed2 = LayoutModels[segment->model].civil;
-    DEBUG ("Consider civil speed %d from segment %s (model %s)\n",
+    DEBUG (__FILE__ ": Consider civil speed %d from segment %s (model %s)\n",
            speed2, segment->id, LayoutModels[segment->model].id);
     if (speed1 < speed2) return speed1;
     return speed2;
 }
 
+// Retrieve the track range covered by the specified segment.
+// This function handles switches.
+//
+void houserail_track_limits (const char *line, int direction,
+                             struct TrackSegment *segment,
+                             struct TrackRange *range) {
+
+    // Consider the segment's 'normal' range as the default.
+    range->line = segment->line;
+    range->low = segment->low;
+    range->high = segment->high;
+
+    if (segment->branch < 0) return; // No ambiguity: straight segment.
+
+    struct TrackSegment *branch = LayoutSegments + segment->branch;
+
+    // What is the geometry of the switch: increasing or decreasing posts?
+    int geometry = (segment->common == segment->previous)?1:-1;
+
+    int onbranch = 0;
+    if (direction == geometry) {
+        // Follow the needle on a divergent switch.
+        if (segment->needle == segment->branch) onbranch = 1;
+    } else {
+        // Does this come from the branch of a convergent switch?
+        if (!strcmp (line, branch->line)) onbranch = 1;
+    }
+    if (onbranch) {
+        range->line = branch->line;
+        struct TrackModel *model = LayoutModels + segment->model;
+        if (geometry > 0) {
+            range->low = branch->low - model->reverse;
+            range->high = branch->low;
+        } else {
+            range->low = branch->high;
+            range->high = branch->high + model->reverse;
+        }
+    }
+}
+
+// Make one step to the next segment. This handles switches.
+//
 static int houserail_track_step (struct TrackSegment *segment, int direction) {
-    return (direction > 0) ? segment->next : segment->previous;
+
+    // The default is to follow the 'normal' direction
+    //
+    int next = (direction > 0) ? segment->next : segment->previous;
+    if (segment->branch < 0) return next; // No ambiguity.
+
+    // The segment is a switch. What is it geometry compare to the direction?
+    //
+    if (next < 0) return next; // Switches to nowhere don't exist.
+    int geometry = (segment->common == segment->previous)?1:-1;
+    if (geometry == direction) { // Follow the needle on a divergent switch
+        return segment->needle;
+    }
+    return next;
 }
 
 int houserail_track_walk (struct TrackRange *path, int size,
@@ -987,101 +1037,71 @@ int houserail_track_walk (struct TrackRange *path, int size,
     int behind = 0;
     int distance = 0;
 
-    DEBUG ("Start walking at segment %s\n", segment->id);
-    int nextsegment = houserail_track_step (segment, direction);
+    DEBUG (__FILE__ ": Start walking at segment %s\n", segment->id);
+    struct TrackRange current;
+    houserail_track_limits (line, direction, segment, &current);
 
-    while (nextsegment >= 0) {
+    for (;;) {
 
-        DEBUG ("Walking segment %s\n", segment->id);
+        // Was a limit condition reached?
+        //
+        DEBUG (__FILE__ ": Walking segment %s\n", segment->id);
         if (limit2 &&
-            (limit2->post >= segment->low) &&
-            (limit2->post <= segment->high) &&
-            (!strcmp (limit2->line, line))) {
+            (limit2->post >= current.low) &&
+            (limit2->post <= current.high) &&
+            (!strcmp (limit2->line, current.line))) {
 
             path[cursor].high = limit2->post;
             return cursor+1; // Reached the destination.
         }
         if (max > 0) {
-            int end = (direction > 0)? segment->high : segment->low;
+            int end = (direction > 0)? current.high : current.low;
             behind = distance;
             distance += abs (end - path[cursor].high);
-            DEBUG ("Walked %d posts so far\n", distance);
+            DEBUG (__FILE__ ": Walked %d posts so far\n", distance);
             if (distance >= max) goto toofar;
         }
-        int join1 = (direction > 0)? segment->high : segment->low;
 
-        struct TrackSegment *next = LayoutSegments + nextsegment;
-        DEBUG ("Walking to segment %s (%s %d to %d)\n", next->id, next->line, next->low, next->high);
+        // No end condition reached: keep going.
+        //
+        int join1 = (direction > 0)? current.high : current.low;
 
-        if ((next->branch >= 0) && (LayoutSegments+next->common == segment)) {
+        index = houserail_track_step (segment, direction);
+        if (index < 0) break;
+        struct TrackSegment *next = LayoutSegments + index;
 
-           // This is the entry to a switch: follow the needle
-           if (next->needle == next->branch) {
-               struct TrackModel *model = LayoutModels + next->model;
-               struct TrackSegment *branch = LayoutSegments + next->branch;
-               line = branch->line;
+        struct TrackRange upcoming;
+        houserail_track_limits (current.line, direction, next, &upcoming);
+        DEBUG (__FILE__ ": Walking to segment %s (%s %d to %d)\n", next->id, upcoming.line, upcoming.low, upcoming.high);
 
-               // Start a new section at the entry of the switch, but
-               // refer to the branch line.
-               if (++cursor >= size) return 0; // Overflow.
-               path[cursor].line = line;
-               path[cursor].segment = next->id;
-               int low, high;
-               if (direction > 0) {
-                   low = path[cursor].low = branch->low - model->reverse;
-                   high = path[cursor].high = branch->low;
-               } else {
-                   high = path[cursor].low = branch->high + model->reverse;
-                   low = path[cursor].high = branch->high;
-               }
+        int join2 = (direction > 0)? upcoming.low : upcoming.high;
+        DEBUG (__FILE__ ": Segments %s and %s join at %s.%d and %s.%d\n",
+               segment->id, next->id, current.line, join1, upcoming.line, join2);
 
-               if (limit2 &&
-                   (limit2->post >= low) && (limit2->post <= high) &&
-                   (!strcmp (limit2->line, line))) {
-
-                   path[cursor].high = limit2->post;
-                   return cursor+1; // Reached the destination.
-               }
-               if (max > 0) {
-                   behind = distance;
-                   distance += model->reverse;
-                   DEBUG ("Walked %d posts so far (switch)\n", distance);
-                   if (distance >= max) goto toofar;
-               }
-
-               segment = next;
-               next = LayoutSegments + next->branch; // Pass that switch.
-               join1 = path[cursor].low;
-           }
-        }
-
-        int join2 = (direction > 0)? next->low : next->high;
-        DEBUG ("Segments %s and %s join at %s.%d and %s.%d\n",
-               segment->id, next->id, segment->line, join1, next->line, join2);
-
-        if ((join1 != join2) || strcasecmp (line, next->line)) {
+        if ((join1 != join2) || strcasecmp (line, upcoming.line)) {
 
            // The name of the line changed or a loop junction was reached:
            // finalize the current section and create a new one.
-           path[cursor].high = (direction > 0) ? segment->high : segment->low;
-           DEBUG ("Section %d end at post %d\n", cursor, path[cursor].high);
+
+           path[cursor].high = (direction > 0) ? current.high : current.low;
+           DEBUG (__FILE__ ": Section %d end at %s %d\n", cursor, path[cursor].line, path[cursor].high);
            if (++cursor >= size) return 0; // Overflow.
 
-           path[cursor].line = line = next->line;
+           path[cursor].line = line = upcoming.line;
            path[cursor].segment = next->id;
            path[cursor].high = path[cursor].low =
-               (direction > 0)? next->low : next->high;
-           DEBUG ("Section %d starts at post %d\n", cursor, path[cursor].low);
+               (direction > 0)? upcoming.low : upcoming.high;
+           DEBUG (__FILE__ ": Section %d starts at %s %d\n", cursor, path[cursor].line, path[cursor].low);
         } else {
-           // The point that was reached in the path.. for now.
-           path[cursor].segment = segment->id;
-           path[cursor].high = (direction > 0) ? segment->high : segment->low;
+           // Remember the point that was reached in the path.. for now.
+           path[cursor].segment = next->id;
+           path[cursor].high = (direction > 0) ? current.high : current.low;
         }
 
         segment = next;
-        nextsegment = houserail_track_step (segment, direction);
+        current = upcoming;
     }
-    if (limit2 && (nextsegment < 0)) return 0; // Could not find the endpoint.
+    if (limit2 && (index < 0)) return 0; // Could not find the endpoint.
     return cursor+1;
 
 toofar:
@@ -1106,7 +1126,7 @@ int houserail_track_distance (const struct TrackLocation *point1,
    int i;
    for (i = 0; i < count; ++i) {
        distance += abs(path[i].high - path[i].low);
-       DEBUG ("distance %d after section %d: %s from %d to %d\n",
+       DEBUG (__FILE__ ": distance %d after section %d: %s from %d to %d\n",
               distance, i, path[i].line, path[i].low, path[i].high);
        if (max && (distance > max)) return -1;
    }
