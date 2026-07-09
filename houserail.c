@@ -40,6 +40,7 @@
 #include <ctype.h>
 
 #include "echttp.h"
+#include "echttp_libc.h"
 #include "echttp_cors.h"
 #include "echttp_static.h"
 
@@ -87,7 +88,7 @@ static int rail_export (void) {
     c += houserail_track_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
     c += houserail_train_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
     if (c == empty) return 0;
-    c += snprintf (JsonBuffer+c, sizeof(JsonBuffer)-c, "}");
+    c += snprintf (JsonBuffer+c, sizeof(JsonBuffer)-c, "}}");
     return c;
 }
 
@@ -110,15 +111,12 @@ static const char *rail_status_track (const char *method, const char *uri,
     if (housestate_same (LiveState)) return "";
 
     int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), LiveState);
-    int empty = cursor;
 
     cursor += houserail_track_status (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
     cursor += houserail_field_status (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
     cursor += houserail_train_locate (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
 
-    if (cursor == empty) return "";
-
-    cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}");
+    cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
     echttp_content_type_json ();
     return JsonBuffer;
 }
@@ -129,14 +127,67 @@ static const char *rail_status_train (const char *method, const char *uri,
     if (housestate_same (LiveState)) return "";
 
     int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), LiveState);
-    int empty = cursor;
 
     cursor += houserail_train_status (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
-    if (cursor == empty) return "";
-
-    cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}");
+    cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
     echttp_content_type_json ();
     return JsonBuffer;
+}
+
+static const char *rail_consist (const char *method, const char *uri,
+                                 const char *data, int length) {
+
+    const char *id = echttp_parameter_get("id");
+    const char *cars = echttp_parameter_get("cars");
+
+    if (!id) {
+        echttp_error (404, "Missing Train ID");
+        return "";
+    }
+    if ((!cars) || (cars[0] == 0)) {
+        echttp_error (404, "Missing Cars");
+        return "";
+    }
+    int count = 0;
+    const char *consist[16];
+    char localcopy[1024];
+    strtcpy (localcopy, cars, sizeof(localcopy));
+
+    char *cursor = localcopy;
+    consist[count++] = cursor;
+    while (*(++cursor) > 0) {
+        if (*cursor == '+') {
+            *cursor = 0;
+            consist[count++] = cursor + 1;
+        }
+        if (count >= 16) break; // Avoid overflow.
+    }
+
+    const char *error = houserail_train_consist (id, consist, count);
+    if (error) {
+        echttp_error (500, error);
+        return "";
+    }
+    housestate_changed (LiveState);
+    return rail_status_train (method, uri, data, length);
+}
+
+static const char *rail_delete_train (const char *method, const char *uri,
+                                      const char *data, int length) {
+
+    const char *id = echttp_parameter_get("id");
+
+    if (!id) {
+        echttp_error (404, "Missing Train ID");
+        return "";
+    }
+    const char *error = houserail_train_delete (id);
+    if (error) {
+        echttp_error (500, error);
+        return "";
+    }
+    housestate_changed (LiveState);
+    return rail_status_train (method, uri, data, length);
 }
 
 static const char *rail_enter (const char *method, const char *uri,
@@ -147,18 +198,18 @@ static const char *rail_enter (const char *method, const char *uri,
     const char *at = echttp_parameter_get("at");
 
     if (!id) {
-        echttp_error (404, "missing device ID");
+        echttp_error (404, "Missing Train ID");
         return "";
     }
     if (!at) {
-        echttp_error (404, "missing track location (detector id)");
+        echttp_error (404, "Missing Track Location");
         return "";
     }
     int direction = 0;
     if (dir && (!strcmp (dir, "up"))) direction = 1;
     else if (dir && (!strcmp (dir, "down"))) direction = -1;
     else {
-        echttp_error (400, "invalid train orientation");
+        echttp_error (400, "Invalid Train Orientation");
         return "";
     }
     const char *error = houserail_train_enter (id, at, direction);
@@ -176,7 +227,7 @@ static const char *rail_park (const char *method, const char *uri,
     const char *id = echttp_parameter_get("id");
 
     if (!id) {
-        echttp_error (404, "missing device ID");
+        echttp_error (404, "Missing Train ID");
         return "";
     }
     const char *error = houserail_train_park (id);
@@ -196,7 +247,7 @@ static const char *rail_move (const char *method, const char *uri,
     const char *slow = echttp_parameter_get("slow");
 
     if (!id) {
-        echttp_error (404, "missing device ID");
+        echttp_error (404, "Missing Train ID");
         return "";
     }
     const char *error = houserail_train_move (id, dir, slow?atoi(slow):0);
@@ -345,7 +396,7 @@ int main (int argc, const char **argv) {
         houseportal_declare (echttp_port(4), path, 1);
     }
     housediscover_initialize (argc, argv);
-    houselog_initialize ("dcc", argc, argv);
+    houselog_initialize ("rail", argc, argv);
     housedepositor_initialize (argc, argv);
 
     error = houseconfig_initialize ("rail", rail_update, argc, argv);
@@ -367,6 +418,8 @@ int main (int argc, const char **argv) {
 
     echttp_route_uri ("/rail/train/status", rail_status_train);
     echttp_route_uri ("/rail/track/status", rail_status_track);
+    echttp_route_uri ("/rail/train/consist",rail_consist);
+    echttp_route_uri ("/rail/train/delete", rail_delete_train);
     echttp_route_uri ("/rail/enter",  rail_enter);
     echttp_route_uri ("/rail/park",   rail_park);
     echttp_route_uri ("/rail/move",   rail_move);

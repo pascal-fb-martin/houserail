@@ -267,6 +267,7 @@ static void houserail_train_fleet (const char *id, int index) {
            train->speed = speed;
            houserail_path_turn (&(train->path),
                                 houserail_train_direction(train));
+           houselog_event ("TRAIN", train->id, "SPEED", "CHANGED TO %d", speed);
        }
        train->active = 1;
     }
@@ -484,7 +485,7 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
         return "Stop the train before reversing direction";
 
     houselog_event ("TRAIN", train->id, "SPEED",
-                    "CHANGED FROM %d TO %d", train->speed, speed);
+                    "REQUESTED CHANGE FROM %d TO %d", train->speed, speed);
 
     if (train->hasdcc) // This is a DCC consist.
         return houserail_field_fleet_move (train->id, speed);
@@ -636,7 +637,9 @@ const char *houserail_train_park (const char *id) {
     if (!train) return "Unknown train";
 
     train->parked = 1;
-    return houserail_train_break (train, 1);
+    houselog_event ("TRAIN", train->id, "PARKED", "");
+    if (train->speed != 0) houserail_train_break (train, 1);
+    return 0; // Regardless of the stop command status.
 }
 
 const char *houserail_train_enter (const char *id,
@@ -733,7 +736,6 @@ const char *houserail_train_consist (const char *id,
         strtcpy (train->id, id, sizeof(train->id));
         train->signature = echttp_hash_signature (id);
         train->index = LayoutTrainsCount++;
-        houselog_event ("TRAIN", train->id, "CREATED", "");
         isnew = 1;
     }
     train->parked = 1;
@@ -748,12 +750,12 @@ const char *houserail_train_consist (const char *id,
         length += model->length;
         train->cars[v] = vehicle->index;
     }
-    houselog_event ("TRAIN", train->id, "CONSIST",
-                    "%s (%d CARS)", isnew?"SET":"CHANGED", train->carcount);
 
     train->hasdcc = 0; // Will reevaluate on the next DCC status report.
     train->carcount = count;
     train->length = length;
+    houselog_event ("TRAIN", train->id, isnew?"CREATED":"CHANGED",
+                    "CONSIST (%d CARS)", train->carcount);
 
     return 0;
 }

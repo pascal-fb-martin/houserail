@@ -6,12 +6,12 @@
 
 var RailLastStatus = 0;
 
-function newAction (vehicle, text, command, state) {
+function newAction (id, text, command, state) {
     var button = document.createElement("button");
     button.innerHTML = text;
     button.type = 'button';
     button.disabled = false;
-    button.resourceId = vehicle;
+    button.resourceId = id;
     button.resourceState = state;
     button.onclick = command;
     return button;
@@ -40,6 +40,10 @@ function railStop () {
     railCommand ("/rail/stop?id="+ this.resourceId);
 }
 
+function railPark () {
+    railCommand ("/rail/park?id="+ this.resourceId);
+}
+
 function railStopAll () {
     railCommand ("/rail/stop?urgent=1");
 }
@@ -54,9 +58,9 @@ function railShowTrains (response) {
    for (var i = table.rows.length-1; i > 0; i--) {
       table.deleteRow(i);
    }
-   if (!response.train) return;
+   if (!response.rail.train) return;
 
-   var trains = response.train.sort (railSortTrains);
+   var trains = response.rail.train.sort (railSortTrains);
    for (var i = 0; i < trains.length; i++) {
 
         var train = trains[i];
@@ -72,7 +76,7 @@ function railShowTrains (response) {
         row.appendChild(column);
 
         column = document.createElement("td");
-        column.innerHTML = vehicle.proceed?train.proceed[0]:'';
+        column.innerHTML = train.proceed?train.proceed[0]:'';
         row.appendChild(column);
 
         column = document.createElement("td");
@@ -92,9 +96,10 @@ function railShowTrains (response) {
         row.appendChild(column);
 
         column = document.createElement("td");
-        column.appendChild (newAction (train.id, railMove, "Forward", "forward"));
-        column.appendChild (newAction (train.id, railStop, "Stop", ""));
-        column.appendChild (newAction (train.id, railMove, "Backward", "backward"));
+        column.appendChild (newAction (train.id, "Forward", railMove, "forward"));
+        column.appendChild (newAction (train.id, "Backward", railMove, "backward"));
+        column.appendChild (newAction (train.id, "Stop", railStop, ""));
+        column.appendChild (newAction (train.id, "Park", railPark, ""));
         row.appendChild(column);
     }
 }
@@ -138,7 +143,7 @@ window.onload = function() {
    </table>
    </section>
    <section>
-   <h1>Locomotives</h1>
+   <h1>Trains</h1>
    <table id="trains" class="housewidetable" border="0">
       <tr>
          <th width="6%">ID</th>

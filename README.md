@@ -92,6 +92,18 @@ Each `detector`, `track`, `switch` and `signal` entry is an array of arrays, whe
 The train status subset contains enough information to locate the train on a track display: `id`, `head` and `procees`. (The last item provides the direction of travel.)
 
 ```
+/rail/train/consist?id=STRING&cars=STRING[+STRING..]
+```
+
+Declare a new train consist. This may replace an existing train consist. The cars listed must be known, and must not be part of a consist already.
+
+```
+/rail/train/delete?id=STRING
+```
+
+Remove an existing train consist.
+
+```
 /rail/enter?id=STRING&dir=STRING&at=STRING
 ```
 
