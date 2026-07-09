@@ -22,6 +22,13 @@ All lengths and post values int this database represent the protype scale values
 
 A unique location on the layout is determined by the combination of a line name and post value, e.g. "main 170".
 
+## Layout Identification
+
+The track topology data includes two fields that are intended for documentation purposes:
+
+* `layout`: the name of this layout. This field is mandatory.
+* `description`: a longer text, intended to describe the intent of the layout. This field is optional.
+
 ## Track Models
 
 The models are stored in the `track.models` array. Each element is an object the follows the schema below:

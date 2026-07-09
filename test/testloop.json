@@ -3,6 +3,7 @@
     "timestamp": 0,
     "rail":{
          "layout":"testloop",
+         "description":"A simple layout for unit testing",
          "train":{
              "models":[
                  {"id":"gp40","length":13,"spots":[2,11]},

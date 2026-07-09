@@ -168,6 +168,9 @@ static int SwitchReverseSpeed = 20; // TBD: make it configurable?
 
 static DetectionListener *TrackNextListener = 0;
 
+static const char *LayoutName = 0;
+static const char *LayoutDescription = 0;
+
 struct TrackModel {
     const char *id;
     unsigned int signature; // Seach accelerator.
@@ -372,6 +375,10 @@ const char *houserail_track_reload (void) {
         LayoutDetectorsMap = 0;
     }
     houserail_scout_erase (&LayoutSegmentsIndex);
+
+    LayoutName = houseconfig_string (0, ".rail.layout");
+    if (!LayoutName) return "No track layout name";
+    LayoutDescription = houseconfig_string (0, ".rail.description");
 
     // Calculate the size needed for each array.
 
@@ -662,7 +669,17 @@ const char *houserail_track_reload (void) {
 
 int houserail_track_export (char *buffer, int size, const char *separator) {
 
-    int cursor = snprintf (buffer, size, "%s\"track\":{", separator);
+    if (!LayoutName) return 0; // No track layout was loaded.
+
+    int cursor = snprintf (buffer, size,
+                           "%s\"layout\":\"%s\"", separator, LayoutName);
+    if (cursor >= size) goto overflow;
+    if (LayoutDescription) {
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            ",\"description\":\"%s\"", LayoutDescription);
+        if (cursor >= size) goto overflow;
+    }
+    cursor += snprintf (buffer+cursor, size-cursor, ",\"track\":{");
     if (cursor >= size) goto overflow;
     int preamble = cursor;
 
