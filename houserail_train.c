@@ -623,7 +623,7 @@ const char *houserail_train_move (const char *id, const char *dir, int slow) {
 const char *houserail_train_stop (const char *id, int emergency) {
 
     if (id == 0) { // This is a "stop all" command
-        return 0;
+        return houserail_field_fleet_stop (0, emergency);
     }
     struct TrainConsist *train = houserail_train_search (id);
     if (!train) return "Invalid train ID";
