@@ -121,6 +121,20 @@ static const char *rail_status_track (const char *method, const char *uri,
     return JsonBuffer;
 }
 
+static const char *rail_detector (const char *method, const char *uri,
+                                  const char *data, int length) {
+
+    if (housestate_same (LiveState)) return "";
+
+    int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), LiveState);
+
+    cursor += houserail_track_detectors (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
+
+    cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
+    echttp_content_type_json ();
+    return JsonBuffer;
+}
+
 static const char *rail_status_train (const char *method, const char *uri,
                                       const char *data, int length) {
 
@@ -416,10 +430,11 @@ int main (int argc, const char **argv) {
     echttp_cors_allow_method("GET");
     echttp_protect (0, rail_protect);
 
-    echttp_route_uri ("/rail/train/status", rail_status_train);
-    echttp_route_uri ("/rail/track/status", rail_status_track);
-    echttp_route_uri ("/rail/train/consist",rail_consist);
-    echttp_route_uri ("/rail/train/delete", rail_delete_train);
+    echttp_route_uri ("/rail/train/status",   rail_status_train);
+    echttp_route_uri ("/rail/track/status",   rail_status_track);
+    echttp_route_uri ("/rail/track/detector", rail_detector);
+    echttp_route_uri ("/rail/train/consist",  rail_consist);
+    echttp_route_uri ("/rail/train/delete",   rail_delete_train);
     echttp_route_uri ("/rail/enter",  rail_enter);
     echttp_route_uri ("/rail/park",   rail_park);
     echttp_route_uri ("/rail/move",   rail_move);

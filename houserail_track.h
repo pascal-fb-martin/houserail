@@ -45,6 +45,7 @@ void houserail_track_input (const char *name,
 const char *houserail_track_reload (void);
 int houserail_track_export (char *buffer, int size, const char *separator);
 int houserail_track_status (char *buffer, int size);
+int houserail_track_detectors (char *buffer, int size);
 
 void houserail_track_background (time_t now);
 

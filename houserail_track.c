@@ -53,6 +53,10 @@
  *
  *     Return the live status of tracks in JSON format.
  *
+ * int houserail_track_detectors (char *buffer, int size);
+ *
+ *     Return the list of detectors in JSON format.
+ *
  * const char *houserail_track_reload (void);
  *
  *     Load a new configuration.
@@ -784,7 +788,7 @@ static int houserail_track_status_track (char *buffer, int size) {
     return cursor;
 }
 
-static int houserail_track_status_detector (char *buffer, int size) {
+int houserail_track_detectors (char *buffer, int size) {
 
     int cursor = 0;
     const char *prefix = ",\"detector\":[";
@@ -831,7 +835,7 @@ int houserail_track_status (char *buffer, int size) {
 
     int cursor = houserail_track_status_track (buffer, size);
     cursor += houserail_track_status_switch (buffer+cursor, size-cursor);
-    cursor += houserail_track_status_detector (buffer+cursor, size-cursor);
+    cursor += houserail_track_detectors (buffer+cursor, size-cursor);
     return cursor;
 }
 

@@ -7,11 +7,11 @@
 var RailLastStatus = 0;
 var LayoutDetectors = null;
 
-function newAction (id, text, command, state) {
+function newAction (id, text, command, state, disabled) {
     var button = document.createElement("button");
     button.innerHTML = text;
     button.type = 'button';
-    button.disabled = false;
+    button.disabled = disabled?true:false;
     button.resourceId = id;
     button.resourceState = state;
     button.onclick = command;
@@ -151,9 +151,10 @@ function railShowTrains (response) {
 
         column = document.createElement("td");
         if (train.proceed) {
-            column.appendChild (newAction (train.id, "Forward", railMove, "forward"));
-            column.appendChild (newAction (train.id, "Backward", railMove, "backward"));
-            column.appendChild (newAction (train.id, "Stop", railStop, ""));
+            var disabled = (train.dcc)?false:true;
+            column.appendChild (newAction (train.id, "Forward", railMove, "forward", disabled));
+            column.appendChild (newAction (train.id, "Backward", railMove, "backward", disabled));
+            column.appendChild (newAction (train.id, "Stop", railStop, "", disabled));
             column.appendChild (newAction (train.id, "Park", railPark, ""));
         } else {
             column.appendChild (newAction (train.id, "Enter", railEnter, ""));
@@ -168,7 +169,7 @@ function railShowStatus (response) {
    RailLastStatus = response.latest;
 }
 
-function railLoadTopology (response) {
+function railLoadDetectors (response) {
 
    if (!response.rail.detector) return;
    var detectors = response.rail.detector;
@@ -180,14 +181,14 @@ function railLoadTopology (response) {
    RailLastStatus = 0; // Force a table refresh.
 }
 
-function railGetTopology () {
+function railGetDetectors () {
 
     var command = new XMLHttpRequest();
-    command.open("GET", "/rail/track/status");
+    command.open("GET", "/rail/track/detector");
     command.onreadystatechange = function () {
         if (command.readyState === 4) {
             if (command.status === 200) {
-                railLoadTopology (JSON.parse(command.responseText));
+                railLoadDetectors (JSON.parse(command.responseText));
             }
         }
     }
@@ -201,7 +202,7 @@ function railStatus () {
 }
 
 window.onload = function() {
-   railGetTopology();
+   railGetDetectors();
    railStatus();
    setInterval (railStatus, 1000);
 };
