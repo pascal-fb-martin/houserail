@@ -5,6 +5,7 @@
 <script>
 
 var RailLastStatus = 0;
+var LayoutDetectors = null;
 
 function newAction (id, text, command, state) {
     var button = document.createElement("button");
@@ -21,8 +22,12 @@ function railCommand (url) {
     var command = new XMLHttpRequest();
     command.open("GET", url);
     command.onreadystatechange = function () {
-        if (command.readyState === 4 && command.status === 200) {
-            railShowStatus (JSON.parse(command.responseText));
+        if (command.readyState === 4) {
+            if (command.status === 200) {
+                railShowStatus (JSON.parse(command.responseText));
+            } else if ((command.status === 404) || (command.status === 500)) {
+                window.alert ('Error '+command.status+': '+command.statusText);
+            }
         }
     }
     command.send(null);
@@ -48,6 +53,24 @@ function railStopAll () {
     railCommand ("/rail/stop?urgent=1");
 }
 
+function railTrainAdd () {
+    var id = document.getElementById ('trainid').value;
+    var cars = document.getElementById ('traincars').value;
+    cars = cars.replaceAll (" ", "+").replaceAll (",","+");
+    railCommand ("/rail/train/consist?id="+ id + "&cars=" + cars);
+}
+
+function railEnter () {
+    var id = this.resourceId;
+    var dir = document.getElementById ('dir-'+id).value;
+    var at = document.getElementById ('at-'+id).value;
+    railCommand ("/rail/enter?id=" + id + "&dir=" + dir + "&at=" + at);
+}
+
+function railTrainDelete () {
+    railCommand ("/rail/delete?id=" + this.resourceId);
+}
+
 function railSortTrains (a, b) {
     return a.id > b.id;
 }
@@ -55,7 +78,7 @@ function railSortTrains (a, b) {
 function railShowTrains (response) {
 
    var table = document.getElementById ('trains');
-   for (var i = table.rows.length-1; i > 0; i--) {
+   for (var i = table.rows.length-1; i > 1; i--) {
       table.deleteRow(i);
    }
    if (!response.rail.train) return;
@@ -72,11 +95,31 @@ function railShowTrains (response) {
         row.appendChild(column);
 
         column = document.createElement("td");
+        column.innerHTML = train.cars?train.cars.join(' '):'';
+        row.appendChild(column);
+
+        column = document.createElement("td");
         column.innerHTML = train.dcc ? train.dcc : '';
         row.appendChild(column);
 
         column = document.createElement("td");
-        column.innerHTML = train.proceed?train.proceed[0]:'';
+        if (train.proceed) {
+            column.innerHTML = train.proceed[0];
+        } else {
+            var entry = document.createElement ('select');
+            entry.id = 'dir-'+train.id;
+            var opt = document.createElement ('option');
+            opt.value = 'up';
+            opt.innerHTML = 'Up';
+            opt.selected = true;
+            entry.appendChild(opt);
+            opt = document.createElement ('option');
+            opt.value = 'down';
+            opt.innerHTML = 'Down';
+            opt.selected = false;
+            entry.appendChild(opt);
+            column.appendChild(entry);
+        }
         row.appendChild(column);
 
         column = document.createElement("td");
@@ -84,7 +127,22 @@ function railShowTrains (response) {
         row.appendChild(column);
 
         column = document.createElement("td");
-        column.innerHTML = train.head?train.head[0]+' '+train.head[1]:'';
+        if (train.head) {
+            column.innerHTML = train.head[0]+' '+train.head[1];
+        } else if (LayoutDetectors == null) {
+            column.innerHTML = '';
+        } else {
+            var entry = document.createElement ('select');
+            entry.id = 'at-'+train.id;
+            for (var j = 0; j < LayoutDetectors.length; ++j) {
+                var opt = document.createElement ('option');
+                opt.value = LayoutDetectors[j];
+                opt.innerHTML = LayoutDetectors[j];
+                opt.selected = (j == 0);
+                entry.appendChild(opt);
+            }
+            column.appendChild(entry);
+        }
         row.appendChild(column);
 
         column = document.createElement("td");
@@ -92,14 +150,15 @@ function railShowTrains (response) {
         row.appendChild(column);
 
         column = document.createElement("td");
-        column.innerHTML = train.cars?train.cars.join(' '):'';
-        row.appendChild(column);
-
-        column = document.createElement("td");
-        column.appendChild (newAction (train.id, "Forward", railMove, "forward"));
-        column.appendChild (newAction (train.id, "Backward", railMove, "backward"));
-        column.appendChild (newAction (train.id, "Stop", railStop, ""));
-        column.appendChild (newAction (train.id, "Park", railPark, ""));
+        if (train.proceed) {
+            column.appendChild (newAction (train.id, "Forward", railMove, "forward"));
+            column.appendChild (newAction (train.id, "Backward", railMove, "backward"));
+            column.appendChild (newAction (train.id, "Stop", railStop, ""));
+            column.appendChild (newAction (train.id, "Park", railPark, ""));
+        } else {
+            column.appendChild (newAction (train.id, "Enter", railEnter, ""));
+        }
+        column.appendChild (newAction (train.id, "Delete", railTrainDelete, ""));
         row.appendChild(column);
     }
 }
@@ -109,6 +168,32 @@ function railShowStatus (response) {
    RailLastStatus = response.latest;
 }
 
+function railLoadTopology (response) {
+
+   if (!response.rail.detector) return;
+   var detectors = response.rail.detector;
+   LayoutDetectors = new Array();
+   for (var i = 0; i < detectors.length; ++i) {
+       var detector = detectors[i];
+       LayoutDetectors.push(detector[0]);
+   }
+   RailLastStatus = 0; // Force a table refresh.
+}
+
+function railGetTopology () {
+
+    var command = new XMLHttpRequest();
+    command.open("GET", "/rail/track/status");
+    command.onreadystatechange = function () {
+        if (command.readyState === 4) {
+            if (command.status === 200) {
+                railLoadTopology (JSON.parse(command.responseText));
+            }
+        }
+    }
+    command.send(null);
+}
+
 function railStatus () {
     var url = "/rail/train/status";
     if (RailLastStatus) url += "?known=" + RailLastStatus;
@@ -116,6 +201,7 @@ function railStatus () {
 }
 
 window.onload = function() {
+   railGetTopology();
    railStatus();
    setInterval (railStatus, 1000);
 };
@@ -147,14 +233,23 @@ window.onload = function() {
    <table id="trains" class="housewidetable" border="0">
       <tr>
          <th width="6%">ID</th>
+         <th width="28%">CONSIST</th>
          <th width="6%">DCC</th>
          <th width="6%">GOING</th>
          <th width="6%">SPEED</th>
          <th width="10%">HEAD</th>
          <th width="10%">TAIL</th>
-         <th width="28%">CONSIST</th>
          <th width="28%">CONTROLS</th>
       </tr>
+      <tr>
+         <td><input id="trainid" type="text" placeholder="ID"></td>
+         <td><input id="traincars" type="text" placeholder="Cars"></td>
+         <td></td>
+         <td></td>
+         <td></td>
+         <td></td>
+         <td></td>
+         <td><button class="housepanelbutton" onclick="railTrainAdd()">ADD</button></td>
    </table>
    </section>
    </article>
