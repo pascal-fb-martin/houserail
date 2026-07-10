@@ -503,7 +503,8 @@ const char *houserail_track_reload (void) {
         if (!temp[i].previous) {
             int j;
             for (j = 0; j < LayoutSegmentsCount; ++j) {
-                if ((!strcmp (temp[j].next, segment->id)) &&
+                if ((temp[j].next) &&
+                    (!strcmp (temp[j].next, segment->id)) &&
                     (!strcmp (LayoutSegments[j].line, segment->line))) {
                     temp[i].previous = LayoutSegments[j].id;
                     break;
@@ -569,11 +570,11 @@ const char *houserail_track_reload (void) {
                cursor = LayoutSegments + next;
                cursor->high = cursor->low + LayoutModels[cursor->model].length;
 
-               // Stop when the following segment was already processed, or
-               // when reaching a different line (usually a switch).
-               //
-               if ((cursor->next >= 0) &&
-                   (LayoutSegments[cursor->next].low >= 0)) break;
+               // Stop when the line ends, the following segment was already
+               // processed or when reaching a different line (usually a
+               // switch).
+               if (cursor->next < 0) break;
+               if (LayoutSegments[cursor->next].low >= 0) break;
                if (strcasecmp (LayoutSegments[cursor->next].line, cursor->line))
                    break;
            }
