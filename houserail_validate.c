@@ -34,17 +34,22 @@
 #include "houseconfig.h"
 
 #include "houserail_track.h"
+#include "houserail_train.h"
 
 static const char *validate_update (void) {
     const char *error = houserail_track_reload ();
     if (error) printf ("** Cannot load track topology: %s\n", error);
     else printf ("== Track topology loaded.\n");
+    error = houserail_train_reload ();
+    if (error) printf ("** Cannot load train fleet: %s\n", error);
+    else printf ("== Train fleet loaded.\n");
     return error;
 }
 
 int main (int argc, const char **argv) {
 
     houserail_track_testmode (1);
+    houserail_train_testmode (1);
 
     houserail_track_initialize (argc, argv);
     const char *error = houseconfig_initialize ("testtrack", validate_update, argc, argv);

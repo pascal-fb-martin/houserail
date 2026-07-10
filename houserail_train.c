@@ -822,6 +822,9 @@ const char *houserail_train_reload (void) {
    if (LayoutVehiclesCount > max) max = LayoutVehiclesCount;
    int *list = calloc (max, sizeof(int));
 
+   DEBUG (__FILE__ ": %d models, %d vehicles\n",
+          LayoutVehicleModelsCount, LayoutVehiclesCount);
+
    LayoutVehicleModels = calloc (LayoutVehicleModelsCount,
                                  sizeof(struct VehicleModel));
    houseconfig_enumerate (models, list, LayoutVehicleModelsCount);
@@ -845,6 +848,8 @@ const char *houserail_train_reload (void) {
       for (j = 0; j < model->count; ++j) {
           model->spots[j] = houseconfig_integer (innerlist[j], 0);
       }
+      DEBUG (__FILE__ ": Model %s length %d, %d spots\n",
+             model->id, model->length, model->count);
    }
 
    LayoutVehicles = calloc (LayoutVehiclesCount, sizeof(struct Vehicle));
@@ -860,6 +865,8 @@ const char *houserail_train_reload (void) {
       vehicle->model = houserail_train_search_model (modelid);
       vehicle->hasdcc = 0;
       vehicle->consist = -1;
+      DEBUG (__FILE__ ": Vehicle %s model %s\n",
+             vehicle->id, LayoutVehicleModels[vehicle->model].id);
    }
 
    if ((LayoutTrainsCount > 0) && oldvehicles) {
