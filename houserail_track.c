@@ -337,19 +337,6 @@ void houserail_track_input (const char *name,
     TrackNextListener (&(detector->area), occupied, timestamp);
 }
 
-static int houserail_track_detector_compare (const void *a, const void *b) {
-
-    const struct TrackDetector *detecta = (struct TrackDetector *)a;
-    const struct TrackDetector *detectb = (struct TrackDetector *)b;
-
-    int result = strcasecmp (detecta->area.line, detectb->area.line);
-    if (result) return result;
-
-    if (detecta->area.low < detectb->area.low) return -1;
-    if (detecta->area.low > detectb->area.low) return 1;
-    return 0;
-}
-
 const char *houserail_track_reload (void) {
 
     if (LayoutModels) {
@@ -621,7 +608,7 @@ const char *houserail_track_reload (void) {
     }
     houserail_scout_finalize (&LayoutSegmentsIndex);
 
-    // Populate the detectors array and sort by line and (low) post.
+    // Populate the detectors array.
 
     echttp_hash_reset (&LayoutDetectorsHash, 0);
 
@@ -661,9 +648,6 @@ const char *houserail_track_reload (void) {
         if ((index > 0) && (index <= LayoutDetectorsCount))
             LayoutDetectorsMap[index] = i;
     }
-
-    qsort (LayoutDetectors, LayoutDetectorsCount, sizeof(struct TrackDetector),
-           houserail_track_detector_compare);
 
     return 0;
 }
