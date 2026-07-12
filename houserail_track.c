@@ -75,9 +75,15 @@
  *     the specified direction.
  *
  *     If the direction is 0 (i.e. none), the limit is the civil speed for
- *     the segment at that location. Otherwise, the limit is the smallest of
- *     the civil speed for the segment at this location and the civil speed
- *     on the approaching segment in that direction.
+ *     the segment at that location. Otherwise, the limit is the smallest of:
+ *     - the civil speed for the segment at this location,
+ *     - the slow or stop zones speed for the direction and the segment at
+ *       this location,
+ *     - and the civil speed on the approaching segment in that direction.
+ *
+ * int houserail_track_restricted (void);
+ *
+ *     Return the restricted speed defined for this layout.
  *
  * The functions below are used to move a train along the track. The path
  * followed depend on the position of the switches, like a train would.
@@ -164,7 +170,10 @@
 static int TestMode = 0;
 #define DEBUG if (TestMode || echttp_isdebug()) printf
 
-static int SwitchReverseSpeed = 20; // TBD: make it configurable?
+static int TrackRestrictedSpeed = 0; // See configuration.
+static int SwitchReverseSpeed = 0;   // See configuration.
+static int TrackStopDistance = 0;    // See configuration.
+static int TrackSlowDistance = 0;    // See configuration.
 
 static DetectionListener *TrackNextListener = 0;
 
@@ -198,9 +207,13 @@ struct TrackSegment {
     int branch;   // The adjacent segment connected to the reverse point.
     int needle;   // The adjacent segment connected to the needle's position.
 
+    // The following items are to handle end of track.
+    int ending;   // 1: ending up, -1: ending down, 0: no end near.
+    struct TrackRange stop;
+    struct TrackRange slow;
+
     // The following attributes are calculated by following the topology from
     // the terminal point marked as the origin.
-
     int low;
     int high;
 
@@ -467,6 +480,9 @@ const char *houserail_track_reload (void) {
         segment->low = segment->high = -1; // To be calculated later.
         segment->detector = -1; // List will be built later.
 
+        segment->ending = 0; // Calculated later, if near to a track end.
+        segment->stop.line = segment->slow.line = 0; // Calculated later.
+
         temp[i].previous = houseconfig_string (element, ".previous");
         temp[i].next = houseconfig_string (element, ".next");
         temp[i].common = houseconfig_string (element, ".common");
@@ -647,6 +663,141 @@ const char *houserail_track_reload (void) {
         int index = echttp_hash_insert (&LayoutDetectorsHash, detector->id);
         if ((index > 0) && (index <= LayoutDetectorsCount))
             LayoutDetectorsMap[index] = i;
+    }
+
+    // When everything went well, set the global options for this layout.
+
+    int value = houseconfig_integer (track, ".speeds.restricted");
+    if (value <= 0) return "No Restricted speed found";
+    TrackRestrictedSpeed = value;
+    DEBUG (__FILE__ ": Restricted speed set to %d\n", TrackRestrictedSpeed);
+
+    value = houseconfig_integer (track, ".speeds.reverse");
+    if (value <= 0) return "No switch reverse speed found";
+    SwitchReverseSpeed = value;
+    DEBUG (__FILE__ ": Switch reverse speed set to %d\n", SwitchReverseSpeed);
+
+    value = houseconfig_integer (track, ".distances.stop");
+    if (value <= 0) return "No stop distance found";
+    TrackStopDistance = value;
+    DEBUG (__FILE__ ": Stop distance set to %d\n", TrackStopDistance);
+
+    value = houseconfig_integer (track, ".distances.slow");
+    if (value <= 0) return "No slow distance found";
+    TrackSlowDistance = value;
+    DEBUG (__FILE__ ": Slow distance set to %d\n", TrackSlowDistance);
+
+    // Preprocessing for end of track.
+    // The goal here is to automatically slow trains when they approach,
+    // and stop trains when they arrive at, a line's end.
+    // For each end of track this retrieves what segments are within
+    // the stop and slow areas.
+
+    for (i = 0; i < LayoutSegmentsCount; ++i) {
+
+        struct TrackRange slow;
+        struct TrackRange stop;
+        slow.line = stop.line = 0;
+        struct TrackSegment *segment = LayoutSegments + i;
+
+        if (segment->next < 0) {
+
+           // The end of line is met while going in the up direction
+           // This code backtrack in the down direction to find where
+           // the stop and slow areas start.
+           stop.line = slow.line = segment->line;
+           stop.high = segment->high; // That's the end point.
+           stop.low = segment->high - TrackStopDistance;
+           slow.high = stop.low;
+           slow.low = segment->high - TrackSlowDistance;
+           DEBUG (__FILE__ ": track %s ends up at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->high, slow.low, slow.high, stop.low, stop.high);
+
+           struct TrackSegment *cursor = segment;
+           while (stop.low < cursor->high) {
+              stop.segment = cursor->id;
+              cursor->ending = 1;
+              cursor->stop = stop;
+              if (cursor->high < cursor->stop.high)
+                  cursor->stop.high = cursor->high;
+              if (stop.low > cursor->low) break; // The stop area ends here
+              cursor->stop.low = cursor->low;
+              DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
+                     cursor->id, cursor->stop.low, cursor->stop.high);
+              if (cursor->previous < 0) goto nextend;
+              cursor = LayoutSegments + cursor->previous;
+              if (strcmp (cursor->line, stop.line)) goto nextend;
+           }
+           DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
+                  cursor->id, cursor->stop.low, cursor->stop.high);
+
+           while (slow.low < cursor->high) {
+              slow.segment = cursor->id;
+              cursor->ending = 1;
+              cursor->slow = slow;
+              if (cursor->high < cursor->slow.high)
+                  cursor->slow.high = cursor->high;
+              if (slow.low > cursor->low) break; // The slow area ends here
+              cursor->slow.low = cursor->low;
+              DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
+                     cursor->id, cursor->slow.low, cursor->slow.high);
+              if (cursor->previous < 0) goto nextend;
+              cursor = LayoutSegments + cursor->previous;
+              if (strcmp (cursor->line, stop.line)) goto nextend;
+           }
+           DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
+                  cursor->id, cursor->slow.low, cursor->slow.high);
+
+        } else if (segment->previous < 0) {
+
+           // The end of line is met while going in the down direction
+           // This code backtrack in the up direction to find where
+           // the stop and slow areas start.
+           stop.line = slow.line = segment->line;
+           stop.low = segment->low; // That's the end point.
+           stop.high = segment->low + TrackStopDistance;
+           slow.low = stop.high;
+           slow.high = segment->low + TrackSlowDistance;
+           DEBUG (__FILE__ ": track %s ends down at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->low, slow.low, slow.high, stop.low, stop.high);
+
+           struct TrackSegment *cursor = segment;
+           while (stop.high > cursor->low) {
+              stop.segment = cursor->id;
+              cursor->ending = -1;
+              cursor->stop = stop;
+              if (cursor->low > cursor->stop.low)
+                  cursor->stop.low = cursor->low;
+              if (stop.high < cursor->high) break; // The stop area ends here
+              cursor->stop.high = cursor->high;
+              DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
+                     cursor->id, cursor->stop.low, cursor->stop.high);
+              if (cursor->next < 0) goto nextend;
+              cursor = LayoutSegments + cursor->next;
+              if (strcmp (cursor->line, stop.line)) goto nextend;
+           }
+           DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
+                  cursor->id, cursor->stop.low, cursor->stop.high);
+
+           while (slow.high > cursor->low) {
+              slow.segment = cursor->id;
+              cursor->ending = -1;
+              cursor->slow = slow;
+              if (cursor->low > cursor->slow.low)
+                  cursor->slow.low = cursor->low;
+              if (slow.high < cursor->high) break; // The slow area ends here
+              cursor->slow.high = cursor->high;
+              DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
+                     cursor->id, cursor->slow.low, cursor->slow.high);
+              if (cursor->next < 0) goto nextend;
+              cursor = LayoutSegments + cursor->next;
+              if (strcmp (cursor->line, stop.line)) goto nextend;
+           }
+           DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
+                  cursor->id, cursor->slow.low, cursor->slow.high);
+
+        } else {
+           continue;
+        }
+        nextend:
     }
 
     return 0;
@@ -933,8 +1084,15 @@ int houserail_track_vicinity (struct TrackLocation *point,
     return 1;
 }
 
+int houserail_track_restricted (void) {
+    return TrackRestrictedSpeed;
+}
+
 int houserail_track_civil (const struct TrackLocation *point, int direction) {
 
+    DEBUG (__FILE__ ": houserail_track_civil (%s %d, %d)\n", point->line, point->post, direction);
+
+    int speed, speed2;
     int index = houserail_track_locate (point);
     if (index < 0) {
         DEBUG (__FILE__ ": invalid location %s.%d\n", point->line, point->post);
@@ -942,23 +1100,49 @@ int houserail_track_civil (const struct TrackLocation *point, int direction) {
     }
 
     struct TrackSegment *segment = LayoutSegments + index;
-    int speed1 = LayoutModels[segment->model].civil;
+    speed = LayoutModels[segment->model].civil;
     DEBUG (__FILE__ ": Consider civil speed %d for segment %s (model %s)\n",
-           speed1, segment->id, LayoutModels[segment->model].id);
+           speed, segment->id, LayoutModels[segment->model].id);
     if ((segment->branch >= 0) && (segment->needle == segment->branch)) {
-       speed1 = SwitchReverseSpeed;
+       speed = SwitchReverseSpeed;
        DEBUG (__FILE__ ": use branch speed %d instead for switch %s in reverse state",
-              speed1, segment->id);
+              speed, segment->id);
     }
-    if (!direction) return speed1;
+    if (!direction) return speed;
 
-    index = (direction > 0) ? segment->next : segment->previous;
-    segment = LayoutSegments + index;
-    int speed2 = LayoutModels[segment->model].civil;
-    DEBUG (__FILE__ ": Consider civil speed %d from segment %s (model %s)\n",
-           speed2, segment->id, LayoutModels[segment->model].id);
-    if (speed1 < speed2) return speed1;
-    return speed2;
+    // slow down and stop when coming to the end of the line.
+    //
+    if (segment->ending == direction) {
+        if (segment->stop.line &&
+            (point->post >= segment->stop.low) &&
+            (point->post < segment->stop.high)) {
+            DEBUG (__FILE__ ": Arriving at the end of line, stop %s\n", segment->line);
+            return 0; // Inside the line's stop zone.
+        }
+        if (segment->slow.line &&
+            (point->post >= segment->slow.low) &&
+            (point->post < segment->slow.high)) {
+            DEBUG (__FILE__ ": Approaching the end of line %s, speed restricted to %d\n", segment->line, TrackRestrictedSpeed);
+            return TrackRestrictedSpeed; // Inside the line's slow zone.
+        }
+    }
+
+    // Look at the civil speed for the next segment, if close enough.
+    //
+    int goal = (direction > 0)?segment->high:segment->low;
+    int d = abs (point->post - goal);
+    DEBUG (__FILE__ ": distance from segment after %s is %d\n", segment->id, d);
+    if (d < TrackStopDistance) {
+        index = (direction > 0) ? segment->next : segment->previous;
+        if (index < 0) return speed;
+
+        segment = LayoutSegments + index;
+        speed2 = LayoutModels[segment->model].civil;
+        DEBUG (__FILE__ ": Consider civil speed %d from segment %s (model %s)\n",
+               speed2, segment->id, LayoutModels[segment->model].id);
+        if (speed2 < speed) speed = speed2;
+    }
+    return speed;
 }
 
 // Retrieve the track range covered by the specified segment.

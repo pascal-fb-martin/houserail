@@ -118,8 +118,6 @@ static int TestMode = 0;
 static FleetListener *TrainNextFleetListener = 0;
 static DetectionListener *TrainNextDetectionListener = 0;
 
-static int TrainRestrictedSpeed = 20; // FIXME: make it configurable.
-
 #define TRAINMAXCARS 16 // FIXME: arbitrary limit.
 #define CARMAXSPOT    4 // FIXME: arbitrary limit.
 #define TRAINMAXSPOT (TRAINMAXCARS*CARMAXSPOT) // FIXME: arbitrary limit.
@@ -176,6 +174,7 @@ struct TrainConsist {
     char awry;           // Location not confirmed yet.
     char active;         // 1 if reported by HouseDCC.
     char hasdcc;         // Learned from HouseDCC (DCC train consist)
+    int  direction;      // As requested.
 };
 
 static struct VehicleModel *LayoutVehicleModels = 0;
@@ -237,7 +236,8 @@ static int houserail_train_search_model (const char *id) {
 }
 
 static int houserail_train_direction (struct TrainConsist *train) {
-    return train->orientation * ((train->speed < 0)?-1:1);
+    if (train->direction) return train->direction;
+    return train->orientation;
 }
 
 static void houserail_train_fleet (const char *id, int index) {
@@ -277,14 +277,16 @@ static void houserail_train_fleet (const char *id, int index) {
 static int houserail_train_maxspeed (struct TrainConsist *train) {
 
     int direction = houserail_train_direction (train);
-    if (!direction) return TrainRestrictedSpeed; // In doubt, go slow.
+    if (!direction) return houserail_track_restricted(); // In doubt, go slow.
 
     // Set the max speed according to the track speed limit of the tracks
     // below the train and the track the train is approaching to.
 
     int speed = houserail_track_civil (&(train->head), direction);
+    if (speed <= 0) return 0; // Stopped, cannot get slower.
     int speed2 = houserail_track_civil (&(train->tail), direction);
     if (speed2 < speed) speed = speed2;
+    if (speed <= houserail_track_restricted()) return speed; // Slow enough.
 
     int i;
     for (i = 0; i < train->spotcount; ++i) {
@@ -472,17 +474,22 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
                                            int reverse, int slow) {
 
     if (!train->active) return "No DCC locomotive detected for that consist";
+    int restricted = houserail_track_restricted();
+
+    // We must first adjust the requested direction of the train.
+    int direction = reverse?0-train->orientation:train->orientation;
+    if ((train->speed != 0) &&
+        (direction * houserail_train_direction(train) < 0))
+        return "Stop the train before changing direction";
+    train->direction = direction;
 
     // Request a speed according to the civil speed limit of the tracks
     // below the train and the track that the train is approaching to.
-    int speed = TrainRestrictedSpeed;
-    if (!slow) {
-        speed = houserail_train_maxspeed (train);
-    }
+    int speed = houserail_train_maxspeed (train);
+    if (slow && (speed > restricted)) speed = restricted;
+
     if (reverse) speed = 0 - speed;
-    if (train->speed == speed) return 0; // No need to adjust.
-    if (train->speed * speed < 0)
-        return "Stop the train before reversing direction";
+    if (speed == train->speed) return 0; // No need to adjust.
 
     houselog_event ("TRAIN", train->id, "SPEED",
                     "REQUESTED CHANGE FROM %d TO %d", train->speed, speed);
@@ -504,6 +511,7 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
 const char *houserail_train_break (struct TrainConsist *train, int emergency) {
 
     if (!train->active) return "No DCC locomotive detected for that consist";
+    train->direction = 0;
 
     // Send the stop request even if the train was already stopped:
     // to stop is a safety concern, do it regardless of context.
@@ -558,8 +566,7 @@ void houserail_train_tracking (const struct TrackRange *area,
                houserail_train_pull_vacant (train, area, timestamp);
 
             // Adjust the train speed based on its new location.
-            if (abs(train->speed) > TrainRestrictedSpeed)
-               houserail_train_adjust (train, (train->speed < 0), 0);
+            houserail_train_adjust (train, (train->speed < 0), 0);
 
             return; // Assume only one train within range.
         }
@@ -596,8 +603,7 @@ void houserail_train_tracking (const struct TrackRange *area,
     train->awry = 0;
 
     // Adjust the train speed based on its new location.
-    if (abs(train->speed) > TrainRestrictedSpeed)
-       houserail_train_adjust (train, (train->speed < 0), 0);
+    houserail_train_adjust (train, (train->speed < 0), 0);
 }
 
 const char *houserail_train_initialize (int argc, const char **argv) {
@@ -636,9 +642,10 @@ const char *houserail_train_park (const char *id) {
     struct TrainConsist *train = houserail_train_search (id);
     if (!train) return "Unknown train";
 
-    train->parked = 1;
     houselog_event ("TRAIN", train->id, "PARKED", "");
     if (train->speed != 0) houserail_train_break (train, 1);
+    train->parked = 1;
+    train->direction = 0;
     return 0; // Regardless of the stop command status.
 }
 
@@ -687,6 +694,7 @@ const char *houserail_train_enter (const char *id,
     houserail_train_recalculate_spots (train);
 
     train->orientation = orientation;
+    train->direction = 0;
     train->parked = 0;
     train->awry = 1;
     train->speed = 0;
@@ -739,6 +747,7 @@ const char *houserail_train_consist (const char *id,
         isnew = 1;
     }
     train->parked = 1;
+    train->direction = 0;
     train->active = 0;
 
     int length = 0;

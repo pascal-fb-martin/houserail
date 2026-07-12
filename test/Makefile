@@ -27,7 +27,7 @@ HCAT=Train
 
 # Application build. --------------------------------------------
 
-all: testscout testpath testtrack testtrain
+all: testscout testpath testtrack testtrain testend
 
 clean:
 	rm -f *.o *.a testscout
@@ -48,4 +48,7 @@ testtrack: testtrack.o ../houserail_track.o ../houserail_scout.o
 
 testtrain: testtrain.o ../houserail_train.o ../houserail_path.o ../houserail_track.o ../houserail_scout.o
 	gcc -g -O -o testtrain testtrain.o ../houserail_train.o ../houserail_path.o ../houserail_track.o ../houserail_scout.o -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+
+testend: testend.o ../houserail_train.o ../houserail_path.o ../houserail_track.o ../houserail_scout.o
+	gcc -g -O -o testend testend.o ../houserail_train.o ../houserail_path.o ../houserail_track.o ../houserail_scout.o -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 

@@ -17,6 +17,8 @@
              ]
          },
          "track": {
+             "speeds":{"restricted": 10, "reverse": 20},
+             "distances":{"stop": 20, "slow": 35},
              "models":[
                  {"id":"straight","length":20,"reverse":0,"civil":60},
                  {"id":"curve","length":20,"reverse":0,"civil":30},
