@@ -40,6 +40,17 @@ All configuration is stored in the HouseDepot service. The HouseService group na
 
 The full configuration is actually split into two parts: static configuration and state. The static configuration contains items that reflect permanent user data, typically the track topology. The state contains items that may change more frequently, including changed initiated by the service itself or from another service, like the list of consists.
 
+The schema of the static configuration is described is two documents:
+
+* [Track Configuration](https://github.com/pascal-fb-martin/houserail/tracktopology.md)
+* [Train Data](https://github.com/pascal-fb-martin/houserail/traindata.md)
+
+The `layoutvalidate` tool is provided to both validate that the configuration is valid and verify that the generated topology and fleet are correct:
+
+```
+   layoutvalidate --config=<path to config file>
+```
+
 ## Web API
 
 ```
