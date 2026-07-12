@@ -377,10 +377,10 @@ int main (int argc, const char **argv) {
         assert ((head != 0) && (head->post == detected.high-2), message);
     }
     digest (Errors == original, "moving down through the switches");
-    return summary ("houserail_train.c");
+    return summary ("testtrain");
 
 canceltest:
     trainlist ("after test cancelled");
-    return summary ("houserail_train.c cancelled");
+    return summary ("testtrain cancelled");
 }
 

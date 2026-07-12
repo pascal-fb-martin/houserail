@@ -197,7 +197,7 @@ int main (int argc, const char **argv) {
     houserail_train_park ("train3");
     houserail_train_delete ("train3");
 
-    digest (Errors == original, "moving up");
+    digest (Errors == original, "moving up to the end of line");
 
     starting ("preparing for the down trip");
 
@@ -238,7 +238,7 @@ int main (int argc, const char **argv) {
         snprintf (message, sizeof(message), "%s speed", action);
         assert (LastSpeedOrder == expected, message);
     }
-    digest (Errors == original, "moving down through the switches");
-    return summary ("houserail_train.c");
+    digest (Errors == original, "moving down to the end of track");
+    return summary ("testend");
 }
 
