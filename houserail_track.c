@@ -1103,9 +1103,11 @@ int houserail_track_civil (const struct TrackLocation *point, int direction) {
     speed = LayoutModels[segment->model].civil;
     DEBUG (__FILE__ ": Consider civil speed %d for segment %s (model %s)\n",
            speed, segment->id, LayoutModels[segment->model].id);
-    if ((segment->branch >= 0) && (segment->needle == segment->branch)) {
+
+    if ((speed > SwitchReverseSpeed) &&
+        (segment->branch >= 0) && (segment->needle == segment->branch)) {
        speed = SwitchReverseSpeed;
-       DEBUG (__FILE__ ": use branch speed %d instead for switch %s in reverse state",
+       DEBUG (__FILE__ ": use reverse civil speed %d instead for switch %s in reverse state",
               speed, segment->id);
     }
     if (!direction) return speed;
@@ -1133,14 +1135,31 @@ int houserail_track_civil (const struct TrackLocation *point, int direction) {
     int d = abs (point->post - goal);
     DEBUG (__FILE__ ": distance from segment after %s is %d\n", segment->id, d);
     if (d < TrackStopDistance) {
-        index = (direction > 0) ? segment->next : segment->previous;
-        if (index < 0) return speed;
+        int index2 = (direction > 0) ? segment->next : segment->previous;
+        if (index2 < 0) return speed;
 
-        segment = LayoutSegments + index;
+        segment = LayoutSegments + index2;
         speed2 = LayoutModels[segment->model].civil;
         DEBUG (__FILE__ ": Consider civil speed %d from segment %s (model %s)\n",
                speed2, segment->id, LayoutModels[segment->model].id);
         if (speed2 < speed) speed = speed2;
+
+        if (segment->branch >= 0) {
+
+            // No train can enter a switch positioned for the opposite
+            // direction: how is that segment connected to the original one?
+            if ((index != segment->needle) && (index != segment->common)) {
+                DEBUG (__FILE__ ": stop before entering opposite switch %s\n", segment->id);
+                speed = 0;
+            }
+
+            if ((speed > SwitchReverseSpeed) &&
+                (segment->needle == segment->branch)) {
+                  DEBUG (__FILE__ ": use reverse civil speed %d instead for switch %s in reverse state",
+                         speed, segment->id);
+                speed = SwitchReverseSpeed;
+            }
+        }
     }
     return speed;
 }

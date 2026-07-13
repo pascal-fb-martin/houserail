@@ -337,12 +337,12 @@ int main (int argc, const char **argv) {
         snprintf (message, sizeof(message), "%s head", action);
         assert ((head != 0) && (head->post == detected.low+2), message);
     }
-    digest (Errors == original, "moving up through the switches");
-
-    starting ("preparing for the down trip");
     houserail_train_stop ("train3", 0);
     houserail_train_park ("train3");
     houserail_train_delete ("train3");
+    digest (Errors == original, "moving up through the switches");
+
+    starting ("preparing for the down trip");
 
     houserail_train_consist ("train3", cars, 4);
     houserail_train_enter ("train3", "reed-8", -1);
@@ -376,7 +376,48 @@ int main (int argc, const char **argv) {
         snprintf (message, sizeof(message), "%s head", action);
         assert ((head != 0) && (head->post == detected.high-2), message);
     }
+    houserail_train_stop ("train3", 0);
+    houserail_train_park ("train3");
+    houserail_train_delete ("train3");
     digest (Errors == original, "moving down through the switches");
+
+    starting ("preparing for a trip against a switch");
+
+    houserail_train_consist ("train3", cars, 4);
+    houserail_train_enter ("train3", "reed-2", 1);
+    houserail_train_move ("train3", "forward", 0);
+    trainlist ("after preparing for a trip against a switch");
+
+    starting ("moving against a switch");
+    const char *againsttrip[] = {"reed-2", "reed-3", 0};
+
+    // houserail_track_testmode (1);
+    // houserail_train_testmode (1);
+    original = Errors;
+    head = houserail_train_head ("train3");
+    for (step = 0; againsttrip[step] != 0; ++step) {
+        char action[128];
+        char message[256];
+        snprintf (action, sizeof(action),
+                  "houserail_train_tracking (%s occupied)", againsttrip[step]);
+
+        starting (action);
+        houserail_track_vicinity (&detector, againsttrip[step], -1);
+        detected.line = detector.line;
+        detected.low = detector.post;
+        detected.high = detected.low + 2;
+        printf ("   Train train3 moving from %s %d to %s %d\n",
+                head->line, head->post, detector.line, detector.post);
+
+        houserail_train_tracking (&detected, 1, now());
+        trainlist (0);
+        head = houserail_train_head ("train3");
+        snprintf (message, sizeof(message), "%s head", action);
+        assert ((head != 0) && (head->post == detected.low+2), message);
+    }
+    assert (LastSpeedOrder == 0, "Stopped at reed-3 before the switch");
+    digest (Errors == original, "moving against a switch");
+
     return summary ("testtrain");
 
 canceltest:
