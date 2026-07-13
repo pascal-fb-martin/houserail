@@ -906,6 +906,10 @@ const char *houserail_train_reload (void) {
       free (oldvehicles);
       free (crossref);
    }
+
+   houselog_event ("TRAIN", "CONFIG", "LOADED",
+                   "%d models %d vehicles (%d trains)",
+                   LayoutVehicleModelsCount, LayoutVehiclesCount, LayoutTrainsCount);
    return 0;
 }
 

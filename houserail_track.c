@@ -163,6 +163,7 @@
 #include <echttp_libc.h>
 #include <echttp_hash.h>
 
+#include <houselog.h>
 #include <houseconfig.h>
 
 #include "houserail_scout.h"
@@ -336,8 +337,7 @@ DetectionListener *houserail_track_subscribe (DetectionListener *listener) {
 void houserail_track_input (const char *name,
                             long long timestamp, const char *state) {
 
-    printf (__FILE__ ": received input %s, state %s at %lld\n",
-            name, state, timestamp);
+    houselog_event ("TRACK", name, "DETECTOR", "%s at %lld", state, timestamp);
 
     struct TrackDetector *detector = houserail_track_search_detector (name);
     if (!detector) return;
@@ -800,6 +800,9 @@ const char *houserail_track_reload (void) {
         nextend:
     }
 
+    houselog_event ("TRACK", "CONFIG", "LOADED",
+                    "%d models %d tracks %d detectors",
+                    LayoutModelsCount, LayoutSegmentsCount, LayoutDetectorsCount);
     return 0;
 }
 
