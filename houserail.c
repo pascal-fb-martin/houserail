@@ -39,10 +39,10 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "echttp.h"
-#include "echttp_libc.h"
-#include "echttp_cors.h"
-#include "echttp_static.h"
+#include <echttp.h>
+#include <echttp_libc.h>
+#include <echttp_cors.h>
+#include <echttp_static.h>
 
 #include "houseportalclient.h"
 #include "houselog.h"
@@ -220,8 +220,8 @@ static const char *rail_enter (const char *method, const char *uri,
         return "";
     }
     int direction = 0;
-    if (dir && (!strcmp (dir, "up"))) direction = 1;
-    else if (dir && (!strcmp (dir, "down"))) direction = -1;
+    if (strsame (dir, "up")) direction = 1;
+    else if (strsame (dir, "down")) direction = -1;
     else {
         echttp_error (400, "Invalid Train Orientation");
         return "";

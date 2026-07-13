@@ -116,7 +116,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "echttp.h"
+#include <echttp.h>
+#include <echttp_libc.h>
 
 #include "houserail_track.h"
 #include "houserail_path.h"
@@ -226,7 +227,7 @@ static void houserail_path_merge (struct TrackPath *path, int added) {
 
     struct TrackRange *last = path->sections + path->count - 1;
 
-    if (!strcmp (last->line, last[1].line) && (last->high == last[1].low)) {
+    if (strsame (last->line, last[1].line) && (last->high == last[1].low)) {
         // Merge these two segments that are in continuity.
         last->high = last[1].high;
         added -= 1;
@@ -266,7 +267,7 @@ int houserail_path_extend (struct TrackPath *path,
 
     // If the new endpoint is on the same line as the last section,
     // just extend the last section.
-    if (!strcmp (last->line, point->line)) {
+    if (strsame (last->line, point->line)) {
         last->high = point->post;
         return 1;
     }

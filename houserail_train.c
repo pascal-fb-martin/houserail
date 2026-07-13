@@ -200,7 +200,7 @@ static struct TrainConsist *houserail_train_search (const char *id) {
         if (LayoutTrains[i].signature != signature) continue; // Fast filter
 
         struct TrainConsist *train = LayoutTrains + i;
-        if (strcmp (id, train->id)) continue;
+        if (!strsame (id, train->id)) continue;
         return train;
     }
     return 0;
@@ -214,7 +214,7 @@ static struct Vehicle *houserail_train_search_car (const char *id) {
         if (LayoutVehicles[i].signature != signature) continue; // Fast filter
 
         struct Vehicle *vehicle = LayoutVehicles + i;
-        if (strcmp (id, vehicle->id)) continue;
+        if (!strsame (id, vehicle->id)) continue;
 
         return vehicle; // Found it.
     }
@@ -228,7 +228,7 @@ static int houserail_train_search_model (const char *id) {
     for (i = LayoutVehicleModelsCount - 1; i >= 0; --i) {
         if (LayoutVehicleModels[i].signature != signature) continue; // Fast filter
 
-        if (strcmp (id, LayoutVehicleModels[i].id)) continue;
+        if (!strsame (id, LayoutVehicleModels[i].id)) continue;
 
         return i; // Found it.
     }
@@ -421,7 +421,7 @@ static void houserail_train_pull_vacant (struct TrainConsist *train,
     for (i = train->spotcount - 1; i >= 0; --i) {
         int post = train->spots[i].post;
         if ((post < area->low) || (post > area->high)) continue;
-        if (strcmp (area->line, train->spots[i].line)) continue;
+        if (!strsame (area->line, train->spots[i].line)) continue;
         first = i;
         if (last < 0) last = first;
     }
@@ -621,7 +621,7 @@ const char *houserail_train_move (const char *id, const char *dir, int slow) {
     if (!train) return "Invalid train ID";
 
     int reverse = 0;
-    if (dir && (!strcmp ("backward", dir))) reverse = 1;
+    if (strsame (dir, "backward")) reverse = 1;
 
     return houserail_train_adjust (train, reverse, slow);
 }

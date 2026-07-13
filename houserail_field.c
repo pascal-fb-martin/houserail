@@ -111,10 +111,10 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "echttp.h"
-#include "echttp_json.h"
-#include "echttp_hash.h"
-#include "echttp_libc.h"
+#include <echttp.h>
+#include <echttp_json.h>
+#include <echttp_hash.h>
+#include <echttp_libc.h>
 
 #include "houseportalclient.h"
 #include "houselog.h"
@@ -195,7 +195,7 @@ int houserail_field_fleet_find (const char *id, int update) {
         if (!FleetDb[i].id[0]) {
             empty = i;
         } else if (signature == FleetDb[i].signature) {
-            if (!strcmp (FleetDb[i].id, id)) break;
+            if (strsame (FleetDb[i].id, id)) break;
         }
     }
     if (!update) return i;
@@ -255,7 +255,7 @@ static void houserail_field_update (const char *origin, char *data, int length) 
 
     int idx = echttp_json_search (tokens, ".trains.layout");
     if (idx < 0) return;
-    if (strcmp (tokens[idx].value.string, FieldLayout)) return;
+    if (!strsame (tokens[idx].value.string, FieldLayout)) return;
 
     idx = echttp_json_search (tokens, ".latest");
     if (idx < 0) idx = echttp_json_search (tokens, ".trains.latest");

@@ -30,7 +30,7 @@ HCAT=Train
 all: testscout testpath testtrack testtrain testend
 
 clean:
-	rm -f *.o *.a testscout
+	rm -f *.o *.a testscout testpath testtrack testtrain testend
 
 rebuild: clean all
 

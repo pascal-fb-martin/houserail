@@ -64,7 +64,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "echttp.h"
+#include <echttp.h>
+#include <echttp_libc.h>
 
 #include "houserail_track.h"
 #include "houserail_scout.h"
@@ -77,7 +78,7 @@ static int houserail_scout_compare (const void *p1, const void *p2) {
     const struct RangeElement *e2 = (struct RangeElement *)p2;
 
     // The line has precedence.
-    int result = strcmp (e1->line, e2->line);
+    int result = strcasecmp (e1->line, e2->line);
     if (result != 0) return result;
 
     return e1->high - e2->high;
@@ -144,7 +145,7 @@ int houserail_scout_inside (const struct RangeIndex *index,
         const struct RangeElement *element = elements + mid;
 
         // Is the location within that segment?
-        int order = strcmp (element->line, line);
+        int order = strcasecmp (element->line, line);
         if (order == 0) {
             if (post > element->high) order = -1; // Mid is lower.
             else if (post < element->low) order = 1; // Mid is higher.
@@ -155,14 +156,14 @@ int houserail_scout_inside (const struct RangeIndex *index,
     }
 
     const struct RangeElement *element = elements + top;
-    if (!strcmp (element->line, line)) {
+    if (strsame (element->line, line)) {
         if ((post >= element->low) && (post <= element->high))
             return element->value; // Within the top segment.
     }
     if (bottom == top) return -1;
 
     element = elements + bottom;
-    if (!strcmp (element->line, line)) {
+    if (strsame (element->line, line)) {
         if ((post >= element->low) && (post <= element->high))
             return element->value; // Within the bottom segment.
     }

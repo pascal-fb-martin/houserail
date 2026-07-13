@@ -160,6 +160,7 @@
 #include <stdio.h>
 
 #include <echttp.h>
+#include <echttp_libc.h>
 #include <echttp_hash.h>
 
 #include <houseconfig.h>
@@ -264,7 +265,7 @@ static int houserail_track_search_model (const char *id) {
     int i;
     for (i = 0; i < LayoutModelsCount; ++i) {
         if (LayoutModels[i].signature != signature) continue;
-        if (!strcmp (LayoutModels[i].id, id)) return i;
+        if (strsame (LayoutModels[i].id, id)) return i;
     }
     return -1;
 }
@@ -285,7 +286,7 @@ static int houserail_track_search_by_id (const char *id) {
 
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         if (LayoutSegments[i].signature != signature) continue;
-        if (!strcmp (LayoutSegments[i].id, id)) return i;
+        if (strsame (LayoutSegments[i].id, id)) return i;
     }
     return -1;
 }
@@ -313,7 +314,7 @@ static struct TrackDetector *houserail_track_search_detector (const char *id) {
         struct TrackDetector *detector = LayoutDetectors + i;
         if (detector->signature != signature) continue;
         if (!detector->id) continue;
-        if (!strcmp (detector->id, id)) return detector;
+        if (strsame (detector->id, id)) return detector;
     }
     return 0;
 }
@@ -506,9 +507,8 @@ const char *houserail_track_reload (void) {
         if (!temp[i].previous) {
             int j;
             for (j = 0; j < LayoutSegmentsCount; ++j) {
-                if ((temp[j].next) &&
-                    (!strcmp (temp[j].next, segment->id)) &&
-                    (!strcmp (LayoutSegments[j].line, segment->line))) {
+                if (strsame (temp[j].next, segment->id) &&
+                    strsame (LayoutSegments[j].line, segment->line)) {
                     temp[i].previous = LayoutSegments[j].id;
                     break;
                 }
@@ -725,7 +725,7 @@ const char *houserail_track_reload (void) {
                      cursor->id, cursor->stop.low, cursor->stop.high);
               if (cursor->previous < 0) goto nextend;
               cursor = LayoutSegments + cursor->previous;
-              if (strcmp (cursor->line, stop.line)) goto nextend;
+              if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
                   cursor->id, cursor->stop.low, cursor->stop.high);
@@ -742,7 +742,7 @@ const char *houserail_track_reload (void) {
                      cursor->id, cursor->slow.low, cursor->slow.high);
               if (cursor->previous < 0) goto nextend;
               cursor = LayoutSegments + cursor->previous;
-              if (strcmp (cursor->line, stop.line)) goto nextend;
+              if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
                   cursor->id, cursor->slow.low, cursor->slow.high);
@@ -772,7 +772,7 @@ const char *houserail_track_reload (void) {
                      cursor->id, cursor->stop.low, cursor->stop.high);
               if (cursor->next < 0) goto nextend;
               cursor = LayoutSegments + cursor->next;
-              if (strcmp (cursor->line, stop.line)) goto nextend;
+              if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
                   cursor->id, cursor->stop.low, cursor->stop.high);
@@ -789,7 +789,7 @@ const char *houserail_track_reload (void) {
                      cursor->id, cursor->slow.low, cursor->slow.high);
               if (cursor->next < 0) goto nextend;
               cursor = LayoutSegments + cursor->next;
-              if (strcmp (cursor->line, stop.line)) goto nextend;
+              if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
                   cursor->id, cursor->slow.low, cursor->slow.high);
@@ -1017,7 +1017,7 @@ const char *houserail_track_segment (const struct TrackLocation *point,
                 segment = LayoutSegments + alternative;
                 DEBUG (__FILE__ ": Trying segment %s\n", segment->id);
                 if ((segment->high == point->post) &&
-                    (!strcmp (segment->line, point->line))) {
+                    strsame (segment->line, point->line)) {
                     index = alternative;
                 }
             }
@@ -1028,7 +1028,7 @@ const char *houserail_track_segment (const struct TrackLocation *point,
                 segment = LayoutSegments + alternative;
                 DEBUG (__FILE__ ": Trying segment %s\n", segment->id);
                 if ((segment->low == point->post) &&
-                    (!strcmp (segment->line, point->line))) {
+                    strsame (segment->line, point->line)) {
                     index = alternative;
                 }
             }
@@ -1189,7 +1189,7 @@ void houserail_track_limits (const char *line, int direction,
         if (segment->needle == segment->branch) onbranch = 1;
     } else {
         // Does this come from the branch of a convergent switch?
-        if (!strcmp (line, branch->line)) onbranch = 1;
+        if (strsame (line, branch->line)) onbranch = 1;
     }
     if (onbranch) {
         range->line = branch->line;
@@ -1258,7 +1258,7 @@ int houserail_track_walk (struct TrackRange *path, int size,
         if (limit2 &&
             (limit2->post >= current.low) &&
             (limit2->post <= current.high) &&
-            (!strcmp (limit2->line, current.line))) {
+            (strsame (limit2->line, current.line))) {
 
             path[cursor].high = limit2->post;
             return cursor+1; // Reached the destination.

@@ -38,7 +38,7 @@ all: houserail layoutvalidate
 
 clean:
 	rm -rf build
-	rm -f *.o *.a houserail
+	rm -f *.o *.a houserail layoutvalidate
 
 rebuild: clean all
 
