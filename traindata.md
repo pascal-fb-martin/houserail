@@ -51,7 +51,8 @@ The first step of the detection logic is to find if a train covers the detector'
 
 If a train covering the detector's zone has been identified, the next step is to find which detectable spot has entered or exited the detection zone. If this is an occupancy, all that is needed is to identify the closest spot that is moving toward the detection zone. If this is a vaccancy, one need to move the train until no detectable spot remain within the detection zone. One way is to iterate: move the train to "vaccate" those spot within range, repeat until no spot is within range.
  
-> [!NOTE] The size of the detection range matters in the case of a vaccancy. Reed relays have a very small range, and each spot will trigger independent occupancy and vaccancy events. A detection method with a wide range (e.g. track circuit) may have multiple spots within range at any point in time. In the worst case the spots last detected within the range may have vaccated without causing a vaccancy events because other spots have replaced them within range. this is this worst case that the iterative method is meant to cover.
+> [!NOTE]
+> The size of the detection range matters in the case of a vaccancy. Reed relays have a very small range, and each spot will trigger independent occupancy and vaccancy events. A detection method with a wide range (e.g. track circuit) may have multiple spots within range at any point in time. In the worst case the spots last detected within the range may have vaccated without causing a vaccancy events because other spots have replaced them within range. this is this worst case that the iterative method is meant to cover.
 
 If no train covers the detection zone, the event must be an occupancy: if that was a vacancy, what train would have vacated the zone? In that case, search for the nearest train that is moving forward to the detection zone. The first spot of that train is the one that entered the detection zone.
 

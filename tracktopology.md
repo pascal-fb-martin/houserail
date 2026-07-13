@@ -36,7 +36,7 @@ Global track parameters are configurable values that apply to all track elements
 * `speeds.restricted`: the restricted speed value.
 * `speeds.reverse`: the civil speed limit on a switch reverse branch.
 * `distances.stop`: the safe stop distance. This is used when a train gets close to a danger point: end of line, unaligned switch or another train. This value is a combination of the train maximum speed and of the granularity of the train tracking. The later depends on the spacing between detectors, the type of the detectors and the spacing between train's detectable spots. A safe first estimate is a value greater than the spacing between two detectors.
-* `distance.slow` the safe slow distance. This is used when a train approaches a danger point (see above). This distance is typically double the stop distance.
+* `distances.slow` the safe slow distance. This is used when a train approaches a danger point (see above). This distance is typically double the stop distance.
 
 ## Track Models
 
