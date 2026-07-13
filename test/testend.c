@@ -31,8 +31,9 @@
 #include <string.h>
 #include <sys/time.h>
 
-#include "echttp.h"
-#include "houseconfig.h"
+#include <echttp.h>
+#include <echttp_libc.h>
+#include <houseconfig.h>
 
 #include "../houserail_field.h"
 #include "../houserail_track.h"
@@ -187,9 +188,9 @@ int main (int argc, const char **argv) {
         snprintf (message, sizeof(message), "%s head", action);
         assert ((head != 0) && (head->post == detected.low+4), message);
         int expected = 50;
-        if (!strcmp (uptrip[step], "main.6")) expected = 10;
-        else if (!strcmp (uptrip[step], "main.7")) expected = 10;
-        else if (!strcmp (uptrip[step], "main.8")) expected = 0;
+        if (strsame (uptrip[step], "main.6")) expected = 10;
+        else if (strsame (uptrip[step], "main.7")) expected = 10;
+        else if (strsame (uptrip[step], "main.8")) expected = 0;
         snprintf (message, sizeof(message), "%s speed", action);
         assert (LastSpeedOrder == expected, message);
     }
@@ -233,8 +234,8 @@ int main (int argc, const char **argv) {
         snprintf (message, sizeof(message), "%s head", action);
         assert ((head != 0) && (head->post == detected.high-4), message);
         int expected = 50;
-        if (!strcmp (downtrip[step], "main.2")) expected = 10;
-        else if (!strcmp (downtrip[step], "main.1")) expected = 0;
+        if (strsame (downtrip[step], "main.2")) expected = 10;
+        else if (strsame (downtrip[step], "main.1")) expected = 0;
         snprintf (message, sizeof(message), "%s speed", action);
         assert (LastSpeedOrder == expected, message);
     }

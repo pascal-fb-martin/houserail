@@ -30,8 +30,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "echttp.h"
-#include "houseconfig.h"
+#include <echttp.h>
+#include <echttp_libc.h>
+#include <houseconfig.h>
 
 #include "../houserail_track.h"
 
@@ -154,7 +155,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_vicinity (&point, "main-2", 1);
     int passed =
     assert (result == 1, "houserail_track_vicinity(main-2, forward) status") &&
-    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(main-2, forward) line") &&
+    assert (strsame(point.line, "main"), "houserail_track_vicinity(main-2, forward) line") &&
     assert (point.post == 20, "houserail_track_vicinity(main-2, forward) post");
     digest (passed, "houserail_track_vicinity(main-2, forward)");
 
@@ -164,7 +165,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_vicinity (&point, "main-2", 0);
     passed =
     assert (result == 1, "houserail_track_vicinity(main-2, still) status") &&
-    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(main-2, still) line") &&
+    assert (strsame(point.line, "main"), "houserail_track_vicinity(main-2, still) line") &&
     assert (point.post == 30, "houserail_track_vicinity(main-2, still) post");
     digest (passed, "houserail_track_vicinity(main-2, still)");
 
@@ -174,7 +175,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_vicinity (&point, "main-2", -1);
     passed =
     assert (result == 1, "houserail_track_vicinity(main-2, backward) status") &&
-    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(main-2, backward) line") &&
+    assert (strsame(point.line, "main"), "houserail_track_vicinity(main-2, backward) line") &&
     assert (point.post == 40, "houserail_track_vicinity(main-2, backward) post");
     digest (passed, "houserail_track_vicinity(main-2, backward)");
 
@@ -184,7 +185,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_vicinity (&point, "reed-3", 1);
     passed =
     assert (result == 1, "houserail_track_vicinity(reed-3,forward) status") &&
-    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(reed-3,forward) line") &&
+    assert (strsame(point.line, "main"), "houserail_track_vicinity(reed-3,forward) line") &&
     assert (point.post == 49, "houserail_track_vicinity(reed-3,forward) post");
     digest (passed, "houserail_track_vicinity(reed-3,forward)");
 
@@ -194,7 +195,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_vicinity (&point, "reed-3", 0);
     passed =
     assert (result == 1, "houserail_track_vicinity(reed-3, still) status") &&
-    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(reed-3, still) line") &&
+    assert (strsame(point.line, "main"), "houserail_track_vicinity(reed-3, still) line") &&
     assert (point.post == 50, "houserail_track_vicinity(reed-3, still) status");
     digest (passed, "houserail_track_vicinity(reed-3, still)");
 
@@ -204,7 +205,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_vicinity (&point, "reed-3", -1);
     passed =
     assert (result == 1, "houserail_track_vicinity(reed-3, backward) status") &&
-    assert (!strcmp(point.line, "main"), "houserail_track_vicinity(reed-3, backward) line") &&
+    assert (strsame(point.line, "main"), "houserail_track_vicinity(reed-3, backward) line") &&
     assert (point.post == 51, "houserail_track_vicinity(reed-3, backward) status");
     digest (passed, "houserail_track_vicinity(reed-3, backward)");
 
@@ -224,7 +225,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_walk (path, 16, &limit1, &limit2, 1, 0);
     passed =
     assert (result == 1, "houserail_track_walk(main from 30 to 280, forward) status") &&
-    assert (!strcmp(path[0].line, "main"), "houserail_track_walk(main from 30 to 280, forward) line") &&
+    assert (strsame(path[0].line, "main"), "houserail_track_walk(main from 30 to 280, forward) line") &&
     assert (path[0].low == 30, "houserail_track_walk(main from 30 to 280, forward) start post") &&
     assert (path[0].high == 280, "houserail_track_walk(main from 30 to 280, forward) end post");
     digest (passed, "houserail_track_walk(main from 30 to 280, forward)");
@@ -234,7 +235,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_walk (path, 16, &limit2, &limit1, -1, 0);
     passed =
     assert (result == 1, "houserail_track_walk(main from 280 to 30, backward) status") &&
-    assert (!strcmp(path[0].line, "main"), "houserail_track_walk(main from 280 to 30, backward) line") &&
+    assert (strsame(path[0].line, "main"), "houserail_track_walk(main from 280 to 30, backward) line") &&
     assert (path[0].low == 280, "houserail_track_walk(main from 280 to 30, backward) start post") &&
     assert (path[0].high == 30, "houserail_track_walk(main from 280 to 30, backward) end post");
     digest (passed, "houserail_track_walk(main from 280 to 30, backward)");
@@ -256,7 +257,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_walk (path, 16, &limit1, 0, 1, 200);
     passed =
     assert (result == 1, "houserail_track_walk(main from 30 max 200, forward) status") &&
-    assert (!strcmp(path[0].line, "main"), "houserail_track_walk(main from 30 max 200, forward) line") &&
+    assert (strsame(path[0].line, "main"), "houserail_track_walk(main from 30 max 200, forward) line") &&
     assert (path[0].low == 30, "houserail_track_walk(main from 30 max 200, forward) start post") &&
     assert (path[0].high == 230, "houserail_track_walk(main from 30 max 200, forward) end post");
     digest (passed, "houserail_track_walk(main from 30 max 200, forward)");
@@ -266,7 +267,7 @@ int main (int argc, const char **argv) {
     result = houserail_track_walk (path, 16, &limit2, 0, -1, 200);
     passed =
     assert (result == 1, "houserail_track_walk(main from 280 max 200, backward) status") &&
-    assert (!strcmp(path[0].line, "main"), "houserail_track_walk(main from 280 max 200, backward) line") &&
+    assert (strsame(path[0].line, "main"), "houserail_track_walk(main from 280 max 200, backward) line") &&
     assert (path[0].low == 280, "houserail_track_walk(main from 280 max 200, backward) start post") &&
     assert (path[0].high == 80, "houserail_track_walk(main from 280 max 200, backward) end post");
     digest (passed, "houserail_track_walk(main from 280 max 200, backward)");
@@ -279,10 +280,10 @@ int main (int argc, const char **argv) {
     result = houserail_track_walk (path, 16, &limit2, 0, 1, 200);
     passed =
     assert (result == 2, "houserail_track_walk(main from 280 max 200, forward) status") &&
-    assert (!strcmp(path[0].line, "main"), "houserail_track_walk(main from 280 max 200, forward) line section 0") &&
+    assert (strsame(path[0].line, "main"), "houserail_track_walk(main from 280 max 200, forward) line section 0") &&
     assert (path[0].low == 280, "houserail_track_walk(main from 280 max 200, forward) start post section 0") &&
     assert (path[0].high == 320, "houserail_track_walk(main from 280 max 200, forward) end post section 0") &&
-    assert (!strcmp(path[1].line, "main"), "houserail_track_walk(main from 280 max 200, forward) line section 1") &&
+    assert (strsame(path[1].line, "main"), "houserail_track_walk(main from 280 max 200, forward) line section 1") &&
     assert (path[1].low == 0, "houserail_track_walk(main from 280 max 200, forward) start post section 1") &&
     assert (path[1].high == 160, "houserail_track_walk(main from 280 max 200, forward) end post section 1");
     digest (passed, "houserail_track_walk(main from 280 max 200, forward)");
@@ -296,10 +297,10 @@ int main (int argc, const char **argv) {
     result = houserail_track_walk (path, 16, &limit1, 0, -1, 200);
     passed =
     assert (result == 2, "houserail_track_walk(main from 30 max 200, backward) status") &&
-    assert (!strcmp(path[0].line, "main"), "houserail_track_walk(main from 30 max 200, backward) line section 0") &&
+    assert (strsame(path[0].line, "main"), "houserail_track_walk(main from 30 max 200, backward) line section 0") &&
     assert (path[0].low == 30, "houserail_track_walk(main from 30 max 200, backward) start post section 0") &&
     assert (path[0].high == 0, "houserail_track_walk(main from 30 max 200, backward) end post section 0") &&
-    assert (!strcmp(path[1].line, "main"), "houserail_track_walk(main from 30 max 200, backward) line section 1") &&
+    assert (strsame(path[1].line, "main"), "houserail_track_walk(main from 30 max 200, backward) line section 1") &&
     assert (path[1].low == 320, "houserail_track_walk(main from 30 max 200, backward) start post section 1") &&
     assert (path[1].high == 150, "houserail_track_walk(main from 30 max 200, backward) end post section 1");
     digest (passed, "houserail_track_walk(main from 30 max 200, backward)");
@@ -336,53 +337,53 @@ int main (int argc, const char **argv) {
     starting ("houserail_track_segment()");
     const char *segment = houserail_track_segment (&limit1, -1);
     passed =
-    assert (!strcmp (segment, "main-2"), "houserail_track_segment (main 30 backward)");
+    assert (strsame (segment, "main-2"), "houserail_track_segment (main 30 backward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit1, 0);
     passed =
-    assert (!strcmp (segment, "main-2"), "houserail_track_segment (main 30 still)");
+    assert (strsame (segment, "main-2"), "houserail_track_segment (main 30 still)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit1, 1);
     passed =
-    assert (!strcmp (segment, "main-2"), "houserail_track_segment (main 30 forward)");
+    assert (strsame (segment, "main-2"), "houserail_track_segment (main 30 forward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit2, -1);
     passed =
-    assert (!strcmp (segment, "main-15"), "houserail_track_segment (main 280 backward)");
+    assert (strsame (segment, "main-15"), "houserail_track_segment (main 280 backward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit2, 1);
     passed =
-    assert (!strcmp (segment, "main-14"), "houserail_track_segment (main 280 forward)");
+    assert (strsame (segment, "main-14"), "houserail_track_segment (main 280 forward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     limit2.post = 270;
     segment = houserail_track_segment (&limit2, -1);
     passed =
-    assert (!strcmp (segment, "main-14"), "houserail_track_segment (main 270 backward)");
+    assert (strsame (segment, "main-14"), "houserail_track_segment (main 270 backward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit2, 0);
     passed =
-    assert (!strcmp (segment, "main-14"), "houserail_track_segment (main 270 still)");
+    assert (strsame (segment, "main-14"), "houserail_track_segment (main 270 still)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit2, 1);
     passed =
-    assert (!strcmp (segment, "main-14"), "houserail_track_segment (main 270 forward)");
+    assert (strsame (segment, "main-14"), "houserail_track_segment (main 270 forward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     limit2.post = 260;
     segment = houserail_track_segment (&limit2, -1);
-    passed = (!strcmp (segment, "main-14"));
+    passed = (strsame (segment, "main-14"));
     assert (passed, "houserail_track_segment (main 260 backward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit2, 1);
-    passed = (!strcmp (segment, "main-13"));
+    passed = (strsame (segment, "main-13"));
     assert (passed, "houserail_track_segment (main 260, forward)");
     if (!passed) printf ("   segment %s\n", segment);
 
@@ -390,32 +391,32 @@ int main (int argc, const char **argv) {
     segment = houserail_track_segment (&limit2, -1);
     passed =
     assert (segment != 0, "houserail_track_segment (main 320 backward) valid") &&
-    assert (!strcmp (segment, "main-16"), "houserail_track_segment (main 320 backward)");
+    assert (strsame (segment, "main-16"), "houserail_track_segment (main 320 backward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit2, 0);
-    passed = (!strcmp (segment, "main-16"));
+    passed = (strsame (segment, "main-16"));
     assert (passed, "houserail_track_segment (main 320 still)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit2, 1);
-    passed = (!strcmp (segment, "main-16"));
+    passed = (strsame (segment, "main-16"));
     assert (passed, "houserail_track_segment (main 320 forward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     limit2.post = 0;
     segment = houserail_track_segment (&limit2, -1);
-    passed = (!strcmp (segment, "main-1"));
+    passed = (strsame (segment, "main-1"));
     assert (passed, "houserail_track_segment (main 0 backward)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit2, 0);
-    passed = (!strcmp (segment, "main-1"));
+    passed = (strsame (segment, "main-1"));
     assert (passed, "houserail_track_segment (main 0 still)");
     if (!passed) printf ("   segment %s\n", segment);
 
     segment = houserail_track_segment (&limit2, 1);
-    passed = (!strcmp (segment, "main-1"));
+    passed = (strsame (segment, "main-1"));
     assert (passed, "houserail_track_segment (main 0 forward)");
     if (!passed) printf ("   segment %s\n", segment);
 
