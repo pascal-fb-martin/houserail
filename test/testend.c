@@ -64,6 +64,10 @@ FleetListener *houserail_field_fleet_subscribe (FleetListener *listener) {
     return 0;
 }
 
+int houserail_field_fleet_iterate   (FleetListener *listener) {
+    return 0;
+}
+
 static long long now (void) {
     struct timeval tv;
     gettimeofday (&tv, 0);

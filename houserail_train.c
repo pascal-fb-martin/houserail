@@ -766,6 +766,7 @@ const char *houserail_train_consist (const char *id,
     houselog_event ("TRAIN", train->id, isnew?"CREATED":"CHANGED",
                     "CONSIST (%d CARS)", train->carcount);
 
+    houserail_field_fleet_iterate (houserail_train_fleet);
     return 0;
 }
 
@@ -910,6 +911,8 @@ const char *houserail_train_reload (void) {
    houselog_event ("TRAIN", "CONFIG", "LOADED",
                    "%d models %d vehicles (%d trains)",
                    LayoutVehicleModelsCount, LayoutVehiclesCount, LayoutTrainsCount);
+
+   houserail_field_fleet_iterate (houserail_train_fleet);
    return 0;
 }
 

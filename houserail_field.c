@@ -54,6 +54,7 @@
  *    Retrieve the current list of active vehicles. The provided listener
  *    will be called once for each known vehicle. This listener does not need
  *    to be the same as the one declared using houserail_field_subscribe().
+ *    The intended use is to force a refresh when the train list has changed.
  *
  *    This returns the number of vehicles currently known.
  *
@@ -162,7 +163,7 @@ FleetListener *houserail_field_fleet_subscribe (FleetListener *listener) {
     return previous;
 }
 
-int houserail_field_iterate (FleetListener *listener) {
+int houserail_field_fleet_iterate (FleetListener *listener) {
 
     int i;
     int count = 0;
