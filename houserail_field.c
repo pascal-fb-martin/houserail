@@ -201,6 +201,7 @@ int houserail_field_fleet_find (const char *id, int update) {
     if (!update) return i;
 
     if (i < 0) { // Not found
+        houselog_event ("LOCOMOTIVE", id, "DETECTED", "");
         if (empty >= 0) {
             i = empty;
         } else {
