@@ -22,21 +22,21 @@
                  {"id":"kato20041","length":10,"reverse":0,"civil":20}
              ],
              "segments":[
-                 {"id":"main-1","model":"kato20041","line":"main","next":"main-2"},
+                 {"id":"main-1","model":"kato20010","line":"main","next":"main-2"},
                  {"id":"main-2","model":"kato20010","line":"main","next":"main-3"},
                  {"id":"main-3","model":"kato20010","line":"main","next":"main-4"},
                  {"id":"main-4","model":"kato20010","line":"main","next":"main-5"},
-                 {"id":"main-5","model":"kato20010","line":"main"}
+                 {"id":"main-5","model":"kato20041","line":"main"}
              ],
              "detectors":[
-                 {"id":"main.1","line":"main","low":15,"high":16},
-                 {"id":"main.2","line":"main","low":33,"high":34},
-                 {"id":"main.3","line":"main","low":44,"high":45},
-                 {"id":"main.4","line":"main","low":64,"high":65},
-                 {"id":"main.5","line":"main","low":75,"high":76},
-                 {"id":"main.6","line":"main","low":93,"high":94},
-                 {"id":"main.7","line":"main","low":105,"high":106},
-                 {"id":"main.8","line":"main","low":123,"high":124}
+                 {"id":"main.1","line":"main","low":5,"high":6},
+                 {"id":"main.2","line":"main","low":23,"high":24},
+                 {"id":"main.3","line":"main","low":35,"high":36},
+                 {"id":"main.4","line":"main","low":53,"high":54},
+                 {"id":"main.5","line":"main","low":64,"high":65},
+                 {"id":"main.6","line":"main","low":83,"high":85},
+                 {"id":"main.7","line":"main","low":94,"high":95},
+                 {"id":"main.8","line":"main","low":113,"high":114}
              ]
         }
     }

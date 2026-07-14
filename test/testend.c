@@ -188,8 +188,7 @@ int main (int argc, const char **argv) {
         snprintf (message, sizeof(message), "%s head", action);
         assert ((head != 0) && (head->post == detected.low+4), message);
         int expected = 50;
-        if (strsame (uptrip[step], "main.6")) expected = 10;
-        else if (strsame (uptrip[step], "main.7")) expected = 10;
+        if (strsame (uptrip[step], "main.7")) expected = 10;
         else if (strsame (uptrip[step], "main.8")) expected = 0;
         snprintf (message, sizeof(message), "%s speed", action);
         assert (LastSpeedOrder == expected, message);
@@ -203,12 +202,12 @@ int main (int argc, const char **argv) {
     starting ("preparing for the down trip");
 
     houserail_train_consist ("train3", cars, 2);
-    houserail_train_enter ("train3", "main.4", -1);
+    houserail_train_enter ("train3", "main.5", -1);
     houserail_train_move ("train3", "forward", 0);
     trainlist ("after preparing for the down trip");
 
     starting ("moving down to the end of track");
-    const char *downtrip[] = {"main.4", "main.3", "main.2", "main.1", 0};
+    const char *downtrip[] = {"main.5", "main.4", "main.3", "main.2", "main.1", 0};
 
     // houserail_track_testmode (1);
     // houserail_train_testmode (1);
@@ -234,7 +233,8 @@ int main (int argc, const char **argv) {
         snprintf (message, sizeof(message), "%s head", action);
         assert ((head != 0) && (head->post == detected.high-4), message);
         int expected = 50;
-        if (strsame (downtrip[step], "main.2")) expected = 10;
+        if (strsame (downtrip[step], "main.3")) expected = 10;
+        else if (strsame (downtrip[step], "main.2")) expected = 10;
         else if (strsame (downtrip[step], "main.1")) expected = 0;
         snprintf (message, sizeof(message), "%s speed", action);
         assert (LastSpeedOrder == expected, message);
