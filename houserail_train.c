@@ -518,10 +518,12 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
     if (speed == train->speed) return 0; // No need to adjust.
 
     if (TrainTrackingBurstActive) {
-        houselog_event ("TRAIN", train->id, "SPEED",
-                        "QUEUED CHANGE FROM %d TO %d", train->speed, speed);
-        train->queue.speed = speed;
-        train->queue.has_speed = 1;
+        if ((!train->queue.has_speed) || (train->queue.speed != speed)) {
+            houselog_event ("TRAIN", train->id, "SPEED",
+                            "QUEUED CHANGE FROM %d TO %d", train->speed, speed);
+            train->queue.speed = speed;
+            train->queue.has_speed = 1;
+        }
         return 0;
     }
     return houserail_train_drive (train, speed);
