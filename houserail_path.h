@@ -28,7 +28,7 @@ struct TrackPath {
    struct TrackRange *sections;
 };
 
-#define TRACKPATHNULL {0, 0, 0}
+static const struct TrackPath TrackPathNew = {0, 0, 0, 0};
 
 int houserail_path_covers (const struct TrackPath *path,
                            const struct TrackRange *area);
@@ -59,4 +59,5 @@ int houserail_path_move (const struct TrackPath *path,
 void houserail_path_turn (struct TrackPath *path, int direction);
 
 void houserail_path_erase (struct TrackPath *path);
+void houserail_path_release (struct TrackPath *path);
 

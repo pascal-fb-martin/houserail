@@ -790,6 +790,7 @@ const char *houserail_train_consist (const char *id,
         strtcpy (train->id, id, sizeof(train->id));
         train->signature = echttp_hash_signature (id);
         train->index = LayoutTrainsCount++;
+        train->path = TrackPathNew;
         isnew = 1;
     }
     train->parked = 1;
@@ -822,6 +823,8 @@ const char *houserail_train_delete (const char *id) {
     struct TrainConsist *train = houserail_train_search (id);
     if (!train) return "Unknown train";
 
+    houserail_path_release (&(train->path));
+
     // The cars are not longer part of a consist.
     int i;
     for (i = train->carcount - 1; i >= 0; --i) {
@@ -831,7 +834,8 @@ const char *houserail_train_delete (const char *id) {
     }
 
     // Move the last train to the new empty train slot, unless the deleted
-    // train was the last one, and decrease the count.
+    // train was the last one, and decrease the count. Then relink the cars
+    // for that moved consist.
     struct TrainConsist *last = LayoutTrains + (--LayoutTrainsCount);
     if (train != last) {
         // Move the last train to the new empty slot.

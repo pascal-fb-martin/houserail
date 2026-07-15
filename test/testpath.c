@@ -170,9 +170,7 @@ int main (int argc, const char **argv) {
     struct TrackPath testpath;
     struct TrackLocation start;
 
-    testpath.size = 0;
-    testpath.count = 0;
-    testpath.sections = 0;
+    testpath = TrackPathNew;
 
     start.line = "aaa";
     start.post = 20;

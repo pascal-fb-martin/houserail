@@ -108,6 +108,10 @@
  * void houserail_path_erase (struct TrackPath *path);
  *
  *    Empty the specified path.
+ *
+ * void houserail_path_release (struct TrackPath *path);
+ *
+ *    Deallocate every resources for this path.
  */
 
 #include <unistd.h>
@@ -397,5 +401,12 @@ void houserail_path_turn (struct TrackPath *path, int direction) {
 void houserail_path_erase (struct TrackPath *path) {
     path->count = 0;
     path->direction = 0;
+}
+
+void houserail_path_release (struct TrackPath *path) {
+    if (path->size > 0) {
+       free (path->sections);
+    }
+    *path = TrackPathNew;
 }
 
