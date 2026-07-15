@@ -155,14 +155,10 @@ int main (int argc, const char **argv) {
         printf ("** Consist error: %s\n", error);
         return Errors + 1;
     }
-    // houserail_track_testmode (1);
-    // houserail_train_testmode (1);
-    houserail_train_move ("train3", "forward", 0);
-    // houserail_track_testmode (0);
-    // houserail_train_testmode (0);
     trainlist (0);
 
     starting ("moving up to the end of track");
+    houserail_train_move ("train3", "forward", 0);
     struct TrackLocation detector;
     const char *uptrip[] = {"main.5", "main.6", "main.7", "main.8", 0};
 
@@ -204,15 +200,15 @@ int main (int argc, const char **argv) {
 
     digest (Errors == original, "moving up to the end of line");
 
-    starting ("preparing for the down trip");
+    starting ("preparing for the forward down trip");
 
     houserail_train_consist ("train3", cars, 2);
     houserail_train_enter ("train3", "main.5", -1);
-    houserail_train_move ("train3", "forward", 0);
-    trainlist ("after preparing for the down trip");
+    trainlist ("after preparing for the forward down trip");
 
-    starting ("moving down to the end of track");
+    starting ("moving forward down to the end of track");
     const char *downtrip[] = {"main.5", "main.4", "main.3", "main.2", "main.1", 0};
+    houserail_train_move ("train3", "forward", 0);
 
     // houserail_track_testmode (1);
     // houserail_train_testmode (1);
@@ -245,7 +241,54 @@ int main (int argc, const char **argv) {
         snprintf (message, sizeof(message), "%s speed", action);
         assert (LastSpeedOrder == expected, message);
     }
-    digest (Errors == original, "moving down to the end of track");
+    houserail_train_stop ("train3", 0);
+    houserail_train_park ("train3");
+    houserail_train_delete ("train3");
+
+    digest (Errors == original, "moving forward down to the end of track");
+
+    starting ("preparing for the backward down trip");
+    const char *backtrip[] = {"main.5", "main.4", "main.3", "main.2", 0};
+
+    houserail_train_consist ("train3", cars, 2);
+    houserail_train_enter ("train3", "main.8", 1);
+    trainlist ("after preparing for the down trip");
+
+    starting ("moving down to the end of track");
+    // houserail_track_testmode (1);
+    houserail_train_testmode (1);
+    houserail_train_move ("train3", "backward", 0);
+
+    original = Errors;
+    const struct TrackLocation *tail = houserail_train_tail ("train3");
+    for (step = 0; backtrip[step] != 0; ++step) {
+        char action[128];
+        char message[256];
+        snprintf (action, sizeof(action),
+                  "houserail_train_tracking (%s occupied)", backtrip[step]);
+
+        starting (action);
+        houserail_track_vicinity (&detector, backtrip[step], -1);
+        detected.line = detector.line;
+        detected.high = detector.post;
+        detected.low = detected.high - 2;
+        printf ("   Train train3 moving from %s %d to %s %d\n",
+                tail->line, tail->post, detector.line, detector.post);
+
+        houserail_train_tracking (&detected, 1, now());
+        houserail_train_tracking (0, 0, 0);
+        trainlist (0);
+        tail = houserail_train_tail ("train3");
+        snprintf (message, sizeof(message), "%s tail", action);
+        assert ((tail != 0) && (tail->post == detected.high-5), message);
+        int expected = -50;
+        if (strsame (backtrip[step], "main.3")) expected = -10;
+        else if (strsame (backtrip[step], "main.2")) expected = 0;
+        snprintf (message, sizeof(message), "%s speed == %d", action, expected);
+        assert (LastSpeedOrder == expected, message);
+    }
+    digest (Errors == original, "moving backward down to the end of track");
+
     return summary ("testend");
 }
 

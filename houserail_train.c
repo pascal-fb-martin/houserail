@@ -154,6 +154,8 @@ struct TrainConsist {
 
     int index;   // Self reference.
 
+    // Train's head anf tail are relative to the consist, not to the
+    // direction of travel. Watch for references to 'front' and 'rear'.
     struct TrackLocation head;
     struct TrackLocation tail;
 
@@ -253,6 +255,7 @@ static void houserail_train_turn (struct TrainConsist *train,
 
     int direction = houserail_train_direction (train);
     if (direction != train->path.direction) {
+        DEBUG (__FILE__ ": train %s turned %s\n", train->id, (direction >= 0)?"up":"down");
         houselog_event ("TRAIN", train->id, "TURNED",
                         "TO %s (%s)", (direction >= 0)?"UP":"DOWN", cause);
         houserail_path_turn (&(train->path), direction);
@@ -324,7 +327,8 @@ static int houserail_train_covers (struct TrainConsist *train,
     return houserail_path_covers (&(train->path), area);
 }
 
-static int houserail_train_spotdistance (struct TrackLocation *spot,
+static int houserail_train_spotdistance (struct TrainConsist *train,
+                                         struct TrackLocation *spot,
                                          const struct TrackRange *area,
                                          int max, int direction, int occupied) {
 
@@ -335,6 +339,7 @@ static int houserail_train_spotdistance (struct TrackLocation *spot,
     else if (direction < 0) point.post = occupied?area->high:area->low;
 
     int distance = houserail_track_distance (spot, &point, direction, max);
+    DEBUG (__FILE__ ": train %s spot at %s %d distance %d from detection at %s %d to %d\n", train->id, spot->line, spot->post, distance, area->line, area->low, area->high);
     return distance;
 }
 
@@ -353,7 +358,7 @@ static int houserail_train_distance (struct TrainConsist *train,
         lead = train->spots + (train->spotcount-1);
     }
     return houserail_train_spotdistance
-               (lead, area, max, direction, occupied);
+               (train, lead, area, max, direction, occupied);
 }
 
 static void houserail_train_pull (struct TrainConsist *train,
@@ -363,7 +368,7 @@ static void houserail_train_pull (struct TrainConsist *train,
     // Move the head, tail and each car spot of the consist.
     int direction = houserail_train_direction (train);
 
-    DEBUG (__FILE__ ": train %s moving %s by %d posts\n",
+    DEBUG (__FILE__ ": train %s pull %s by %d posts\n",
            train->id, (direction >= 0)?"up":"down", distance);
 
     houserail_train_turn (train, "tracking");
@@ -385,7 +390,10 @@ static void houserail_train_pull (struct TrainConsist *train,
     houserail_path_move (&(train->path), &(train->tail), distance, 1);
     train->tail.segment = houserail_track_segment (&(train->tail), 0-direction);
 
-    houserail_path_rollup (&(train->path), &(train->tail));
+    struct TrackLocation *rear =
+        (train->speed > 0)?&(train->tail):&(train->head);
+
+    houserail_path_rollup (&(train->path), rear);
     train->updated = timestamp;
     houselog_event ("TRAIN", train->id, "MOVED",
                     "%s BY %d HEAD TO %s %d TAIL TO %s %d",
@@ -421,6 +429,10 @@ static void houserail_train_pull_occupied (struct TrainConsist *train,
     }
     if (found < 0) return;
 
+    DEBUG (__FILE__ ": train %s spot %d at %s %d pulled %s by %d posts\n",
+           train->id, found, train->spots[found].line, train->spots[found].post,
+           (direction >= 0)?"up":"down", min);
+
     // If a spot was at the limit of a detector range, the train
     // still moved, even if not much. Make the smallest possible move.
     if (min == 0) min = 1;
@@ -453,7 +465,7 @@ static void houserail_train_pull_vacant (struct TrainConsist *train,
 
     // Move the train so that the last spot exits the detector's range.
     int distance = houserail_train_spotdistance
-                       (train->spots + last,
+                       (train, train->spots + last,
                         area, TRAINMAXDISTANCE, direction, 0);
     if (distance <= 0) return;
     houserail_train_pull (train, distance, timestamp);
@@ -496,7 +508,7 @@ static void houserail_train_recalculate_spots (struct TrainConsist *train) {
                              train->spots+i, offset[i], orientation);
         train->spots[i].segment = houserail_track_segment (train->spots+i, 0);
 
-        DEBUG (__FILE__ ": move spot %d by %d posts %s from %s %d, ends at %s %d\n", i, offset[i], (train->orientation >= 0)?"up":"down", train->tail.line, train->tail.post, train->spots[i].line, train->spots[i].post);
+        DEBUG (__FILE__ ": reposition spot %d by %d posts %s to %s %d\n", i, offset[i], (orientation >= 0)?"up":"down", train->spots[i].line, train->spots[i].post);
     }
 }
 
@@ -651,7 +663,6 @@ void houserail_train_tracking (const struct TrackRange *area,
         train = LayoutTrains + i;
         if (train->speed == 0) continue;
         distance = houserail_train_distance (train, area, min, occupied);
-        DEBUG (__FILE__ ": train %s at distance %d from %s %d to %d\n", train->id, distance, area->line, area->low, area->high);
         if ((distance > 0) && (distance < min)) {
            min = distance;
            closest = i;
