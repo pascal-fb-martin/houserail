@@ -346,7 +346,7 @@ DetectionListener *houserail_track_subscribe (DetectionListener *listener) {
 void houserail_track_input (const char *name,
                             long long timestamp, const char *state) {
 
-    houselog_event ("TRACK", name, "DETECTOR", "%s at %lld", state, timestamp);
+    houselog_event ("DETECTOR", name, "CHANGED", "TO %s AT %lld", state, timestamp);
 
     struct TrackDetector *detector = houserail_track_search_detector (name);
     if (!detector) return;
