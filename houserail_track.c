@@ -78,10 +78,12 @@
  *
  *     Periodic update function.
  *
- * int houserail_track_civil (const struct TrackLocation *point, int direction);
+ * int houserail_track_civil (const struct TrackLocation *point,
+ *                            int direction, const char **cause);
  *
  *     Return the civil speed limit applicable to the specified location in
- *     the specified direction.
+ *     the specified direction. The cause string indicates what caused a speed
+ *     restriction.
  *
  *     If the direction is 0 (i.e. none), the limit is the civil speed for
  *     the segment at that location. Otherwise, the limit is the smallest of:
@@ -1104,7 +1106,8 @@ int houserail_track_restricted (void) {
     return TrackRestrictedSpeed;
 }
 
-int houserail_track_civil (const struct TrackLocation *point, int direction) {
+int houserail_track_civil (const struct TrackLocation *point,
+                           int direction, const char **cause) {
 
     DEBUG (__FILE__ ": houserail_track_civil (%s %d, %d)\n", point->line, point->post, direction);
 
@@ -1112,16 +1115,19 @@ int houserail_track_civil (const struct TrackLocation *point, int direction) {
     int index = houserail_track_locate (point);
     if (index < 0) {
         DEBUG (__FILE__ ": invalid location %s.%d\n", point->line, point->post);
+        *cause = "invalid location";
         return 0; // Stop whenever there is any doubt.
     }
 
     struct TrackSegment *segment = LayoutSegments + index;
     speed = LayoutModels[segment->model].civil;
+    *cause = "civil speed";
     DEBUG (__FILE__ ": Consider civil speed %d for segment %s (model %s)\n",
            speed, segment->id, LayoutModels[segment->model].id);
 
     if ((speed > SwitchReverseSpeed) &&
         (segment->branch >= 0) && (segment->needle == segment->branch)) {
+       *cause = "reverse branch";
        speed = SwitchReverseSpeed;
        DEBUG (__FILE__ ": use reverse civil speed %d instead for switch %s in reverse state",
               speed, segment->id);
@@ -1135,12 +1141,14 @@ int houserail_track_civil (const struct TrackLocation *point, int direction) {
             (point->post >= segment->stop.low) &&
             (point->post < segment->stop.high)) {
             DEBUG (__FILE__ ": Arriving at the end of line, stop %s\n", segment->line);
+            *cause = "end of line";
             return 0; // Inside the line's stop zone.
         }
         if (segment->slow.line &&
             (point->post >= segment->slow.low) &&
             (point->post < segment->slow.high)) {
             DEBUG (__FILE__ ": Approaching the end of line %s, speed restricted to %d\n", segment->line, TrackRestrictedSpeed);
+            *cause = "end of line";
             return TrackRestrictedSpeed; // Inside the line's slow zone.
         }
     }
@@ -1166,6 +1174,7 @@ int houserail_track_civil (const struct TrackLocation *point, int direction) {
             // direction: how is that segment connected to the original one?
             if ((index != segment->needle) && (index != segment->common)) {
                 DEBUG (__FILE__ ": stop before entering opposite switch %s\n", segment->id);
+                *cause = "switch misaligned";
                 speed = 0;
             }
 
@@ -1173,6 +1182,7 @@ int houserail_track_civil (const struct TrackLocation *point, int direction) {
                 (segment->needle == segment->branch)) {
                   DEBUG (__FILE__ ": use reverse civil speed %d instead for switch %s in reverse state",
                          speed, segment->id);
+                *cause = "reverse branch";
                 speed = SwitchReverseSpeed;
             }
         }

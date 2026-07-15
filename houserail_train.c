@@ -296,24 +296,35 @@ static void houserail_train_fleet (const char *id, int index) {
     if (TrainNextFleetListener) TrainNextFleetListener (id, index);
 }
 
-static int houserail_train_maxspeed (struct TrainConsist *train) {
+static int houserail_train_maxspeed (struct TrainConsist *train,
+                                     const char **cause) {
 
     int direction = houserail_train_direction (train);
-    if (!direction) return houserail_track_restricted(); // In doubt, go slow.
+    if (!direction) {
+        *cause = "unknown direction";
+        return houserail_track_restricted(); // In doubt, go slow.
+    }
 
     // Set the max speed according to the track speed limit of the tracks
     // below the train and the track the train is approaching to.
 
-    int speed = houserail_track_civil (&(train->head), direction);
+    int speed = houserail_track_civil (&(train->head), direction, cause);
     if (speed <= 0) return 0; // Stopped, cannot get slower.
-    int speed2 = houserail_track_civil (&(train->tail), direction);
-    if (speed2 < speed) speed = speed2;
+    const char *cause2 = "unknown";
+    int speed2 = houserail_track_civil (&(train->tail), direction, &cause2);
+    if (speed2 < speed) {
+        *cause = cause2;
+        speed = speed2;
+    }
     if (speed <= houserail_track_restricted()) return speed; // Slow enough.
 
     int i;
     for (i = 0; i < train->spotcount; ++i) {
-       speed2 = houserail_track_civil (&(train->spots[i]), 0);
-       if (speed2 < speed) speed = speed2;
+       speed2 = houserail_track_civil (&(train->spots[i]), 0, &cause2);
+       if (speed2 < speed) {
+           *cause = cause2;
+           speed = speed2;
+       }
     }
     return speed;
 }
@@ -512,10 +523,12 @@ static void houserail_train_recalculate_spots (struct TrainConsist *train) {
     }
 }
 
-static const char *houserail_train_drive (struct TrainConsist *train, int speed) {
+static const char *houserail_train_drive (struct TrainConsist *train,
+                                          int speed, const char *cause) {
 
     houselog_event ("TRAIN", train->id, "SPEED",
-                    "REQUESTED CHANGE FROM %d TO %d", train->speed, speed);
+                    "REQUESTED CHANGE FROM %d TO %d (%s)",
+                    train->speed, speed, cause);
 
     if (speed == 0) train->direction = 0;
 
@@ -538,6 +551,7 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
 
     if (!train->active) return "No DCC locomotive detected for that consist";
     int restricted = houserail_track_restricted();
+    const char *cause = "no change";
 
     // We must first adjust the requested direction of the train.
     int direction = reverse?0-train->orientation:train->orientation;
@@ -548,8 +562,11 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
 
     // Request a speed according to the civil speed limit of the tracks
     // below the train and the track that the train is approaching to.
-    int speed = houserail_train_maxspeed (train);
-    if (slow && (speed > restricted)) speed = restricted;
+    int speed = houserail_train_maxspeed (train, &cause);
+    if (slow && (speed > restricted)) {
+        speed = restricted;
+        cause = "slow order";
+    }
 
     if (reverse) speed = 0 - speed;
     if (speed == train->speed) return 0; // No need to adjust.
@@ -557,13 +574,14 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
     if (TrainTrackingBurstActive) {
         if ((!train->queue.has_speed) || (train->queue.speed != speed)) {
             houselog_event ("TRAIN", train->id, "SPEED",
-                            "QUEUED CHANGE FROM %d TO %d", train->speed, speed);
+                            "QUEUED CHANGE FROM %d TO %d (%s)",
+                            train->speed, speed, cause);
             train->queue.speed = speed;
             train->queue.has_speed = 1;
         }
         return 0;
     }
-    return houserail_train_drive (train, speed);
+    return houserail_train_drive (train, speed, cause);
 }
 
 const char *houserail_train_break (struct TrainConsist *train, int emergency) {
@@ -597,7 +615,7 @@ static void houserail_train_flush (void) {
     for (i = 0; i < LayoutTrainsCount; ++i) {
         struct TrainConsist *train = LayoutTrains + i;
         if (train->queue.has_speed) {
-            houserail_train_drive (train, train->queue.speed);
+            houserail_train_drive (train, train->queue.speed, "queued");
             train->queue.has_speed = 0;
         }
     }

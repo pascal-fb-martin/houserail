@@ -64,86 +64,87 @@ int main (int argc, const char **argv) {
 
     starting ("houserail_track_civil()");
     struct TrackLocation point;
+    const char *cause;
     point.line = "main";
     point.segment = 0;
 
     point.post = 10;
-    int result = houserail_track_civil (&point, 1);
+    int result = houserail_track_civil (&point, 1, &cause);
     assert (result == 60, "houserail_track_civil(main 10, forward) == 60");
 
-    result = houserail_track_civil (&point, -1);
+    result = houserail_track_civil (&point, -1, &cause);
     assert (result == 30, "houserail_track_civil(main 10, backward) == 30");
 
-    result = houserail_track_civil (&point, 0);
+    result = houserail_track_civil (&point, 0, &cause);
     assert (result == 60, "houserail_track_civil(main 10, still) == 60");
 
     point.post = 30;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 60, "houserail_track_civil(main 30, forward) == 60");
 
     point.post = 50;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 60, "houserail_track_civil(main 50, forward) == 60");
 
     point.post = 70;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 70, forward) == 30");
 
     point.post = 90;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 90, forward) == 30");
 
     point.post = 110;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 110, forward) == 30");
 
     point.post = 130;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 130, forward) == 30");
 
     point.post = 150;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 150, forward) == 30");
 
     point.post = 170;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 60, "houserail_track_civil(main 170, forward) == 60");
 
     point.post = 190;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 60, "houserail_track_civil(main 190, forward) == 60");
 
     point.post = 210;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 60, "houserail_track_civil(main 210, forward) == 60");
 
     point.post = 230;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 230, forward) == 30");
 
     point.post = 250;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 250, forward) == 30");
 
     point.post = 270;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 270, forward) == 30");
 
     point.post = 290;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 290, forward) == 30");
 
     point.post = 310;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result == 30, "houserail_track_civil(main 310, forward) == 30");
 
     point.post = 330;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result <= 0, "houserail_track_civil() at invalid location main post 330 forward");
 
     point.line = "_invalid_";
     point.post = 280;
-    result = houserail_track_civil (&point, 1);
+    result = houserail_track_civil (&point, 1, &cause);
     assert (result <= 0, "houserail_track_civil() at invalid location _invalid_ post 330");
 
     // Test houserail_track_vicinity (struct TrackLocation *point, const char *id, int direction);
