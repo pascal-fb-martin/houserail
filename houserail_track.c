@@ -357,7 +357,7 @@ void houserail_track_input (const char *name,
     detector->live.occupied = occupied;
 
     houselog_event ("DETECTOR", name, "CHANGED",
-                    "TO %s AT %lld (%s %d TO %d)",
+                    "%s AT %lld (%s %d TO %d)",
                     state, timestamp, detector->area.line,
                     detector->area.low, detector->area.high);
 
