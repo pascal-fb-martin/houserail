@@ -230,6 +230,7 @@ int main (int argc, const char **argv) {
     detected.low = 9; // reed-1
     detected.high = 11;
     houserail_train_tracking (&detected, 1, now());
+    houserail_train_tracking (0, 0, 0);
     const struct TrackLocation *head = houserail_train_head ("train3");
     passed =
     assert ((head != 0) && (head->post == 28), "houserail_train_tracking (reed-1 occupied) head");
@@ -243,6 +244,7 @@ int main (int argc, const char **argv) {
     detected.low = 29; // reed-2
     detected.high = 31;
     houserail_train_tracking (&detected, 1, now());
+    houserail_train_tracking (0, 0, 0);
     head = houserail_train_head ("train3");
     passed =
     assert ((head != 0) && (head->post == 31), "houserail_train_tracking (reed-2 occupied) head");
@@ -257,6 +259,7 @@ int main (int argc, const char **argv) {
     detected.low = 9; // reed-1
     detected.high = 11;
     houserail_train_tracking (&detected, 1, now());
+    houserail_train_tracking (0, 0, 0);
     head = houserail_train_head ("train3");
     passed =
     assert ((head != 0) && (head->post == 33), "houserail_train_tracking (reed-1 occupied) head");
@@ -267,6 +270,7 @@ int main (int argc, const char **argv) {
 
     starting ("houserail_train_tracking (reed-1 vacant)");
     houserail_train_tracking (&detected, 0, now());
+    houserail_train_tracking (0, 0, 0);
     head = houserail_train_head ("train3");
     passed =
     assert ((head != 0) && (head->post == 37), "houserail_train_tracking (reed-1 vacant) head");
@@ -279,6 +283,7 @@ int main (int argc, const char **argv) {
     detected.low = 49; // reed-3
     detected.high = 51;
     houserail_train_tracking (&detected, 1, now());
+    houserail_train_tracking (0, 0, 0);
     head = houserail_train_head ("train3");
     passed =
     assert ((head != 0) && (head->post == 51), "houserail_train_tracking (reed-3 occupied) head");
@@ -336,6 +341,7 @@ int main (int argc, const char **argv) {
                 head->line, head->post, detector.line, detector.post);
 
         houserail_train_tracking (&detected, 1, now());
+        houserail_train_tracking (0, 0, 0);
         trainlist (0);
         head = houserail_train_head ("train3");
         snprintf (message, sizeof(message), "%s head", action);
@@ -375,6 +381,7 @@ int main (int argc, const char **argv) {
                 head->line, head->post, detector.line, detector.post);
 
         houserail_train_tracking (&detected, 1, now());
+        houserail_train_tracking (0, 0, 0);
         trainlist (0);
         head = houserail_train_head ("train3");
         snprintf (message, sizeof(message), "%s head", action);
@@ -414,6 +421,7 @@ int main (int argc, const char **argv) {
                 head->line, head->post, detector.line, detector.post);
 
         houserail_train_tracking (&detected, 1, now());
+        houserail_train_tracking (0, 0, 0);
         trainlist (0);
         head = houserail_train_head ("train3");
         snprintf (message, sizeof(message), "%s head", action);

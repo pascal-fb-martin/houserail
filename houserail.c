@@ -66,6 +66,7 @@ static int LiveState = -1;
 static int ConfigState = -1;
 
 static FleetListener *TrainNextFleetListener = 0;
+static ControlFlush  *TrackNextControlFlush = 0;
 
 static int rail_header (char *buffer, int size, int stateid) {
 
@@ -379,6 +380,11 @@ static void ontrackchange (const char *name,
     housestate_changed (LiveState);
 }
 
+static void ontrackflush (void) {
+    houserail_track_flush ();
+    if (TrackNextControlFlush) TrackNextControlFlush ();
+}
+
 static void ontrainchange (const char *id, int index) {
     housestate_changed (LiveState);
     if (TrainNextFleetListener) TrainNextFleetListener (id, index);
@@ -450,6 +456,8 @@ int main (int argc, const char **argv) {
     housedepositor_state_share (1);
 
     housecontrol_subscribe ("track", ontrackchange);
+    TrackNextControlFlush = housecontrol_flushable (ontrackflush);
+
     housecontrol_sampling (10); // TBD: configurable?
     TrainNextFleetListener = houserail_field_fleet_subscribe (ontrainchange);
 

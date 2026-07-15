@@ -41,6 +41,7 @@ DetectionListener *houserail_track_subscribe (DetectionListener *listener);
 
 void houserail_track_input (const char *name,
                             long long timestamp, const char *state);
+void houserail_track_flush (void);
 
 const char *houserail_track_reload (void);
 int houserail_track_export (char *buffer, int size, const char *separator);

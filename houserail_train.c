@@ -175,6 +175,10 @@ struct TrainConsist {
     char active;         // 1 if reported by HouseDCC.
     char hasdcc;         // Learned from HouseDCC (DCC train consist)
     int  direction;      // As requested.
+    struct {
+        int has_speed;
+        int speed;
+    } queue;
 };
 
 static struct VehicleModel *LayoutVehicleModels = 0;
@@ -186,6 +190,8 @@ static int             LayoutVehiclesCount = 0;
 static struct TrainConsist *LayoutTrains = 0;
 static int                  LayoutTrainsCount = 0;
 static int                  LayoutTrainsSize = 0;
+
+static int TrainTrackingBurstActive = 0;
 
 
 void houserail_train_testmode (int enabled) {
@@ -471,6 +477,25 @@ static void houserail_train_recalculate_spots (struct TrainConsist *train) {
     }
 }
 
+static const char *houserail_train_drive (struct TrainConsist *train, int speed) {
+
+    houselog_event ("TRAIN", train->id, "SPEED",
+                    "REQUESTED CHANGE FROM %d TO %d", train->speed, speed);
+
+    if (train->hasdcc) // This is a DCC consist.
+        return houserail_field_fleet_move (train->id, speed);
+
+    // If the train does not have a DCC consist, then there must be only
+    // one locomotive. Otherwise, there would be trouble..
+    int i;
+    for (i = 0; i < train->carcount; ++i) {
+        struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
+        if (vehicle->hasdcc)
+            return houserail_field_fleet_move (vehicle->id, speed);
+    }
+    return "Train is active but no DCC car was detected";
+}
+
 static const char *houserail_train_adjust (struct TrainConsist *train,
                                            int reverse, int slow) {
 
@@ -492,21 +517,14 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
     if (reverse) speed = 0 - speed;
     if (speed == train->speed) return 0; // No need to adjust.
 
-    houselog_event ("TRAIN", train->id, "SPEED",
-                    "REQUESTED CHANGE FROM %d TO %d", train->speed, speed);
-
-    if (train->hasdcc) // This is a DCC consist.
-        return houserail_field_fleet_move (train->id, speed);
-
-    // If the train does not have a DCC consist, then there must be only
-    // one locomotive. Otherwise, there would be trouble..
-    int i;
-    for (i = 0; i < train->carcount; ++i) {
-        struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
-        if (vehicle->hasdcc)
-            return houserail_field_fleet_move (vehicle->id, speed);
+    if (TrainTrackingBurstActive) {
+        houselog_event ("TRAIN", train->id, "SPEED",
+                        "QUEUED CHANGE FROM %d TO %d", train->speed, speed);
+        train->queue.speed = speed;
+        train->queue.has_speed = 1;
+        return 0;
     }
-    return "Train is active but no DCC car was detected";
+    return houserail_train_drive (train, speed);
 }
 
 const char *houserail_train_break (struct TrainConsist *train, int emergency) {
@@ -534,9 +552,28 @@ const char *houserail_train_break (struct TrainConsist *train, int emergency) {
     return "Train is active but no DCC car was detected";
 }
 
+static void houserail_train_flush (void) {
+
+    int i;
+    for (i = 0; i < LayoutTrainsCount; ++i) {
+        struct TrainConsist *train = LayoutTrains + i;
+        if (train->queue.has_speed) {
+            houserail_train_drive (train, train->queue.speed);
+            train->queue.has_speed = 0;
+        }
+    }
+}
+
 void houserail_train_tracking (const struct TrackRange *area,
                                int occupied,
                                long long timestamp) {
+
+    if (!area) {
+        houserail_train_flush ();
+        TrainTrackingBurstActive = 0;
+        return;
+    }
+    TrainTrackingBurstActive = 1;
 
     DEBUG (__FILE__ ": received %s %d to %d %soccupied\n",
            area->line, area->low, area->high, occupied?"":"not ");
@@ -701,6 +738,7 @@ const char *houserail_train_enter (const char *id,
     train->parked = 0;
     train->awry = 1;
     train->speed = 0;
+    train->queue.has_speed = 0;
 
     houselog_event ("TRAIN", train->id, "ENTER", "AT %s %d %s",
                     train->head.line, train->head.post,
@@ -752,6 +790,7 @@ const char *houserail_train_consist (const char *id,
     train->parked = 1;
     train->direction = 0;
     train->active = 0;
+    train->queue.has_speed = 0;
 
     int length = 0;
     for (v = 0; v < count; ++v) {

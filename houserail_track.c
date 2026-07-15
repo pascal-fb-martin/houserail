@@ -43,11 +43,20 @@
  *    be needed if the segment is part of an interlocking (more than one
  *    branch in that segment).
  *
+ *    This same listener is also called with a null area pointer as a way
+ *    to signal the end of a burst and allow the client to perform some
+ *    flush actions.
+ *
  * void houserail_track_input (const char *name,
  *                             long long timestamp, const char *state);
  *
  *     Update track detection based on detector input. This is a listener
  *     to the field input changes. See the housecontrol.c module.
+ *
+ * void houserail_track_flush (void);
+ *
+ *     This function is to be called after a complete input change message
+ *     was processed, at the end of a burst of input changes notifications.
  *
  * int houserail_track_status (char *buffer, int size);
  *
@@ -349,6 +358,10 @@ void houserail_track_input (const char *name,
 
     if (!TrackNextListener) return;
     TrackNextListener (&(detector->area), occupied, timestamp);
+}
+
+void houserail_track_flush (void) {
+    if (TrackNextListener) TrackNextListener (0, 0, 0);
 }
 
 const char *houserail_track_reload (void) {

@@ -187,6 +187,7 @@ int main (int argc, const char **argv) {
                 head->line, head->post, detector.line, detector.post);
 
         houserail_train_tracking (&detected, 1, now());
+        houserail_train_tracking (0, 0, 0);
         trainlist (0);
         head = houserail_train_head ("train3");
         snprintf (message, sizeof(message), "%s head", action);
@@ -232,6 +233,7 @@ int main (int argc, const char **argv) {
                 head->line, head->post, detector.line, detector.post);
 
         houserail_train_tracking (&detected, 1, now());
+        houserail_train_tracking (0, 0, 0);
         trainlist (0);
         head = houserail_train_head ("train3");
         snprintf (message, sizeof(message), "%s head", action);
