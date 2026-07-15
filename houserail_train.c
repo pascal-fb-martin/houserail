@@ -287,7 +287,10 @@ static void houserail_train_fleet (const char *id, int index) {
     if (train) {
        if (train->speed != speed) {
            train->speed = speed;
-           if (speed == 0) train->direction = 0;
+           if (speed == 0) {
+               train->awry = 0; // Not really sure where this train stopped.
+               train->direction = 0;
+           }
            houselog_event ("TRAIN", train->id, "SPEED", "CHANGED TO %d", speed);
            houserail_train_turn (train, "DCC report");
        }
