@@ -643,7 +643,8 @@ void houserail_train_tracking (const struct TrackRange *area,
                houserail_train_pull_vacant (train, area, timestamp);
 
             // Adjust the train speed based on its new location.
-            houserail_train_adjust (train, (train->speed < 0), 0);
+            if (train->speed != 0)
+                houserail_train_adjust (train, (train->speed < 0), 0);
 
             return; // Assume only one train within range.
         }
@@ -679,7 +680,8 @@ void houserail_train_tracking (const struct TrackRange *area,
     train->awry = 0;
 
     // Adjust the train speed based on its new location.
-    houserail_train_adjust (train, (train->speed < 0), 0);
+    if (train->speed != 0)
+        houserail_train_adjust (train, (train->speed < 0), 0);
 }
 
 const char *houserail_train_initialize (int argc, const char **argv) {
