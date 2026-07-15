@@ -194,6 +194,8 @@ void houserail_train_testmode (int enabled) {
 
 static struct TrainConsist *houserail_train_search (const char *id) {
 
+    if (!id) return 0;
+
     unsigned int signature = echttp_hash_signature (id);
     int i;
     for (i = LayoutTrainsCount - 1; i >= 0; --i) {
@@ -621,7 +623,9 @@ const char *houserail_train_move (const char *id, const char *dir, int slow) {
     if (!train) return "Invalid train ID";
 
     int reverse = 0;
-    if (strsame (dir, "backward")) reverse = 1;
+    if (strsame (dir, "forward")) reverse = 0;
+    else if (strsame (dir, "backward")) reverse = 1;
+    else return "Invalid direction";
 
     return houserail_train_adjust (train, reverse, slow);
 }
