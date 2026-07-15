@@ -248,6 +248,17 @@ static int houserail_train_direction (struct TrainConsist *train) {
     return train->orientation;
 }
 
+static void houserail_train_turn (struct TrainConsist *train,
+                                  const char *cause) {
+
+    int direction = houserail_train_direction (train);
+    if (direction != train->path.direction) {
+        houselog_event ("TRAIN", train->id, "TURNED",
+                        "TO %s (%s)", (direction >= 0)?"UP":"DOWN", cause);
+        houserail_path_turn (&(train->path), direction);
+    }
+}
+
 static void houserail_train_fleet (const char *id, int index) {
 
     int speed = houserail_field_fleet_speed (index);
@@ -274,8 +285,7 @@ static void houserail_train_fleet (const char *id, int index) {
        if (train->speed != speed) {
            train->speed = speed;
            if (speed == 0) train->direction = 0;
-           houserail_path_turn (&(train->path),
-                                houserail_train_direction(train));
+           houserail_train_turn (train, "DCC report");
            houselog_event ("TRAIN", train->id, "SPEED", "CHANGED TO %d", speed);
        }
        train->active = 1;
@@ -353,11 +363,10 @@ static void houserail_train_pull (struct TrainConsist *train,
     // Move the head, tail and each car spot of the consist.
     int direction = houserail_train_direction (train);
 
-    if (direction != train->path.direction)
-        houserail_path_turn (&(train->path), direction);
-
     DEBUG (__FILE__ ": train %s moving %s by %d posts\n",
            train->id, (direction >= 0)?"up":"down", distance);
+
+    houserail_train_turn (train, "tracking");
 
     // Extend the path first, then move each train point along
     // the extended path, and then rollup the path. This way
@@ -378,7 +387,9 @@ static void houserail_train_pull (struct TrainConsist *train,
 
     houserail_path_rollup (&(train->path), &(train->tail));
     train->updated = timestamp;
-    houselog_event ("TRAIN", train->id, "MOVED", "HEAD TO %s %d TAIL TO %s %d",
+    houselog_event ("TRAIN", train->id, "MOVED",
+                    "%s BY %d HEAD TO %s %d TAIL TO %s %d",
+                    (direction >= 0)?"UP":"DOWN", distance,
                     train->head.line, train->head.post,
                     train->tail.line, train->tail.post);
 }
@@ -472,9 +483,17 @@ static void houserail_train_recalculate_spots (struct TrainConsist *train) {
         }
         cursor += model->length;
     }
+
+    // The spots are ordered from head to tail, while the path is ordered
+    // in the direction of travel or the train orientation (tail to head).
+    int direction = houserail_train_direction (train);
+    int orientation = (direction == train->orientation)?-1:1;
+
     for (i = 0; i < train->spotcount; ++i) {
         train->spots[i] = train->head;
-        houserail_path_move (&(train->path), train->spots+i, offset[i], -1);
+    
+        houserail_path_move (&(train->path),
+                             train->spots+i, offset[i], orientation);
         train->spots[i].segment = houserail_track_segment (train->spots+i, 0);
 
         DEBUG (__FILE__ ": move spot %d by %d posts %s from %s %d, ends at %s %d\n", i, offset[i], (train->orientation >= 0)?"up":"down", train->tail.line, train->tail.post, train->spots[i].line, train->spots[i].post);
