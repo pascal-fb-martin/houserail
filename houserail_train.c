@@ -751,6 +751,9 @@ const char *houserail_train_enter (const char *id,
 const char *houserail_train_consist (const char *id,
                                      const char *cars[], int count) {
 
+    if (LayoutVehiclesCount <= 0)
+        return "Please wait for the configuration to be loaded";
+
     struct TrainConsist *train = houserail_train_search (id);
     int isnew = 0;
 
@@ -1001,6 +1004,9 @@ static const char *houserail_train_dccformat (struct TrainConsist *train) {
 
 int houserail_train_status (char *buffer, int size) {
 
+    if (LayoutVehiclesCount <= 0)
+        return 0; // Let's wait for the configuration to be loaded.
+
     int cursor = 0;
     const char *prefix = ",\"train\":[";
 
@@ -1062,6 +1068,9 @@ int houserail_train_status (char *buffer, int size) {
 }
 
 int houserail_train_locate (char *buffer, int size) {
+
+    if (LayoutVehiclesCount <= 0)
+        return 0; // Let's wait for the configuration to be loaded.
 
     int cursor = 0;
     const char *prefix = ",\"train\":[";
