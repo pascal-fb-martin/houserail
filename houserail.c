@@ -450,6 +450,7 @@ int main (int argc, const char **argv) {
     housedepositor_state_share (1);
 
     housecontrol_subscribe ("track", ontrackchange);
+    housecontrol_sampling (10); // TBD: configurable?
     TrainNextFleetListener = houserail_field_fleet_subscribe (ontrainchange);
 
     houselog_event ("SERVICE", "rail", "STARTED", "ON %s", houselog_host());
