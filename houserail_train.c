@@ -396,7 +396,7 @@ static void houserail_train_pull (struct TrainConsist *train,
     houserail_path_rollup (&(train->path), rear);
     train->updated = timestamp;
     houselog_event ("TRAIN", train->id, "MOVED",
-                    "%s BY %d HEAD TO %s %d TAIL TO %s %d",
+                    "%s BY %d TO HEAD %s %d AND TAIL %s %d",
                     (direction >= 0)?"UP":"DOWN", distance,
                     train->head.line, train->head.post,
                     train->tail.line, train->tail.post);
