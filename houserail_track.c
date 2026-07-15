@@ -348,8 +348,6 @@ DetectionListener *houserail_track_subscribe (DetectionListener *listener) {
 void houserail_track_input (const char *name,
                             long long timestamp, const char *state) {
 
-    houselog_event ("DETECTOR", name, "CHANGED", "TO %s AT %lld", state, timestamp);
-
     struct TrackDetector *detector = houserail_track_search_detector (name);
     if (!detector) return;
     if (detector->segment < 0) return;
@@ -357,6 +355,11 @@ void houserail_track_input (const char *name,
     int occupied = strcasecmp (state, "on") ? 0 : 1;
     if (occupied == detector->live.occupied) return;
     detector->live.occupied = occupied;
+
+    houselog_event ("DETECTOR", name, "CHANGED",
+                    "TO %s AT %lld (%s %d TO %d)",
+                    state, timestamp, detector->area.line,
+                    detector->area.low, detector->area.high);
 
     if (!TrackNextListener) return;
     TrackNextListener (&(detector->area), occupied, timestamp);
