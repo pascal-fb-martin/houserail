@@ -130,7 +130,7 @@ function railShowTrains (response) {
         if (train.head) {
             column.innerHTML = train.head[0]+' '+train.head[1];
         } else if (LayoutDetectors == null) {
-            column.innerHTML = '';
+            column.innerHTML = '(please wait..)';
         } else {
             var entry = document.createElement ('select');
             entry.id = 'at-'+train.id;
@@ -199,6 +199,7 @@ function railStatus () {
     var url = "/rail/train/status";
     if (RailLastStatus) url += "?known=" + RailLastStatus;
     railCommand (url);
+    if ((!LayoutDetectors) || (LayoutDetectors.length == 0)) railGetDetectors();
 }
 
 window.onload = function() {

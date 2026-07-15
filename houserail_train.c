@@ -273,6 +273,7 @@ static void houserail_train_fleet (const char *id, int index) {
     if (train) {
        if (train->speed != speed) {
            train->speed = speed;
+           if (speed == 0) train->direction = 0;
            houserail_path_turn (&(train->path),
                                 houserail_train_direction(train));
            houselog_event ("TRAIN", train->id, "SPEED", "CHANGED TO %d", speed);
@@ -352,6 +353,9 @@ static void houserail_train_pull (struct TrainConsist *train,
     // Move the head, tail and each car spot of the consist.
     int direction = houserail_train_direction (train);
 
+    if (direction != train->path.direction)
+        houserail_path_turn (&(train->path), direction);
+
     DEBUG (__FILE__ ": train %s moving %s by %d posts\n",
            train->id, (direction >= 0)?"up":"down", distance);
 
@@ -374,7 +378,7 @@ static void houserail_train_pull (struct TrainConsist *train,
 
     houserail_path_rollup (&(train->path), &(train->tail));
     train->updated = timestamp;
-    houselog_event ("TRAIN", train->id, "MOVED", "HEAD %s %d TAIL %s %d",
+    houselog_event ("TRAIN", train->id, "MOVED", "HEAD TO %s %d TAIL TO %s %d",
                     train->head.line, train->head.post,
                     train->tail.line, train->tail.post);
 }
@@ -481,6 +485,8 @@ static const char *houserail_train_drive (struct TrainConsist *train, int speed)
 
     houselog_event ("TRAIN", train->id, "SPEED",
                     "REQUESTED CHANGE FROM %d TO %d", train->speed, speed);
+
+    if (speed == 0) train->direction = 0;
 
     if (train->hasdcc) // This is a DCC consist.
         return houserail_field_fleet_move (train->id, speed);
@@ -742,9 +748,11 @@ const char *houserail_train_enter (const char *id,
     train->speed = 0;
     train->queue.has_speed = 0;
 
-    houselog_event ("TRAIN", train->id, "ENTER", "AT %s %d %s",
+    houselog_event ("TRAIN", train->id, "ENTER",
+                    "FACING %s HEAD AT %s %d TAIL AT %s %d",
+                    (orientation >= 0)?"UP":"DOWN",
                     train->head.line, train->head.post,
-                    (orientation >= 0)?"UP":"DOWN");
+                    train->tail.line, train->tail.post);
     return 0;
 }
 
