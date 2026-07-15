@@ -157,7 +157,7 @@ int main (int argc, const char **argv) {
     }
     // houserail_track_testmode (1);
     // houserail_train_testmode (1);
-    houserail_train_move ("train3", 0, 0);
+    houserail_train_move ("train3", "forward", 0);
     // houserail_track_testmode (0);
     // houserail_train_testmode (0);
     trainlist (0);

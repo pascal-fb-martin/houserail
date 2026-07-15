@@ -295,7 +295,6 @@ static int houserail_train_maxspeed (struct TrainConsist *train) {
        speed2 = houserail_track_civil (&(train->spots[i]), 0);
        if (speed2 < speed) speed = speed2;
     }
-    if (direction != train->orientation) speed = 0 - speed;
     return speed;
 }
 

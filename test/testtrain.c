@@ -213,12 +213,12 @@ int main (int argc, const char **argv) {
         printf ("   error: %s\n", error);
         goto canceltest;
     }
-    error = houserail_train_move ("train3", 0, 0);
-    if (!assert (error == 0, "houserail_train_move(train3) return")) {
+    error = houserail_train_move ("train3", "forward", 0);
+    if (!assert (error == 0, "houserail_train_move(train3, forward) return")) {
         printf ("   error: %s\n", error);
         goto canceltest;
     }
-    if (!assert (LastSpeedOrder == 30, "houserail_train_move (train3) speed")) {
+    if (!assert (LastSpeedOrder == 30, "houserail_train_move (train3, forward) speed")) {
         printf ("   speed: %d\n", LastSpeedOrder);
         goto canceltest;
     }
@@ -305,7 +305,7 @@ int main (int argc, const char **argv) {
 
     houserail_train_consist ("train3", cars, 4);
     houserail_train_enter ("train3", "reed-15", 1);
-    houserail_train_move ("train3", 0, 0);
+    houserail_train_move ("train3", "forward", 0);
 
     error = houserail_track_switch ("main-1", "reverse");
     assert (error == 0, "houserail_track_switch (main-1 reverse) status");
