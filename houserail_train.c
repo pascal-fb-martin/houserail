@@ -115,6 +115,8 @@
 static int TestMode = 0;
 #define DEBUG if (TestMode || echttp_isdebug()) printf
 
+static int TrainSpeedRefreshPeriod = 3; // TBD: configurable.
+
 static FleetListener *TrainNextFleetListener = 0;
 static DetectionListener *TrainNextDetectionListener = 0;
 
@@ -542,7 +544,7 @@ static const char *houserail_train_drive (struct TrainConsist *train,
 
     if (train->hasdcc) { // This is a DCC consist.
         train->pending += 1;
-        train->deadline = (speed == 0)?0:time(0) + 5;
+        train->deadline = (speed == 0)?0:time(0) + TrainSpeedRefreshPeriod;
         return houserail_field_fleet_move (train->id, speed);
     }
 
@@ -553,7 +555,7 @@ static const char *houserail_train_drive (struct TrainConsist *train,
         struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
         if (vehicle->hasdcc) {
             train->pending += 1;
-            train->deadline = (speed == 0)?0:time(0) + 5;
+            train->deadline = (speed == 0)?0:time(0) + TrainSpeedRefreshPeriod;
             return houserail_field_fleet_move (vehicle->id, speed);
         }
     }
