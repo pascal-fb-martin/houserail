@@ -357,9 +357,12 @@ static void rail_background (int fd, int mode) {
     houseconfig_background (now);
     housedepositor_periodic (now);
     housedepositor_state_background (now);
-    housecontrol_background (now);
     houserail_field_background (now);
     houserail_train_background (now);
+}
+
+static void rail_background_fast (int fd, int mode) {
+    housecontrol_background (0);
 }
 
 static const char *rail_update (void) {
@@ -370,6 +373,7 @@ static const char *rail_update (void) {
     if (error) return error;
     error = houserail_train_reload ();
     if (error) return error;
+    echttp_fastscan (rail_background_fast, houserail_track_poll());
     return error;
 }
 
@@ -462,6 +466,7 @@ int main (int argc, const char **argv) {
     TrainNextFleetListener = houserail_field_fleet_subscribe (ontrainchange);
 
     houselog_event ("SERVICE", "rail", "STARTED", "ON %s", houselog_host());
+    echttp_fastscan (rail_background_fast, houserail_track_poll());
     echttp_loop();
     exit(0);
 

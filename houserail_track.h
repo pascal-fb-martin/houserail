@@ -84,5 +84,7 @@ const char *houserail_track_segment (const struct TrackLocation *point,
 
 const char *houserail_track_switch (const char *name, const char *state);
 const char *houserail_track_signal (const char *name, const char *state);
+
+int houserail_track_poll (void);
 #endif
 

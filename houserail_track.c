@@ -159,6 +159,11 @@
  *     or through a web request. Return 0 on success, an error message on
  *     failure.
  *
+ * int houserail_track_poll (void);
+ *
+ *     Return the field polling period as configured, or else a default value.
+ *     The value returned here is always valid, even during initialization.
+ *
  * LIMITATIONS:
  *
  * This design is limited to 256 segments for now. To remove this restriction,
@@ -183,6 +188,7 @@
 static int TestMode = 0;
 #define DEBUG if (TestMode || echttp_isdebug()) printf
 
+static int TrackFieldPollPeriod = 200; // Default value, see configuration.
 static int TrackRestrictedSpeed = 0; // See configuration.
 static int SwitchReverseSpeed = 0;   // See configuration.
 static int TrackStopDistance = 0;    // See configuration.
@@ -694,6 +700,12 @@ const char *houserail_track_reload (void) {
     if (value <= 0) return "No switch reverse speed found";
     SwitchReverseSpeed = value;
     DEBUG (__FILE__ ": Switch reverse speed set to %d\n", SwitchReverseSpeed);
+
+    value = houseconfig_integer (track, ".periods.poll");
+    if (value > 0) {
+        if ((value < 10) || (value >= 1000)) return "Invalid poll period";
+        TrackFieldPollPeriod = value;
+    }
 
     value = houseconfig_integer (track, ".distances.stop");
     if (value <= 0) return "No stop distance found";
@@ -1393,5 +1405,9 @@ const char *houserail_track_switch (const char *name, const char *state) {
 const char *houserail_track_signal (const char *name, const char *state) {
 
     return 0; // TBD: add signal to the topology database, stop trains on red.
+}
+
+int houserail_track_poll (void) {
+    return TrackFieldPollPeriod;
 }
 
