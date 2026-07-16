@@ -545,6 +545,8 @@ static const char *houserail_train_drive (struct TrainConsist *train,
     if (train->hasdcc) { // This is a DCC consist.
         train->pending += 1;
         train->deadline = (speed == 0)?0:time(0) + TrainSpeedRefreshPeriod;
+        if (speed == 0)
+            return houserail_field_fleet_stop (train->id, 0);
         return houserail_field_fleet_move (train->id, speed);
     }
 
@@ -556,6 +558,8 @@ static const char *houserail_train_drive (struct TrainConsist *train,
         if (vehicle->hasdcc) {
             train->pending += 1;
             train->deadline = (speed == 0)?0:time(0) + TrainSpeedRefreshPeriod;
+            if (speed == 0)
+                return houserail_field_fleet_stop (vehicle->id, 0);
             return houserail_field_fleet_move (vehicle->id, speed);
         }
     }
