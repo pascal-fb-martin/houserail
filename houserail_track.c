@@ -852,6 +852,22 @@ int houserail_track_export (char *buffer, int size, const char *separator) {
     if (cursor >= size) goto overflow;
     int preamble = cursor;
 
+    // Populate the global parameters
+
+    cursor += snprintf (buffer+cursor, size-cursor,
+                        ",\"speeds\":{\"restricted\":%d,\"reverse\":%d}",
+                        TrackRestrictedSpeed, SwitchReverseSpeed);
+    if (cursor >= size) goto overflow;
+
+    cursor += snprintf (buffer+cursor, size-cursor, 
+                        ",\"periods\":{\"poll\":%d}", TrackFieldPollPeriod);
+    if (cursor >= size) goto overflow;
+
+    cursor += snprintf (buffer+cursor, size-cursor,
+                        ",\"distances\":{\"stop\":%d,\"slow\":%d}",
+                        TrackStopDistance, TrackSlowDistance);
+    if (cursor >= size) goto overflow;
+
     // Populate the models array.
 
     const char *prefix = "\"models\":[";

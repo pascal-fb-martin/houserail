@@ -115,7 +115,7 @@
 static int TestMode = 0;
 #define DEBUG if (TestMode || echttp_isdebug()) printf
 
-static int TrainSpeedRefreshPeriod = 3; // TBD: configurable.
+static int TrainSpeedRefreshPeriod = 4; // TBD: configurable.
 
 static FleetListener *TrainNextFleetListener = 0;
 static DetectionListener *TrainNextDetectionListener = 0;
