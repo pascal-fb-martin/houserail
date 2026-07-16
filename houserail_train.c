@@ -181,6 +181,8 @@ struct TrainConsist {
         int has_speed;
         int speed;
     } queue;
+    int pending;         // Count of DCC commands pending.
+    time_t deadline;     // when to maintain the speed next
 };
 
 static struct VehicleModel *LayoutVehicleModels = 0;
@@ -290,11 +292,13 @@ static void houserail_train_fleet (const char *id, int index) {
            if (speed == 0) {
                train->awry = 1; // Not really sure where this train stopped.
                train->direction = 0;
+               train->deadline = 0;
            }
            houselog_event ("TRAIN", train->id, "SPEED", "CHANGED TO %d", speed);
            houserail_train_turn (train, "DCC report");
        }
        train->active = 1;
+       train->pending = 0;
     }
     if (TrainNextFleetListener) TrainNextFleetListener (id, index);
 }
@@ -529,22 +533,29 @@ static void houserail_train_recalculate_spots (struct TrainConsist *train) {
 static const char *houserail_train_drive (struct TrainConsist *train,
                                           int speed, const char *cause) {
 
-    houselog_event ("TRAIN", train->id, "SPEED",
-                    "REQUESTED CHANGE FROM %d TO %d (%s)",
-                    train->speed, speed, cause);
+    if (cause)
+        houselog_event ("TRAIN", train->id, "SPEED",
+                        "REQUESTED CHANGE FROM %d TO %d (%s)",
+                        train->speed, speed, cause);
 
     if (speed == 0) train->direction = 0;
 
-    if (train->hasdcc) // This is a DCC consist.
+    if (train->hasdcc) { // This is a DCC consist.
+        train->pending += 1;
+        train->deadline = (speed == 0)?0:time(0) + 5;
         return houserail_field_fleet_move (train->id, speed);
+    }
 
     // If the train does not have a DCC consist, then there must be only
     // one locomotive. Otherwise, there would be trouble..
     int i;
     for (i = 0; i < train->carcount; ++i) {
         struct Vehicle *vehicle = LayoutVehicles + train->cars[i];
-        if (vehicle->hasdcc)
+        if (vehicle->hasdcc) {
+            train->pending += 1;
+            train->deadline = (speed == 0)?0:time(0) + 5;
             return houserail_field_fleet_move (vehicle->id, speed);
+        }
     }
     return "Train is active but no DCC car was detected";
 }
@@ -574,7 +585,7 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
     if (reverse) speed = 0 - speed;
     if (speed == train->speed) return 0; // No need to adjust.
 
-    if (TrainTrackingBurstActive) {
+    if (train->pending || TrainTrackingBurstActive) {
         if ((!train->queue.has_speed) || (train->queue.speed != speed)) {
             houselog_event ("TRAIN", train->id, "SPEED",
                             "QUEUED CHANGE FROM %d TO %d (%s)",
@@ -747,6 +758,9 @@ const char *houserail_train_park (const char *id) {
     if (train->speed != 0) houserail_train_break (train, 1);
     train->parked = 1;
     train->direction = 0;
+    train->deadline = 0;
+    train->pending = 0;
+
     return 0; // Regardless of the stop command status.
 }
 
@@ -800,6 +814,8 @@ const char *houserail_train_enter (const char *id,
     train->awry = 1;
     train->speed = 0;
     train->queue.has_speed = 0;
+    train->deadline = 0;
+    train->pending = 0;
 
     houselog_event ("TRAIN", train->id, "ENTER",
                     "FACING %s HEAD AT %s %d TAIL AT %s %d",
@@ -1166,8 +1182,24 @@ int houserail_train_locate (char *buffer, int size) {
     return cursor;
 }
 
+static void houserail_train_maintain_speed (time_t now) {
+
+    int i;
+    for (i = 0; i < LayoutTrainsCount; ++i) {
+        struct TrainConsist *train = LayoutTrains + i;
+        if (train->deadline == 0) continue;
+        if (train->speed == 0) continue;
+        if (train->pending) continue;
+        if (train->queue.has_speed) {
+            houserail_train_drive (train, train->queue.speed, "queued");
+            train->queue.has_speed = 0;
+        } else if (train->deadline < now) {
+            houserail_train_drive (train, train->speed, 0);
+        }
+    }
+}
 
 void houserail_train_background (time_t now) {
-    // TBD: background work needed?
+    houserail_train_maintain_speed (now);
 }
 
