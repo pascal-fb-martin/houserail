@@ -48,6 +48,8 @@ static const char *LayoutDescription = 0;
 
 #define PRECISION 1000  // Goal is millimeter precision on the display.
 
+static int TrackPostDistance = PRECISION;
+
 struct DisplayLocation {
     int x;
     int y;
@@ -67,6 +69,7 @@ struct TrackModel {
     int reverse; // Length on the reverse side, 0 if not a switch.
     int civil;   // Civil speed limit on that track.
 
+    int straight; // Physical length of the normal side. For switch only.
     struct DisplayCurve curve;
 };
 
@@ -255,6 +258,10 @@ const char *load_config (void) {
     DEBUG (__FILE__ ": %d models, %d segments, %d detectors\n",
            LayoutModelsCount, LayoutSegmentsCount, LayoutDetectorsCount);
 
+    TrackPostDistance = houseconfig_integer (track, ".distances.post");
+    if (TrackPostDistance <= 0) TrackPostDistance = PRECISION;
+    DEBUG (__FILE__ ": Post distance set to %d\n", TrackPostDistance);
+
     // Populate the models array.
 
     LayoutModels = calloc (LayoutModelsCount, sizeof(struct TrackModel));
@@ -268,6 +275,7 @@ const char *load_config (void) {
         model->signature = echttp_hash_signature (model->id);
 
         model->length = houseconfig_integer (element, ".length");
+        model->straight = 0; // Default. Infer physical length from above.
         model->reverse = houseconfig_integer (element, ".reverse");
         model->civil = houseconfig_integer (element, ".civil");
         if (model->reverse > 0) {
@@ -282,10 +290,12 @@ const char *load_config (void) {
         if (curve < 0) {
             model->curve.arc = model->curve.radius = 0;
         } else {
-            int curvelist[2];
-            houseconfig_enumerate (curve, curvelist, 2);
+            int curvelist[3];
+            int count = houseconfig_enumerate (curve, curvelist, 3);
             model->curve.arc = houseconfig_integer (curvelist[0], "");
             model->curve.radius = houseconfig_integer (curvelist[1], "");
+            if (count >= 3)
+               model->straight = houseconfig_integer (curvelist[2], "");
         }
     }
 
@@ -347,7 +357,7 @@ const char *load_config (void) {
         segment->curve = model->curve;
 
         int curve = houseconfig_integer (element, ".curve");
-        if (model->curve.arc > 0) {
+        if ((temp[i].branch == 0) && (model->curve.arc > 0)) {
             if (curve == 0) return "Curved segment is missing curve direction";
             segment->curve.arc = model->curve.arc * ((curve > 0)?1:-1);
         }
@@ -589,14 +599,15 @@ static void move_circle (struct DisplayLocation *origin,
 
     struct DisplayLocation center;
     move_center (origin, &center, angle, radius, arc);
-    move_straight (&center, end, angle+arc-90, radius);
+    if (arc > 0)
+        move_straight (&center, end, angle+arc-90, radius);
+    else
+        move_straight (&center, end, angle+arc+90, radius);
 }
 
-static void calculate_endpoints (int start) {
+static void calculate_endpoints (int start, int angle,
+                                 struct DisplayLocation *origin) {
 
-    struct DisplayLocation origin = {0, 0, 0};
-
-    int angle = 0;
     int i = start;
     struct TrackSegment *segment = LayoutSegments + i;
     struct TrackModel *model = LayoutModels + segment->model;
@@ -606,54 +617,98 @@ static void calculate_endpoints (int start) {
         if (segment->done) break;
 
         segment->angle = angle;
-        segment->origin = origin;
-        if (model->curve.arc == 0) {
-            int length = model->length * PRECISION;
-            if (model->curve.radius > 0) length = model->curve.radius;
-            move_straight (&origin, &(segment->end), angle, length);
+        segment->origin = *origin;
+        segment->reverse.x = segment->reverse.y = 0;
+        int length = model->length * TrackPostDistance;
+        if (segment->curve.arc == 0) {
+            if (segment->curve.radius > 0) length = segment->curve.radius;
+            move_straight (origin, &(segment->end), angle, length);
         } else {
-            move_circle (&origin, &(segment->end), angle,
-                         model->curve.radius, model->curve.arc);
-            angle += model->curve.arc;
+            int arc = segment->curve.arc;
+            int curveangle = angle;
+            struct DisplayLocation *curveorigin = origin;
+            struct DisplayLocation *curveend = &(segment->end);
+            if (segment->branch >= 0) { // This is a switch, straight main line
+                if (model->straight > 0) length = model->straight;
+                move_straight (origin, &(segment->end), angle, length);
+                if (segment->common == segment->next) {
+                    curveorigin = &(segment->end);
+                    curveangle += 180;
+                }
+                curveend = &(segment->reverse);
+                arc = 0; // Main line is straight.
+            }
+            move_circle (curveorigin, curveend, curveangle,
+                         segment->curve.radius, segment->curve.arc);
+            angle += arc;
         }
-        origin = segment->end;
+        *origin = segment->end;
         segment->done = 1;
 
+        if ((segment->branch >= 0) && (segment->common == segment->previous)) {
+            struct DisplayLocation reverse = segment->reverse; // Branch origin
+            calculate_endpoints
+                (segment->branch, angle+segment->curve.arc, &reverse);
+        }
+
+        if (segment->next < 0) break;
+        if (LayoutSegments[segment->next].previous != i) break;
         i = segment->next;
-        if (i < 0) break;
         if (i == start) break;
         segment = LayoutSegments + i;
         model = LayoutModels + segment->model;
     }
 
-    if (previous >= 0) {
-        i = previous;
+    if (previous < 0) return;
+    i = previous;
+    segment = LayoutSegments + i;
+    model = LayoutModels + segment->model;
+
+    for (;;) {
+
+        if (segment->done) break;
+
+        segment->angle = angle;
+        segment->end = *origin;
+        int length = model->length * TrackPostDistance;
+
+        if (segment->curve.radius == 0) {
+            move_straight (origin, &(segment->origin), angle+180,
+                           model->length * TrackPostDistance);
+        } else {
+            int arc = segment->curve.arc;
+            int curveangle = angle;
+            struct DisplayLocation *curveorigin = &(segment->end);
+            struct DisplayLocation *curveend = origin;
+            if (segment->branch >= 0) { // This is a switch.
+                if (model->straight > 0) length = model->straight;
+                move_straight (origin, &(segment->origin), angle+180, length);
+                if (segment->common == segment->next) {
+                    curveorigin = origin;
+                    curveangle -= 180;
+                }
+                curveend = &(segment->reverse);
+                arc = 0; // Main line is straight.
+            }
+            move_circle (curveorigin, curveend, angle+180,
+                         segment->curve.radius, segment->curve.arc);
+            angle -= arc;
+        }
+        *origin = segment->end;
+        segment->done = 1;
+
+        if ((segment->branch >= 0) && (segment->common == segment->next)) {
+            struct DisplayLocation reverse = segment->reverse;
+            calculate_endpoints
+                (segment->branch, angle-segment->curve.arc, &reverse);
+        }
+
+        if (segment->previous < 0) break;
+        if (LayoutSegments[segment->previous].next != i) break;
+        i = segment->previous;
+        if (i == start) break;
         segment = LayoutSegments + i;
         model = LayoutModels + segment->model;
-
-        for (;;) {
-
-            if (segment->done) break;
-
-            segment->angle = angle;
-            segment->origin = origin;
-            if (model->curve.radius == 0) {
-                move_straight (&origin, &(segment->end), angle,
-                               model->length * PRECISION);
-            } else {
-                move_circle (&origin, &(segment->end), angle,
-                             model->curve.radius, model->curve.arc);
-                angle += model->curve.arc;
-            }
-            origin = segment->end;
-            segment->done = 1;
-
-            i = segment->previous;
-            if (i < 0) break;
-            if (i == start) break;
-            segment = LayoutSegments + i;
-            model = LayoutModels + segment->model;
-        }
     }
 }
 
@@ -678,6 +733,12 @@ static void calculate_viewbox (struct DisplayLocation *min,
         if (max->x < segment->end.x) max->x = segment->end.x;
         if (max->y < segment->origin.y) max->y = segment->origin.y;
         if (max->y < segment->end.y) max->y = segment->end.y;
+        if (segment->branch >= 0) { // This is a switch.
+            if (min->x > segment->reverse.x) min->x = segment->reverse.x;
+            if (min->y > segment->reverse.y) min->y = segment->reverse.y;
+            if (max->x < segment->reverse.x) max->x = segment->reverse.x;
+            if (max->y < segment->reverse.y) max->y = segment->reverse.y;
+        }
     }
 }
 
@@ -703,17 +764,37 @@ static void generate_svg_head (const struct DisplayLocation *min,
 }
 
 static void generate_track (const struct TrackSegment *segment, int width) {
+
    int gap = width / 7;
    struct DisplayLocation origin;
    struct DisplayLocation end;
    move_straight (&(segment->origin), &origin, segment->angle, gap);
-   move_straight (&(segment->end), &end, segment->angle+segment->curve.arc+180, gap);
+
    if (segment->curve.arc == 0) {
+       move_straight (&(segment->end), &end, segment->angle+180, gap);
        printf ("      <line id=\"%s\" x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke-width=\"%d\"/>\n",
                segment->id, origin.x, origin.y, end.x, end.y, width);
    } else {
+       char id[32];
+       if (segment->branch >= 0) {
+           // This is a switch. There is always a straight portion.
+           move_straight (&(segment->end), &end, segment->angle+180, gap);
+           printf ("      <line id=\"%s\" x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke-width=\"%d\"/>\n",
+                   segment->id, origin.x, origin.y, end.x, end.y, width);
+           snprintf (id, sizeof(id), "%s:reverse", segment->id);
+           if (segment->common == segment->previous) {
+               move_straight (&(segment->reverse), &end, segment->angle+segment->curve.arc+180, gap);
+           } else {
+               origin = end;
+               move_straight (&(segment->reverse), &end, segment->angle+segment->curve.arc, gap);
+           }
+       } else {
+           // This is a regular curve.
+           snprintf (id, sizeof(id), "%s", segment->id);
+           move_straight (&(segment->end), &end, segment->angle+segment->curve.arc+180, gap);
+       }
        printf ("      <path id=\"%s\" d=\"M %d %d A %d %d %d 0 %d %d %d\" fill=\"none\" stroke-width=\"%d\"/>\n",
-               segment->id,
+               id,
                origin.x, origin.y,
                segment->curve.radius, segment->curve.radius, segment->angle,
                (segment->curve.arc > 0)?1:0,
@@ -747,9 +828,10 @@ static const char *generate_display (void) {
     if (error) return error;
 
     // First step is to define where each segment fits and the viewbox
+    struct DisplayLocation origin = {0, 0, 0};
     struct DisplayLocation min;
     struct DisplayLocation max;
-    calculate_endpoints (find_preferred_start());
+    calculate_endpoints (find_preferred_start(), 0, &origin);
     calculate_viewbox (&min, &max);
 
     int margin = (max.x - min.x) / 30;
