@@ -34,11 +34,11 @@ OBJS= houserail_scout.o \
       houserail_train.o
 LIBOJS=
 
-all: houserail layoutvalidate
+all: houserail layoutvalidate layoutdisplay
 
 clean:
 	rm -rf build
-	rm -f *.o *.a houserail layoutvalidate
+	rm -f *.o *.a houserail layoutvalidate layoutdisplay
 
 rebuild: clean all
 
@@ -50,6 +50,9 @@ houserail: houserail.o $(OBJS)
 
 layoutvalidate: houserail_validate.o $(OBJS)
 	gcc -g -O -o layoutvalidate houserail_validate.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+
+layoutdisplay: houserail_display.o $(OBJS)
+	gcc -g -O -o layoutdisplay houserail_display.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 
 # Distribution agnostic file installation -----------------------
 

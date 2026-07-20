@@ -62,6 +62,7 @@ build
 donotcommit
 houserail
 layoutvalidate
+layoutdisplay
 testscout
 testpath
 testtrack

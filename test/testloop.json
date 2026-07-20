@@ -21,31 +21,31 @@
              "distances":{"stop": 20, "slow": 35},
              "models":[
                  {"id":"straight","length":20,"reverse":0,"civil":60},
-                 {"id":"curve","length":20,"reverse":0,"civil":30},
+                 {"id":"curve","length":20,"reverse":0,"civil":30,"curve":[45,45120]},
                  {"id":"switch","length":20,"reverse":15,"civil":60},
-                 {"id":"branch","length":5,"reverse":0,"civil":20}
+                 {"id":"branch","length":5,"reverse":0,"civil":20,"curve":[15,114880]}
              ],
              "segments":[
                  {"id":"main-1","model":"switch","line":"main","next":"main-2","start":0,"common":"main-16","branch":"side-1"},
                  {"id":"MAIN-2","model":"straight","line":"main","next":"main-3"},
                  {"id":"MAIN-3","model":"straight","line":"main","next":"main-4"},
                  {"id":"MAIN-4","model":"switch","line":"main","next":"main-5","common":"main-5","branch":"side-4"},
-                 {"id":"MAIN-5","model":"curve","line":"main","next":"main-6"},
-                 {"id":"MAIN-6","model":"curve","line":"main","next":"main-7"},
-                 {"id":"MAIN-7","model":"curve","line":"main","next":"main-8"},
-                 {"id":"MAIN-8","model":"curve","line":"main","next":"main-9"},
+                 {"id":"MAIN-5","model":"curve","line":"main","next":"main-6","curve":1},
+                 {"id":"MAIN-6","model":"curve","line":"main","next":"main-7","curve":1},
+                 {"id":"MAIN-7","model":"curve","line":"main","next":"main-8","curve":1},
+                 {"id":"MAIN-8","model":"curve","line":"main","next":"main-9","curve":1},
                  {"id":"MAIN-9","model":"straight","line":"main","next":"main-10"},
                  {"id":"MAIN-10","model":"straight","line":"main","next":"main-11"},
                  {"id":"MAIN-11","model":"straight","line":"main","next":"main-12"},
                  {"id":"MAIN-12","model":"straight","line":"main","next":"main-13"},
-                 {"id":"MAIN-13","model":"curve","line":"main","next":"main-14"},
-                 {"id":"MAIN-14","model":"curve","line":"main","next":"main-15"},
-                 {"id":"MAIN-15","model":"curve","line":"main","next":"main-16"},
-                 {"id":"MAIN-16","model":"curve","line":"main","next":"main-1"},
-                 {"id":"SIDE-1","model":"branch","line":"side","previous":"main-1","next":"side-2"},
+                 {"id":"MAIN-13","model":"curve","line":"main","next":"main-14","curve":1},
+                 {"id":"MAIN-14","model":"curve","line":"main","next":"main-15","curve":1},
+                 {"id":"MAIN-15","model":"curve","line":"main","next":"main-16","curve":1},
+                 {"id":"MAIN-16","model":"curve","line":"main","next":"main-1","curve":1},
+                 {"id":"SIDE-1","model":"branch","line":"side","previous":"main-1","next":"side-2","curve":-1},
                  {"id":"SIDE-2","model":"straight","line":"side","next":"side-3"},
                  {"id":"SIDE-3","model":"straight","line":"side","next":"side-4"},
-                 {"id":"SIDE-4","model":"branch","line":"side","next":"main-4"}
+                 {"id":"SIDE-4","model":"branch","line":"side","next":"main-4","curve":-1}
              ],
              "detectors":[
                  {"id":"REED-1","line":"main","low":9,"high":11},
