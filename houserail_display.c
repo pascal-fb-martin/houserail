@@ -616,7 +616,6 @@ static void calculate_endpoints (int start) {
                          model->curve.radius, model->curve.arc);
             angle += model->curve.arc;
         }
-fprintf (stderr, "Segment %s (forward) from (%d,%d) to (%d, %d)\n", segment->id, segment->origin.x, segment->origin.y, segment->end.x, segment->end.y);
         origin = segment->end;
         segment->done = 1;
 
@@ -646,7 +645,6 @@ fprintf (stderr, "Segment %s (forward) from (%d,%d) to (%d, %d)\n", segment->id,
                              model->curve.radius, model->curve.arc);
                 angle += model->curve.arc;
             }
-fprintf (stderr, "Segment %s (backward) from (%d,%d) to (%d, %d)\n", segment->id, segment->origin.x, segment->origin.y, segment->end.x, segment->end.y);
             origin = segment->end;
             segment->done = 1;
 
