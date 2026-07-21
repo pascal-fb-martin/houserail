@@ -87,8 +87,8 @@
  * int houserail_train_locate (char *buffer, int size);
  *
  *     Return a subset of the live status of trains in JSON format.
- *     That subset represents enough information to show the train ID at
- *     the right location on a track display.
+ *     That subset contains just the information needed to show each train
+ *     at the right location on a track display.
  *
  * void houserail_train_background (time_t now);
  *
@@ -1173,14 +1173,20 @@ int houserail_train_locate (char *buffer, int size) {
         int direction = houserail_train_direction (train);
         if (direction == 0) direction = train->orientation;
         cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s{\"id\":\"%s\",\"head\":[\"%s\",%d,\"%s\"],"
-                                             "\"tail\":[\"%s\",%d,\"%s\"],"
-                                             "\"proceed\":[\"%s\":%d]%s}",
-                            prefix, train->id,
-                            train->head.line, train->head.post, train->head.segment,
-                            train->tail.line, train->tail.post, train->tail.segment,
-                            (direction >= 0)?"up":"down", abs(train->speed),
-                            houserail_train_dccformat (train));
+                            "%s{\"id\":\"%s\",\"path\":[", prefix, train->id);
+        if (cursor >= size) return 0;
+        const char *pathprefix = "";
+        const struct TrackRange *section = train->path.sections;
+        int j;
+        for (j = 0; j < train->path.count; ++j, ++section) {
+            cursor += snprintf (buffer+cursor, size-cursor, "%s[\"%s\",%d,%d]",
+                                pathprefix,
+                                section->line, section->low, section->high);
+            if (cursor >= size) return 0;
+            pathprefix = ",";
+        }
+        cursor += snprintf (buffer+cursor, size-cursor, "]}");
+        if (cursor >= size) return 0;
 
         prefix = ",";
     }
