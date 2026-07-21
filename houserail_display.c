@@ -763,6 +763,43 @@ static void generate_svg_head (const struct DisplayLocation *min,
            min->x, min->y, width, height);
 }
 
+static void draw_path (const char *id, const char *d, int width) {
+
+    printf ("      <path id=\"%s\" d=\"%s\""
+                       " fill=\"none\" stroke-width=\"%d\"/>\n",
+           id, d, width);
+}
+
+static void draw_straight (const char *id,
+                           const struct DisplayLocation *origin,
+                           const struct DisplayLocation *end, int width) {
+
+    char d[80];
+    if (origin->y == end->y) {
+        snprintf (d, sizeof(d), "M %d %d H %d", origin->x, origin->y, end->x);
+    } else if (origin->x == end->x) {
+        snprintf (d, sizeof(d), "M %d %d V %d", origin->x, origin->y, end->y);
+    } else {
+        snprintf (d, sizeof(d), "M %d %d L %d %d",
+                  origin->x, origin->y, end->x, end->y);
+    }
+    draw_path (id, d, width);
+}
+
+static void draw_curve (const char *id,
+                        const struct DisplayLocation *origin,
+                        const struct DisplayLocation *end,
+                        const struct DisplayCurve *curve,
+                        int angle, int width) {
+
+   char d[80];
+   snprintf (d, sizeof(d), "M %d %d A %d %d %d 0 %d %d %d",
+             origin->x, origin->y,
+             curve->radius, curve->radius, angle, (curve->arc > 0)?1:0,
+             end->x, end->y);
+   draw_path (id, d, width);
+}
+
 static void generate_track (const struct TrackSegment *segment, int width) {
 
    int gap = width / 7;
@@ -772,15 +809,13 @@ static void generate_track (const struct TrackSegment *segment, int width) {
 
    if (segment->curve.arc == 0) {
        move_straight (&(segment->end), &end, segment->angle+180, gap);
-       printf ("      <line id=\"%s\" x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke-width=\"%d\"/>\n",
-               segment->id, origin.x, origin.y, end.x, end.y, width);
+       draw_straight (segment->id, &origin, &end, width);
    } else {
        char id[32];
        if (segment->branch >= 0) {
            // This is a switch. There is always a straight portion.
            move_straight (&(segment->end), &end, segment->angle+180, gap);
-           printf ("      <line id=\"%s\" x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke-width=\"%d\"/>\n",
-                   segment->id, origin.x, origin.y, end.x, end.y, width);
+           draw_straight (segment->id, &origin, &end, width);
            snprintf (id, sizeof(id), "%s:reverse", segment->id);
            if (segment->common == segment->previous) {
                move_straight (&(segment->reverse), &end, segment->angle+segment->curve.arc+180, gap);
@@ -793,12 +828,7 @@ static void generate_track (const struct TrackSegment *segment, int width) {
            snprintf (id, sizeof(id), "%s", segment->id);
            move_straight (&(segment->end), &end, segment->angle+segment->curve.arc+180, gap);
        }
-       printf ("      <path id=\"%s\" d=\"M %d %d A %d %d %d 0 %d %d %d\" fill=\"none\" stroke-width=\"%d\"/>\n",
-               id,
-               origin.x, origin.y,
-               segment->curve.radius, segment->curve.radius, segment->angle,
-               (segment->curve.arc > 0)?1:0,
-               end.x, end.y, width);
+       draw_curve (id, &origin, &end, &(segment->curve), segment->angle, width);
    }
 }
 
