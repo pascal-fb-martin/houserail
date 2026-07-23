@@ -54,6 +54,7 @@
 
 #include "housecontrol.h"
 
+#include "houserail_catalog.h"
 #include "houserail_field.h"
 #include "houserail_track.h"
 #include "houserail_train.h"
@@ -424,6 +425,9 @@ int main (int argc, const char **argv) {
     housedepositor_initialize (argc, argv);
 
     error = houseconfig_initialize ("rail", rail_update, argc, argv);
+    if (error) goto fatal;
+
+    error = houserail_catalog_initialize (argc, argv);
     if (error) goto fatal;
 
     error = houserail_field_initialize (housedepositor_group(), argc, argv);

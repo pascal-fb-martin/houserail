@@ -182,6 +182,7 @@
 #include <houselog.h>
 #include <houseconfig.h>
 
+#include "houserail_catalog.h"
 #include "houserail_scout.h"
 #include "houserail_track.h"
 
@@ -358,7 +359,7 @@ void houserail_track_input (const char *name,
     if (!detector) return;
     if (detector->segment < 0) return;
 
-    int occupied = strcasecmp (state, "on") ? 0 : 1;
+    int occupied = strsame (state, "on");
     if (occupied == detector->live.occupied) return;
     detector->live.occupied = occupied;
 
@@ -411,9 +412,22 @@ const char *houserail_track_reload (void) {
     if (track < 0) return "No track topology found";
 
     int models = houseconfig_array (track, ".models");
-    if (models < 0) return "No track models found";
+    int configmodelcount = 0;
+    if (models >= 0) configmodelcount = houseconfig_array_length (models);
 
-    LayoutModelsCount = houseconfig_array_length (models);
+    int catalogmodels = 0;
+    int catalogmodelcount = 0;
+    const char *catalog = houseconfig_string (track, ".catalog");
+    if (catalog) {
+        const char *error = houserail_catalog_load (catalog);
+        if (error) return error;
+
+        catalogmodels = houserail_catalog_array (0, ".track.models");
+        if (catalogmodels < 0) return "Empty track in catalog";
+        catalogmodelcount = houserail_catalog_array_length (catalogmodels);
+        if (catalogmodelcount <= 0) return "Empty track.models in catalog";
+    }
+    LayoutModelsCount = configmodelcount + catalogmodelcount;
     if (LayoutModelsCount <= 0) return "Empty track model list";
 
     int segments = houseconfig_array (track, ".segments");
@@ -439,10 +453,10 @@ const char *houserail_track_reload (void) {
     // Populate the models array.
 
     LayoutModels = calloc (LayoutModelsCount, sizeof(struct TrackModel));
-    houseconfig_enumerate (models, list, LayoutModelsCount);
+    houseconfig_enumerate (models, list, max);
 
     int i;
-    for (i = 0; i < LayoutModelsCount; ++i) {
+    for (i = 0; i < configmodelcount; ++i) {
         int element = list[i];
         struct TrackModel *model = LayoutModels + i;
         model->id = houseconfig_string (element, ".id");
@@ -457,6 +471,30 @@ const char *houserail_track_reload (void) {
         } else {
             DEBUG (__FILE__ ": Model %s civil speed %d length %d\n",
                    model->id, model->civil, model->length);
+        }
+    }
+
+    // Add the models from the catalog, if any.
+
+    if (catalog) {
+        houserail_catalog_enumerate (catalogmodels, list, max);
+        int c;
+        for (c = 0; c < catalogmodelcount; ++i, ++c) {
+            int element = list[c];
+            struct TrackModel *model = LayoutModels + i;
+            model->id = houserail_catalog_string (element, ".id");
+            model->signature = echttp_hash_signature (model->id);
+
+            model->length = houserail_catalog_integer (element, ".length");
+            model->reverse = houserail_catalog_integer (element, ".reverse");
+            model->civil = houserail_catalog_integer (element, ".civil");
+            if (model->reverse > 0) {
+                DEBUG (__FILE__ ": Model %s civil speed %d length %d (%d on reverse branch)\n",
+                       model->id, model->civil, model->length, model->reverse);
+            } else {
+                DEBUG (__FILE__ ": Model %s civil speed %d length %d\n",
+                       model->id, model->civil, model->length);
+            }
         }
     }
 
@@ -525,16 +563,35 @@ const char *houserail_track_reload (void) {
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         struct TrackSegment *segment = LayoutSegments + i;
 
-        // Allow the 'previous' field to be optional in the simple case:
-        // same line.
+        // Allow the 'previous' field to be optional.
+        // Obviously, a next link is preferred, but, if there is none
+        // a branch link is fine too.
         // TBD: use a faster method than linear search inside a loop..
         if (!temp[i].previous) {
             int j;
+            // At first search a good candidate from all the next fields,
+            // except one that points to the branch of a switch.
             for (j = 0; j < LayoutSegmentsCount; ++j) {
-                if (strsame (temp[j].next, segment->id) &&
-                    strsame (LayoutSegments[j].line, segment->line)) {
+                if (j == i) continue; // No self-reference allowed.
+                if (strsame (LayoutSegments[j].id, temp[i].branch)) continue;
+                if (strsame (temp[j].next, segment->id)) {
+printf ("--- Infer from next that %s previous is %s\n", segment->id, LayoutSegments[j].id);
                     temp[i].previous = LayoutSegments[j].id;
                     break;
+                }
+            }
+            if (!temp[i].previous) {
+                // If we could not retrieve the previous from the next fields,
+                // Then the previous might be a branch. Avoid using a branch
+                // that the next points to..
+                for (j = 0; j < LayoutSegmentsCount; ++j) {
+                    if (j == i) continue; // No self-reference allowed.
+                    if (strsame (LayoutSegments[j].id, temp[i].next)) continue;
+                    if (strsame (temp[j].branch, segment->id)) {
+printf ("--- Infer from branch that %s previous is %s\n", segment->id, LayoutSegments[j].id);
+                        temp[i].previous = LayoutSegments[j].id;
+                        break;
+                    }
                 }
             }
         }
@@ -592,18 +649,39 @@ const char *houserail_track_reload (void) {
 
            struct TrackSegment *cursor = segment;
            int next;
-           for (next = segment->next; next >= 0; next = cursor->next) {
-               LayoutSegments[next].low = cursor->high;
+           int high = cursor->high;
+           for (next = segment->next; next >= 0; ) {
+               LayoutSegments[next].low = high;
                cursor = LayoutSegments + next;
-               cursor->high = cursor->low + LayoutModels[cursor->model].length;
+               high = cursor->high =
+                   cursor->low + LayoutModels[cursor->model].length;
 
                // Stop when the line ends, the following segment was already
                // processed or when reaching a different line (usually a
                // switch).
                if (cursor->next < 0) break;
                if (LayoutSegments[cursor->next].low >= 0) break;
-               if (strcasecmp (LayoutSegments[cursor->next].line, cursor->line))
+
+               if (!strsame (LayoutSegments[cursor->next].line, cursor->line)) {
+
+                   // Special case: the next is a switch, the line name is the
+                   // same on the common and branch segments.
+                   struct TrackSegment *successor = LayoutSegments + cursor->next;
+                   if ((successor->branch == next) &&
+                       strsame (LayoutSegments[successor->common].line, cursor->line)) {
+                       next = successor->common;
+                       high += LayoutModels[successor->model].reverse;
+                       continue;
+                   }
+                   if ((successor->common == next) &&
+                       strsame (LayoutSegments[successor->branch].line, cursor->line)) {
+                       next = successor->branch;
+                       high += LayoutModels[successor->model].reverse;
+                       continue;
+                   }
                    break;
+               }
+               next = cursor->next;
            }
         }
     }
@@ -1344,7 +1422,7 @@ int houserail_track_walk (struct TrackRange *path, int size,
         DEBUG (__FILE__ ": Segments %s and %s join at %s.%d and %s.%d\n",
                segment->id, next->id, current.line, join1, upcoming.line, join2);
 
-        if ((join1 != join2) || strcasecmp (line, upcoming.line)) {
+        if ((join1 != join2) || (!strsame (line, upcoming.line))) {
 
            // The name of the line changed or a loop junction was reached:
            // finalize the current section and create a new one.
@@ -1407,10 +1485,10 @@ const char *houserail_track_switch (const char *name, const char *state) {
     struct TrackSegment *segment = LayoutSegments + index;
     if (segment->branch < 0) return "Not a switch";
 
-    if (!strcasecmp (state, "normal")) {
+    if (strsame (state, "normal")) {
         segment->needle =
             (segment->common == segment->next) ? segment->previous : segment->next;
-    } else if (!strcasecmp (state, "reverse")) {
+    } else if (strsame (state, "reverse")) {
         segment->needle = segment->branch;
     } else {
         segment->needle = -1;

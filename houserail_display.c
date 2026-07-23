@@ -21,7 +21,7 @@
  *
  * SYNOPSYS:
  *
- * layoutdisplay --config=<file>
+ * layoutdisplay [options..] <file>
  */
 
 #include <time.h>
@@ -36,6 +36,7 @@
 #include <houselog.h>
 #include <houseconfig.h>
 
+#include "houserail_catalog.h"
 #include "houserail_scout.h"
 #include "houserail_track.h"  // Only to get data structures.
 
@@ -51,17 +52,21 @@ static const char *LayoutDescription = 0;
 static int TrackPostDistance = PRECISION;
 
 struct DisplayLocation {
+
     int x;
     int y;
-    int z;
+    int angle;
 };
 
-struct DisplayCurve {
+struct DisplayShape {
+
     int arc;      // 0 means straight.
     int radius;
+    int straight; // Physical length of the normal side. For switch only.
 };
 
 struct TrackModel {
+
     const char *id;
     unsigned int signature; // Seach accelerator.
 
@@ -69,13 +74,14 @@ struct TrackModel {
     int reverse; // Length on the reverse side, 0 if not a switch.
     int civil;   // Civil speed limit on that track.
 
-    int straight; // Physical length of the normal side. For switch only.
-    struct DisplayCurve curve;
+    struct DisplayShape shape;
 };
 
 struct TrackSegment {
+
     const char *id;
     unsigned int signature; // Seach accelerator.
+    int index;              // Self reference.
 
     const char *line; // The name of the line going through the normal points.
     int start;        // Starting milepost for this segment (optional).
@@ -91,8 +97,7 @@ struct TrackSegment {
     int branch;   // The adjacent segment connected to the reverse point.
     int needle;   // The adjacent segment connected to the needle's position.
 
-    int angle;
-    struct DisplayCurve curve;
+    struct DisplayShape shape;
 
     // The following attributes are calculated by following the topology from
     // the terminal point marked as the origin.
@@ -102,12 +107,13 @@ struct TrackSegment {
     int detector; // First detector on this segment;
 
     int done;
-    struct DisplayLocation origin;
+    struct DisplayLocation origin; // Can be explicit in the layout, too
     struct DisplayLocation end;
     struct DisplayLocation reverse; // If a switch.
 };
 
 struct TrackDetector {
+
     const char *id;
     unsigned int signature; // Seach accelerator.
 
@@ -226,6 +232,7 @@ const char *load_config (void) {
     LayoutName = houseconfig_string (0, ".rail.layout");
     if (!LayoutName) return "No track layout name";
     LayoutDescription = houseconfig_string (0, ".rail.description");
+    int scale = houseconfig_integer (0, ".rail.scale");
 
     // Calculate the size needed for each array.
 
@@ -233,9 +240,23 @@ const char *load_config (void) {
     if (track < 0) return "No track topology found";
 
     int models = houseconfig_array (track, ".models");
-    if (models < 0) return "No track models found";
+    int configmodelcount = 0;
+    if (models >= 0) configmodelcount = houseconfig_array_length (models);
 
-    LayoutModelsCount = houseconfig_array_length (models);
+    int catalogmodels = 0;
+    int catalogmodelcount = 0;
+    const char *catalog = houseconfig_string (track, ".catalog");
+    if (catalog) {
+        const char *error = houserail_catalog_load (catalog);
+        if (error) return error;
+        if (scale > 0) houserail_catalog_set_scale (scale);
+
+        catalogmodels = houserail_catalog_array (0, ".track.models");
+        if (catalogmodels < 0) return "Empty track in catalog";
+        catalogmodelcount = houserail_catalog_array_length (catalogmodels);
+        if (catalogmodelcount <= 0) return "Empty track.models in catalog";
+    }
+    LayoutModelsCount = configmodelcount + catalogmodelcount;
     if (LayoutModelsCount <= 0) return "Empty track model list";
 
     int segments = houseconfig_array (track, ".segments");
@@ -265,17 +286,16 @@ const char *load_config (void) {
     // Populate the models array.
 
     LayoutModels = calloc (LayoutModelsCount, sizeof(struct TrackModel));
-    houseconfig_enumerate (models, list, LayoutModelsCount);
+    houseconfig_enumerate (models, list, max);
 
     int i;
-    for (i = 0; i < LayoutModelsCount; ++i) {
+    for (i = 0; i < configmodelcount; ++i) {
         int element = list[i];
         struct TrackModel *model = LayoutModels + i;
         model->id = houseconfig_string (element, ".id");
         model->signature = echttp_hash_signature (model->id);
 
         model->length = houseconfig_integer (element, ".length");
-        model->straight = 0; // Default. Infer physical length from above.
         model->reverse = houseconfig_integer (element, ".reverse");
         model->civil = houseconfig_integer (element, ".civil");
         if (model->reverse > 0) {
@@ -286,16 +306,64 @@ const char *load_config (void) {
                    model->id, model->civil, model->length);
         }
 
-        int curve = houseconfig_array (element, ".curve");
-        if (curve < 0) {
-            model->curve.arc = model->curve.radius = 0;
-        } else {
-            int curvelist[3];
-            int count = houseconfig_enumerate (curve, curvelist, 3);
-            model->curve.arc = houseconfig_integer (curvelist[0], "");
-            model->curve.radius = houseconfig_integer (curvelist[1], "");
-            if (count >= 3)
-               model->straight = houseconfig_integer (curvelist[2], "");
+        model->shape.straight = model->shape.arc = model->shape.radius = 0;
+        int shape = houseconfig_array (element, ".shape");
+        if (shape >= 0) {
+            int shapelist[3];
+            int count = houseconfig_enumerate (shape, shapelist, 3);
+            if (count == 1) { // Straight track.
+                model->shape.straight = houseconfig_integer (shapelist[0], "");
+            } else if (count > 1) { // Curved track.
+                model->shape.arc = houseconfig_integer (shapelist[0], "");
+                model->shape.radius = houseconfig_integer (shapelist[1], "");
+                if (count >= 3) { // Switch: curved branch and straight main
+                    model->shape.straight = houseconfig_integer (shapelist[2], "");
+                }
+            }
+        }
+    }
+
+   // Add the models from the catalog, if any.
+
+    if (catalog) {
+        houserail_catalog_enumerate (catalogmodels, list, max);
+        int c;
+        for (c = 0; c < catalogmodelcount; ++i, ++c) {
+            int element = list[c];
+            struct TrackModel *model = LayoutModels + i;
+            model->id = houserail_catalog_string (element, ".id");
+            model->signature = echttp_hash_signature (model->id);
+
+            model->length = houserail_catalog_integer (element, ".length");
+            model->reverse = houserail_catalog_integer (element, ".reverse");
+            model->civil = houserail_catalog_integer (element, ".civil");
+            if (model->reverse > 0) {
+                DEBUG (__FILE__ ": Model %s civil speed %d length %d (%d on reverse branch)\n",
+                       model->id, model->civil, model->length, model->reverse);
+            } else {
+                DEBUG (__FILE__ ": Model %s civil speed %d length %d\n",
+                       model->id, model->civil, model->length);
+            }
+
+            model->shape.straight = model->shape.arc = model->shape.radius = 0;
+            int shape = houserail_catalog_array (element, ".shape");
+            if (shape >= 0) {
+                int shapelist[3];
+                int count = houserail_catalog_enumerate (shape, shapelist, 3);
+                if (count == 1) { // Straight track.
+                    model->shape.straight =
+                        houserail_catalog_integer_scaled (shapelist[0], "");
+                } else if (count > 1) { // Curved track.
+                    model->shape.arc =
+                        houserail_catalog_integer (shapelist[0], "");
+                    model->shape.radius =
+                        houserail_catalog_integer_scaled (shapelist[1], "");
+                    if (count >= 3) { // Curved branch and straight main
+                        model->shape.straight =
+                            houserail_catalog_integer_scaled (shapelist[2], "");
+                    }
+                }
+            }
         }
     }
 
@@ -324,6 +392,7 @@ const char *load_config (void) {
         }
         segment->signature =
             echttp_hash_signature (segment->id);
+        segment->index = i;
 
         segment->line = houseconfig_string (element, ".line");
         if (!segment->line) {
@@ -354,12 +423,28 @@ const char *load_config (void) {
             LayoutSegmentsMap[index] = i;
 
         struct TrackModel *model = LayoutModels + segment->model;
-        segment->curve = model->curve;
+        segment->shape = model->shape;
 
         int curve = houseconfig_integer (element, ".curve");
-        if ((temp[i].branch == 0) && (model->curve.arc > 0)) {
+        if ((temp[i].branch == 0) && (model->shape.arc > 0)) {
             if (curve == 0) return "Curved segment is missing curve direction";
-            segment->curve.arc = model->curve.arc * ((curve > 0)?1:-1);
+            segment->shape.arc = model->shape.arc * ((curve > 0)?1:-1);
+        }
+
+        segment->origin.x = segment->origin.y = segment->origin.angle = 0;
+        int origin = houseconfig_array (element, ".origin");
+        if (origin >= 0) {
+            int coordinates[3];
+            int count = houseconfig_enumerate (origin, coordinates, 3);
+            if (count >= 1)
+                segment->origin.x = houseconfig_integer (coordinates[0], "");
+            if (count >= 2)
+                segment->origin.y = houseconfig_integer (coordinates[1], "");
+            if (count >= 3)
+                segment->origin.angle = houseconfig_integer (coordinates[2], "");
+            if (segment->origin.angle == 0)
+                segment->origin.angle = 360; // Used as explicit origin flag.
+printf ("--- Segment %s has origin (%d, %d, %d)\n", segment->id, segment->origin.x, segment->origin.y, segment->origin.angle);
         }
     }
 
@@ -370,16 +455,31 @@ const char *load_config (void) {
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         struct TrackSegment *segment = LayoutSegments + i;
 
-        // Allow the 'previous' field to be optional in the simple case:
-        // same line.
+        // Allow the 'previous' field to be optional.
         // TBD: use a faster method than linear search inside a loop..
         if (!temp[i].previous) {
             int j;
+            // At first search a good candidate from all the next fields,
+            // but skip those that point to the branch of a switch.
             for (j = 0; j < LayoutSegmentsCount; ++j) {
-                if (strsame (temp[j].next, segment->id) &&
-                    strsame (LayoutSegments[j].line, segment->line)) {
+                if (j == i) continue;
+                if (strsame (LayoutSegments[j].id, temp[i].branch)) continue;
+                if (strsame (temp[j].next, segment->id)) {
                     temp[i].previous = LayoutSegments[j].id;
                     break;
+                }
+            }
+            if (!temp[i].previous) {
+                // If we could not retrieve the previous from the next fields,
+                // Then the previous might be a branch. Avoid using a branch
+                // that the next points to..
+                for (j = 0; j < LayoutSegmentsCount; ++j) {
+                    if (j == i) continue;
+                    if (strsame (LayoutSegments[j].id, temp[i].next)) continue;
+                    if (strsame (temp[j].branch, segment->id)) {
+                        temp[i].previous = LayoutSegments[j].id;
+                        break;
+                    }
                 }
             }
         }
@@ -441,18 +541,41 @@ const char *load_config (void) {
 
            struct TrackSegment *cursor = segment;
            int next;
-           for (next = segment->next; next >= 0; next = cursor->next) {
-               LayoutSegments[next].low = cursor->high;
+           int high = cursor->high;
+           for (next = segment->next; next >= 0; ) {
+               LayoutSegments[next].low = high;
                cursor = LayoutSegments + next;
-               cursor->high = cursor->low + LayoutModels[cursor->model].length;
+               high = cursor->high =
+                   cursor->low + LayoutModels[cursor->model].length;
 
                // Stop when the line ends, the following segment was already
                // processed or when reaching a different line (usually a
                // switch).
                if (cursor->next < 0) break;
                if (LayoutSegments[cursor->next].low >= 0) break;
-               if (strcasecmp (LayoutSegments[cursor->next].line, cursor->line))
+
+               if (!strsame (LayoutSegments[cursor->next].line, cursor->line)) {
+
+                   // Special case: the next is a switch, the line name is the
+                   // same on the common and branch segments.
+                   struct TrackSegment *successor = LayoutSegments + cursor->next;
+                   if ((successor->branch == next) &&
+                       strsame (LayoutSegments[successor->common].line, cursor->line)) {
+                       // Skip the switch and keep going.
+                       next = successor->common;
+                       high += LayoutModels[successor->model].reverse;
+                       continue;
+                   }
+                   if ((successor->common == next) &&
+                       strsame (LayoutSegments[successor->branch].line, cursor->line)) {
+                       // Skip the switch and keep going.
+                       next = successor->branch;
+                       high += LayoutModels[successor->model].reverse;
+                       continue;
+                   }
                    break;
+               }
+               next = cursor->next;
            }
         }
     }
@@ -537,26 +660,28 @@ const char *load_config (void) {
     return 0;
 }
 
-static int find_preferred_start (void) {
+static int calculate_straight_length (struct TrackSegment *segment) {
 
-    int i;
-    int ok = -1;
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
-        struct TrackSegment *segment = LayoutSegments + i;
-        if (segment->start < 0) continue;
-        if (segment->previous < 0) return i; // Best choice possible.
-        if (ok < 0) ok = i;
-    }
-    if (ok < 0) {
-        fprintf (stderr, "Cannot find a start segment?\n");
-        exit (1);
-    }
-    return ok;
+    // Explicit length.
+    if (segment->shape.straight > 0) return segment->shape.straight;
+
+    // Legacy from an early version.
+    if ((segment->shape.arc == 0) && (segment->shape.radius > 0))
+            return segment->shape.radius;
+
+    // Infer from the "post" length if there is nothing better.
+    return LayoutModels[segment->model].length * TrackPostDistance;
+}
+
+static int rotate (int value, int increment) {
+    value += increment;
+    if (value > 180) value -= 360;
+    else if (value <= -180) value += 360;
+    return value;
 }
 
 static void move_straight (const struct DisplayLocation *origin,
-                           struct DisplayLocation *end,
-                           int angle, int length) {
+                           struct DisplayLocation *end, int angle, int length) {
 
     // Angle:                    0   15   30   45   60   75    90
     static const int base[] =   {0, 259, 500, 707, 866, 966, 1000};
@@ -565,13 +690,16 @@ static void move_straight (const struct DisplayLocation *origin,
     int cosine = 1;
 
     if (angle < 0) angle += 360;
-    else if (angle > 360) angle -= 360;
+    else if (angle >= 360) angle -= 360;
 
-    if (angle > 180) {
-        cosine = sine = -1;
+    // Fold the angle to the first quadrant (o to 90 degrees)
+    if (angle >= 270) { // Fourth quadrant
+        angle = 360 - angle;
+        sine = -1;
+    } else if (angle >= 180) {
         angle -= 180;
-    }
-    if (angle > 90) {
+        cosine = sine = -1;
+    } else if (angle > 90) {
         angle = 180 - angle;
         cosine *= -1;
     }
@@ -581,134 +709,221 @@ static void move_straight (const struct DisplayLocation *origin,
 
     end->x = origin->x + ((length * cosine) / 1000);
     end->y = origin->y + ((length * sine) / 1000);
+    end->angle = origin->angle;
 }
 
-static void move_center (struct DisplayLocation *origin,
+static void move_center (const struct DisplayLocation *origin,
                          struct DisplayLocation *center,
                          int angle, int radius, int arc) {
 
     if (arc > 0)
-        move_straight (origin, center, angle+90, radius);
+        move_straight (origin, center, rotate (angle, 90), radius);
     else
-        move_straight (origin, center, angle-90, radius);
+        move_straight (origin, center, rotate (angle, -90), radius);
 }
 
-static void move_circle (struct DisplayLocation *origin,
+static void move_circle (const struct DisplayLocation *origin,
                          struct DisplayLocation *end,
                          int angle, int radius, int arc) {
 
     struct DisplayLocation center;
     move_center (origin, &center, angle, radius, arc);
     if (arc > 0)
-        move_straight (&center, end, angle+arc-90, radius);
+        move_straight (&center, end, rotate (angle, rotate (arc, -90)), radius);
     else
-        move_straight (&center, end, angle+arc+90, radius);
+        move_straight (&center, end, rotate (angle, rotate (arc, 90)), radius);
+    end->angle = rotate (angle, arc);
+printf ("---      move_circle from (%d, %d) angle %d arc %d, center (%d, %d), to (%d, %d, %d)\n", origin->x, origin->y, angle, arc, center.x, center.y, end->x, end->y, end->angle);
 }
 
-static void calculate_endpoints (int start, int angle,
-                                 struct DisplayLocation *origin) {
+static void move_to_branch (const struct TrackSegment *segment,
+                            struct DisplayLocation *origin) {
+
+    struct DisplayLocation reverse = segment->reverse;
+    struct TrackSegment *upcoming = LayoutSegments + segment->branch;
+
+printf ("---   Move to branch: start at reverse (%d, %d, %d)\n", reverse.x, reverse.y, reverse.angle);
+    if (upcoming->next == segment->index) {
+        // The reverse point is the end point of the upcoming segment:
+        // retrieve its true origin.
+printf ("---   Reverse is connected to the end, move to the origin.\n");
+        if ((upcoming->shape.arc == 0) || (upcoming->branch >= 0)) {
+printf ("---   (straight move)\n");
+            int length = calculate_straight_length (upcoming);
+            move_straight (&reverse, origin, reverse.angle, length);
+            origin->angle = rotate (reverse.angle, 180);
+        } else {
+printf ("---   (circle move: radius %d, arc %d)\n", upcoming->shape.radius, 0-upcoming->shape.arc);
+            move_circle (&reverse, origin, reverse.angle,
+                         upcoming->shape.radius, 0-upcoming->shape.arc);
+        }
+        origin->angle = rotate (origin->angle, 180); // Turn around
+
+    } else if (upcoming->branch == segment->index) {
+        // Two switches are connected branch to branch.
+printf ("---   Two switches connected branch to branch.\n");
+printf ("---   (circle move)\n");
+        move_circle (&reverse, origin, reverse.angle,
+                     upcoming->shape.radius, 0-upcoming->shape.arc);
+    } else {
+        *origin = reverse;
+    }
+printf ("---   Move to branch: found origin of %s at (%d, %d, %d)\n", upcoming->id, origin->x, origin->y, origin->angle);
+}
+
+static void calculate_endpoints (int start,
+                                 const struct DisplayLocation *origin) {
 
     int i = start;
     struct TrackSegment *segment = LayoutSegments + i;
-    struct TrackModel *model = LayoutModels + segment->model;
+    if (segment->done) return;
     int previous = segment->previous;
+    struct DisplayLocation cursor = *origin;
     for (;;) {
 
         if (segment->done) break;
 
-        segment->angle = angle;
-        segment->origin = *origin;
-        segment->reverse.x = segment->reverse.y = 0;
-        int length = model->length * TrackPostDistance;
-        if (segment->curve.arc == 0) {
-            if (segment->curve.radius > 0) length = segment->curve.radius;
-            move_straight (origin, &(segment->end), angle, length);
+        segment->origin = cursor;
+        segment->reverse.x = segment->reverse.y = segment->reverse.angle = 0;
+        int length = calculate_straight_length (segment);
+
+        if (segment->shape.arc == 0) {
+            move_straight (&cursor, &(segment->end), cursor.angle, length);
         } else {
-            int arc = segment->curve.arc;
-            int curveangle = angle;
-            struct DisplayLocation *curveorigin = origin;
+            int curveangle = cursor.angle;
+            const struct DisplayLocation *curveorigin = &cursor;
             struct DisplayLocation *curveend = &(segment->end);
             if (segment->branch >= 0) { // This is a switch, straight main line
-                if (model->straight > 0) length = model->straight;
-                move_straight (origin, &(segment->end), angle, length);
+                move_straight (&cursor, &(segment->end), cursor.angle, length);
                 if (segment->common == segment->next) {
+                    // Move backward to the reverse point.
                     curveorigin = &(segment->end);
-                    curveangle += 180;
+                    curveangle = rotate (curveangle, 180);
                 }
                 curveend = &(segment->reverse);
-                arc = 0; // Main line is straight.
             }
             move_circle (curveorigin, curveend, curveangle,
-                         segment->curve.radius, segment->curve.arc);
-            angle += arc;
+                         segment->shape.radius, segment->shape.arc);
         }
-        *origin = segment->end;
+        cursor = segment->end;
         segment->done = 1;
+printf ("--- Done with segment %s (%d, %d, %d) to (%d, %d, %d), going to %s\n", segment->id, segment->origin.x, segment->origin.y, segment->origin.angle, segment->end.x, segment->end.y, segment->end.angle, (segment->next >= 0)?LayoutSegments[segment->next].id:"(null)");
+if (segment->branch >= 0) printf ("---    Segment %s is a switch, reverse point at (%d, %d, %d)\n", segment->id, segment->reverse.x, segment->reverse.y, segment->reverse.angle);
 
-        if ((segment->branch >= 0) && (segment->common == segment->previous)) {
-            struct DisplayLocation reverse = segment->reverse; // Branch origin
-            calculate_endpoints
-                (segment->branch, angle+segment->curve.arc, &reverse);
+        if (segment->branch >= 0) {
+printf ("--- Taking a detour to %s\n", LayoutSegments[segment->branch].id);
+            struct DisplayLocation subwalk;
+            move_to_branch (segment, &subwalk);
+            calculate_endpoints (segment->branch, &subwalk);
+printf ("--- end of detour\n");
         }
 
         if (segment->next < 0) break;
-        if (LayoutSegments[segment->next].previous != i) break;
+        struct TrackSegment *upcoming = LayoutSegments + segment->next;
+        if (upcoming->previous != i) {
+printf ("--- Upcoming segment %s points back to %s, not %s\n", upcoming->id, LayoutSegments[upcoming->previous].id, segment->id);
+            if (upcoming->branch == i) {
+                // This entered a switch through a branch. Calculate
+                // the location of the common endpoint and restart
+                // a walk originating from there.
+printf ("--- Upcoming segment %s is a switch: start a subwalk from there at (%d, %d, %d).\n", upcoming->id, segment->end.x, segment->end.y, segment->end.angle);
+                struct DisplayLocation common;
+                move_circle (&(segment->end), &common, cursor.angle,
+                             upcoming->shape.radius, 0-upcoming->shape.arc);
+printf ("--- ended on segment %s at (%d, %d, %d).\n", upcoming->id, common.x, common.y, common.angle);
+                if (upcoming->common == upcoming->next) {
+                    // Need to move back to that switch's origin.
+                    struct DisplayLocation normal;
+                    int l = calculate_straight_length (upcoming);
+                    move_straight (&common, &normal, rotate (common.angle, 180), l);
+printf ("--- moved to segment %s origin at (%d, %d, %d).\n", upcoming->id, normal.x, normal.y, normal.angle);
+                    calculate_endpoints (segment->next, &normal);
+                } else {
+                    calculate_endpoints (segment->next, &common);
+                }
+printf ("--- end of subwalk\n");
+            }
+            break; // We are done with this branch.
+        }
+
         i = segment->next;
         if (i == start) break;
         segment = LayoutSegments + i;
-        model = LayoutModels + segment->model;
     }
+
+    // Walkback from the original point. This is odd because walking back
+    // means a 180 degree turn, so the angles (and their directions) change.
 
     if (previous < 0) return;
     i = previous;
     segment = LayoutSegments + i;
-    model = LayoutModels + segment->model;
+    cursor = *origin;
 
     for (;;) {
 
         if (segment->done) break;
 
-        segment->angle = angle;
-        segment->end = *origin;
-        int length = model->length * TrackPostDistance;
+        segment->end = cursor;
+        int length = calculate_straight_length (segment);
 
-        if (segment->curve.radius == 0) {
-            move_straight (origin, &(segment->origin), angle+180,
-                           model->length * TrackPostDistance);
+        if (segment->shape.arc == 0) {
+            move_straight (&cursor, &(segment->origin), rotate (cursor.angle, 180), length);
         } else {
-            int arc = segment->curve.arc;
-            int curveangle = angle;
-            struct DisplayLocation *curveorigin = &(segment->end);
-            struct DisplayLocation *curveend = origin;
+            int curveangle = cursor.angle;
+            const struct DisplayLocation *curveorigin = &(segment->end);
             if (segment->branch >= 0) { // This is a switch.
-                if (model->straight > 0) length = model->straight;
-                move_straight (origin, &(segment->origin), angle+180, length);
-                if (segment->common == segment->next) {
-                    curveorigin = origin;
-                    curveangle -= 180;
+                move_straight (&cursor, &(segment->origin), rotate (cursor.angle, 180), length);
+                if (segment->common == segment->previous) {
+                    // For this curve, the move is forward.
+                    curveorigin = &(segment->origin);
+                    curveangle = rotate (curveangle, -180);
                 }
-                curveend = &(segment->reverse);
-                arc = 0; // Main line is straight.
+                move_circle (curveorigin, &(segment->reverse),
+                             rotate (curveangle, 180),
+                             segment->shape.radius, segment->shape.arc);
+            } else {
+                move_circle (&(segment->end), &(segment->origin),
+                             rotate (curveangle, 180),
+                             segment->shape.radius, 0 - segment->shape.arc);
+                segment->origin.angle = rotate (segment->origin.angle, 180);
             }
-            move_circle (curveorigin, curveend, angle+180,
-                         segment->curve.radius, segment->curve.arc);
-            angle -= arc;
         }
-        *origin = segment->end;
+        cursor = segment->origin;
         segment->done = 1;
+printf ("--- Done backward with segment %s (%d, %d, %d) to (%d, %d, %d), going to %s\n", segment->id, segment->origin.x, segment->origin.y, segment->origin.angle, segment->end.x, segment->end.y, segment->end.angle, (segment->previous >= 0)?LayoutSegments[segment->previous].id:"(null)");
+if (segment->branch >= 0) printf ("---    Segment %s is a switch, reverse point at (%d, %d, %d)\n", segment->id, segment->reverse.x, segment->reverse.y, segment->reverse.angle);
 
-        if ((segment->branch >= 0) && (segment->common == segment->next)) {
-            struct DisplayLocation reverse = segment->reverse;
-            calculate_endpoints
-                (segment->branch, angle-segment->curve.arc, &reverse);
+        if (segment->branch >= 0) {
+            struct DisplayLocation subwalk;
+            move_to_branch (segment, &subwalk);
+            calculate_endpoints (segment->branch, &subwalk);
         }
 
         if (segment->previous < 0) break;
-        if (LayoutSegments[segment->previous].next != i) break;
+        struct TrackSegment *upcoming = LayoutSegments + segment->previous;
+        if (upcoming->next != i) {
+            if (upcoming->branch == i) {
+                // This entered a switch through a branch. Calculate
+                // the location of the switch origin and restart
+                // a walk from there.
+                struct DisplayLocation common;
+                move_circle (&(segment->origin), &common, rotate (cursor.angle, 180),
+                             upcoming->shape.radius, 0-upcoming->shape.arc);
+                if (upcoming->common == upcoming->next) {
+                    // Need to move back to that switch's origin.
+                    struct DisplayLocation normal;
+                    move_straight (&common, &normal, rotate (cursor.angle, 180), length);
+                    calculate_endpoints (segment->previous, &normal);
+                } else {
+                    calculate_endpoints (segment->previous, &common);
+                }
+            }
+            break;
+        }
+
         i = segment->previous;
         if (i == start) break;
         segment = LayoutSegments + i;
-        model = LayoutModels + segment->model;
     }
 }
 
@@ -789,13 +1004,12 @@ static void draw_straight (const char *id,
 static void draw_curve (const char *id,
                         const struct DisplayLocation *origin,
                         const struct DisplayLocation *end,
-                        const struct DisplayCurve *curve,
-                        int angle, int width) {
+                        const struct DisplayShape *shape, int width) {
 
    char d[80];
    snprintf (d, sizeof(d), "M %d %d A %d %d %d 0 %d %d %d",
              origin->x, origin->y,
-             curve->radius, curve->radius, angle, (curve->arc > 0)?1:0,
+             shape->radius, shape->radius, origin->angle, (shape->arc > 0)?1:0,
              end->x, end->y);
    draw_path (id, d, width);
 }
@@ -805,30 +1019,31 @@ static void generate_track (const struct TrackSegment *segment, int width) {
    int gap = width / 7;
    struct DisplayLocation origin;
    struct DisplayLocation end;
-   move_straight (&(segment->origin), &origin, segment->angle, gap);
+   move_straight (&(segment->origin), &origin, segment->origin.angle, gap);
 
-   if (segment->curve.arc == 0) {
-       move_straight (&(segment->end), &end, segment->angle+180, gap);
+   if (segment->shape.arc == 0) {
+       move_straight (&(segment->end), &end, rotate (segment->end.angle, 180), gap);
        draw_straight (segment->id, &origin, &end, width);
    } else {
        char id[32];
        if (segment->branch >= 0) {
            // This is a switch. There is always a straight portion.
-           move_straight (&(segment->end), &end, segment->angle+180, gap);
+           move_straight (&(segment->end), &end, rotate (segment->end.angle, 180), gap);
            draw_straight (segment->id, &origin, &end, width);
+
            snprintf (id, sizeof(id), "%s:reverse", segment->id);
            if (segment->common == segment->previous) {
-               move_straight (&(segment->reverse), &end, segment->angle+segment->curve.arc+180, gap);
+               move_straight (&(segment->reverse), &end, rotate (segment->reverse.angle, 180), gap);
            } else {
                origin = end;
-               move_straight (&(segment->reverse), &end, segment->angle+segment->curve.arc, gap);
+               move_straight (&(segment->reverse), &end, rotate (segment->reverse.angle, 180), gap);
            }
        } else {
            // This is a regular curve.
            snprintf (id, sizeof(id), "%s", segment->id);
-           move_straight (&(segment->end), &end, segment->angle+segment->curve.arc+180, gap);
+           move_straight (&(segment->end), &end, rotate (segment->end.angle, 180), gap);
        }
-       draw_curve (id, &origin, &end, &(segment->curve), segment->angle, width);
+       draw_curve (id, &origin, &end, &(segment->shape), width);
    }
 }
 
@@ -852,16 +1067,52 @@ static void generate_html_tail (void) {
     printf ("</div>\n</body>\n>/html>\n");
 }
 
+static int find_preferred_origin (void) {
+
+    int i;
+    for (i = 0; i < LayoutSegmentsCount; ++i) {
+        struct TrackSegment *segment = LayoutSegments + i;
+        if ((!segment->done) && (segment->origin.angle != 0)) return i;
+    }
+    return -1;
+}
+
+static void walk_the_layout (void) {
+
+    int done = 0;
+    for (;;) {
+        int i = find_preferred_origin();
+        if (i < 0) break;
+        struct DisplayLocation origin = LayoutSegments[i].origin;
+        calculate_endpoints (i, &origin);
+        done += 1;
+    }
+
+    if (!done) {
+        // There is no explicit origin. Just use the first segment.
+        struct DisplayLocation origin = {0, 0, 0};
+        calculate_endpoints (0, &origin);
+    }
+
+    // Find segments not calculated yet that are linked to calculated segments.
+/*
+    for (;;) {
+        int i = find_uncalculated ();
+        if (i < 0) break;
+        // TBD
+    }
+*/
+}
+
 static const char *generate_display (void) {
 
     const char *error = load_config ();
     if (error) return error;
 
-    // First step is to define where each segment fits and the viewbox
-    struct DisplayLocation origin = {0, 0, 0};
+    // Find where each segment fits and what is the viewbox
+    walk_the_layout ();
     struct DisplayLocation min;
     struct DisplayLocation max;
-    calculate_endpoints (find_preferred_start(), 0, &origin);
     calculate_viewbox (&min, &max);
 
     int margin = (max.x - min.x) / 30;
@@ -890,16 +1141,21 @@ int main (int argc, const char **argv) {
         printf ("Missing rail config file\n");
         exit (1);
     }
-    char option[120];
-    const char *prefix = "./";
-    if ((argv[1][0] == '/') || (argv[1][0] == '.')) prefix = "";
-    snprintf (option, sizeof(option), "--config=%s%s", prefix, argv[1]);
-    houseconfig_default (option);
-    argv += 1;
+    const char *arg = argv[argc-1];
     argc -= 1;
 
+    char option[120];
+    const char *prefix = "./";
+    if ((arg[0] == '/') || (arg[0] == '.')) prefix = "";
+    snprintf (option, sizeof(option), "--config=%s%s", prefix, arg);
+    houseconfig_default (option);
+    houserail_catalog_default ("--catalog=.");
+
     const char *error =
-        houseconfig_initialize ("layoutdisplay", generate_display, argc, argv);
+        houserail_catalog_initialize (argc, argv);
+    if (!error)
+        error = houseconfig_initialize
+                    ("layoutdisplay", generate_display, argc, argv);
     if (error) {
         printf ("Configuration error: %s\n", error);
         exit (1);

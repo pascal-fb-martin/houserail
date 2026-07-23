@@ -31,6 +31,7 @@ OBJS= houserail_scout.o \
       houserail_field.o \
       houserail_track.o \
       houserail_path.o \
+      houserail_catalog.o \
       houserail_train.o
 LIBOJS=
 

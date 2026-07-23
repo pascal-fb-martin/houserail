@@ -17,16 +17,13 @@
          "track": {
              "speeds":{"restricted": 10, "reverse": 20},
              "distances":{"stop": 20, "slow": 35},
-             "models":[
-                 {"id":"kato20010","length":30,"reverse":0,"civil":50},
-                 {"id":"kato20041","length":10,"reverse":0,"civil":20}
-             ],
+             "catalog":"KatoUnitrackN",
              "segments":[
-                 {"id":"main-1","model":"kato20010","line":"main","next":"main-2"},
-                 {"id":"main-2","model":"kato20010","line":"main","next":"main-3"},
-                 {"id":"main-3","model":"kato20010","line":"main","next":"main-4"},
-                 {"id":"main-4","model":"kato20010","line":"main","next":"main-5"},
-                 {"id":"main-5","model":"kato20041","line":"main"}
+                 {"id":"main-1","model":"20-010","line":"main","next":"main-2"},
+                 {"id":"main-2","model":"20-010","line":"main","next":"main-3"},
+                 {"id":"main-3","model":"20-010","line":"main","next":"main-4"},
+                 {"id":"main-4","model":"20-010","line":"main","next":"main-5"},
+                 {"id":"main-5","model":"20-041","line":"main"}
              ],
              "detectors":[
                  {"id":"main.1","line":"main","low":5,"high":6},

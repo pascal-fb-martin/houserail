@@ -1,0 +1,19 @@
+{
+    "scale":1,
+    "train":{
+        "models":[
+            {"id":"GP40","length":13,"spots":[2,11]},
+            {"id":"HOPPER","length":8,"spots":[3,5]}
+        ]
+    },
+    "track":{
+        "models":[
+            {"id":"straight","length":20,"reverse":0,"civil":60,"shape":[0,29763]},
+            {"id":"curve","length":20,"reverse":0,"civil":30,"shape":[45,45120]},
+            {"id":"switchright","length":20,"reverse":15,"civil":60,"shape":[15,114880,29763]},
+            {"id":"switchleft","length":20,"reverse":15,"civil":60,"shape":[-15,114880,29763]},
+            {"id":"branch","length":5,"reverse":0,"civil":20,"shape":[15,114880]}
+        ]
+    }
+}
+

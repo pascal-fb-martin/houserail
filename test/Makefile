@@ -22,6 +22,11 @@ SHARE=$(prefix)/share/house
 
 INSTALL=/usr/bin/install
 
+TRACKDEPENDENCIES=../houserail_path.o \
+                  ../houserail_track.o \
+                  ../houserail_scout.o \
+                  ../houserail_catalog.o
+
 HAPP=houserail
 HCAT=Train
 
@@ -43,12 +48,12 @@ testscout: testscout.o ../houserail_scout.o
 testpath: testpath.o ../houserail_path.o
 	gcc -g -O -o testpath testpath.o ../houserail_path.o -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 
-testtrack: testtrack.o ../houserail_track.o ../houserail_scout.o
-	gcc -g -O -o testtrack testtrack.o ../houserail_track.o ../houserail_scout.o -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+testtrack: testtrack.o $(TRACKDEPENDENCIES)
+	gcc -g -O -o testtrack testtrack.o $(TRACKDEPENDENCIES) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 
-testtrain: testtrain.o ../houserail_train.o ../houserail_path.o ../houserail_track.o ../houserail_scout.o
-	gcc -g -O -o testtrain testtrain.o ../houserail_train.o ../houserail_path.o ../houserail_track.o ../houserail_scout.o -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+testtrain: testtrain.o ../houserail_train.o $(TRACKDEPENDENCIES)
+	gcc -g -O -o testtrain testtrain.o ../houserail_train.o $(TRACKDEPENDENCIES) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 
-testend: testend.o ../houserail_train.o ../houserail_path.o ../houserail_track.o ../houserail_scout.o
-	gcc -g -O -o testend testend.o ../houserail_train.o ../houserail_path.o ../houserail_track.o ../houserail_scout.o -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+testend: testend.o ../houserail_train.o $(TRACKDEPENDENCIES)
+	gcc -g -O -o testend testend.o ../houserail_train.o $(TRACKDEPENDENCIES) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 

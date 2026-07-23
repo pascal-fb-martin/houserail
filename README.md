@@ -153,6 +153,6 @@ The schema of the static configuration is described is two documents:
 The `layoutvalidate` tool is provided to both validate that the configuration is valid and verify that the generated topology and fleet are correct:
 
 ```
-   layoutvalidate --config=<path to config file>
+   layoutvalidate <path to config file>
 ```
 

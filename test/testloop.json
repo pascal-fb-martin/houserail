@@ -19,13 +19,9 @@
          "track": {
              "speeds":{"restricted": 10, "reverse": 20},
              "distances":{"stop": 20, "slow": 35},
+             "catalog":"testcatalog",
              "models":[
-                 {"id":"straight","length":20,"reverse":0,"civil":60,"curve":[0,29763]},
-                 {"id":"long","length":20,"reverse":0,"civil":60,"curve":[0,59526]},
-                 {"id":"curve","length":20,"reverse":0,"civil":30,"curve":[45,45120]},
-                 {"id":"switchright","length":20,"reverse":15,"civil":60,"curve":[15,114880,29763]},
-                 {"id":"switchleft","length":20,"reverse":15,"civil":60,"curve":[-15,114880,29763]},
-                 {"id":"branch","length":5,"reverse":0,"civil":20,"curve":[15,114880]}
+                 {"id":"long","length":20,"reverse":0,"civil":60,"shape":[0,59526]}
              ],
              "segments":[
                  {"id":"main-1","model":"switchright","line":"main","next":"main-2","start":0,"common":"main-16","branch":"side-1"},

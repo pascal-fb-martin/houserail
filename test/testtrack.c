@@ -34,6 +34,7 @@
 #include <echttp_libc.h>
 #include <houseconfig.h>
 
+#include "../houserail_catalog.h"
 #include "../houserail_track.h"
 
 #include "testlib.h"
@@ -53,6 +54,8 @@ int main (int argc, const char **argv) {
 
     starting ("Loading layout configuration");
     houseconfig_default ("--config=./testloop.json");
+    houserail_catalog_default ("--catalog=.");
+    houserail_catalog_initialize (argc, argv);
     houserail_track_initialize (argc, argv);
     const char *error = houseconfig_initialize ("testtrack", test_update, argc, argv);
     if (error) {

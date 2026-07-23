@@ -24,25 +24,27 @@
  *
  * Command line:
  *
- * railvalidate -config=<layout file>
+ * layoutvalidate [options..] <file>
  */
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "echttp.h"
 #include "houseconfig.h"
 
+#include "houserail_catalog.h"
 #include "houserail_track.h"
 #include "houserail_train.h"
 
 static const char *validate_update (void) {
     const char *error = houserail_track_reload ();
     if (error) printf ("** Cannot load track topology: %s\n", error);
-    else printf ("== Track topology loaded.\n");
+    else printf ("== Track topology loaded, no error.\n");
     error = houserail_train_reload ();
     if (error) printf ("** Cannot load train fleet: %s\n", error);
-    else printf ("== Train fleet loaded.\n");
+    else printf ("== Train fleet loaded, no error.\n");
     return error;
 }
 
@@ -51,8 +53,25 @@ int main (int argc, const char **argv) {
     houserail_track_testmode (1);
     houserail_train_testmode (1);
 
-    houserail_track_initialize (argc, argv);
-    const char *error = houseconfig_initialize ("testtrack", validate_update, argc, argv);
+    if (argc <= 1) {
+        printf ("Missing rail config file\n");
+        exit (1);
+    }
+    const char *arg = argv[argc-1];
+    argc -= 1;
+
+    char option[120];
+    const char *prefix = "./";
+    if ((arg[0] == '/') || (arg[0] == '.')) prefix = "";
+    snprintf (option, sizeof(option), "--config=%s%s", prefix, arg);
+    houseconfig_default (option);
+    houserail_catalog_default ("--catalog=.");
+
+    const char *error = houserail_catalog_initialize (argc, argv);
+    if (!error)
+        error = houserail_track_initialize (argc, argv);
+    if (!error)
+        error = houseconfig_initialize ("testtrack", validate_update, argc, argv);
     if (error) {
         printf ("** Config error: %s\n", error);
         return 1;

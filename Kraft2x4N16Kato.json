@@ -1,0 +1,65 @@
+{
+    "host": "casabianca",
+    "timestamp": 0,
+    "rail":{
+         "layout":"testloop",
+         "description":"Inspired by a 2x4 layout from Kraft Trains",
+         "train":{
+             "models":[
+                 {"id":"ATLAS-GP-40","length":19,"spots":[4,15]},
+                 {"id":"CONCOR-N70T","length":12,"spots":[5,7]}
+             ],
+             "vehicles":[
+                 {"id":"PFM4001","model":"ATLAS-GP-40"},
+                 {"id":"PFM1001","model":"CONCOR-N70T"},
+                 {"id":"PFM1002","model":"CONCOR-N70T"},
+                 {"id":"PFM1003","model":"CONCOR-N70T"}
+             ]
+         },
+         "track": {
+             "speeds":{"restricted": 10, "reverse": 20},
+             "distances":{"stop": 20, "slow": 35},
+             "catalog":"KatoUnitrackN",
+             "segments":[
+                 {"id":"MAIN-1","model":"20-026","line":"main","next":"main-2","start":0},
+                 {"id":"MAIN-2","model":"20-020","line":"main","next":"main-3"},
+                 {"id":"MAIN-3","model":"20-202","line":"main","next":"main-4","common":"main-4","branch":"side1-4"},
+                 {"id":"MAIN-4","model":"20-100","line":"main","next":"main-5","curve":1},
+                 {"id":"MAIN-5","model":"20-100","line":"main","next":"main-6","curve":1},
+                 {"id":"MAIN-6","model":"20-092-2","line":"main","next":"main-7"},
+                 {"id":"MAIN-7","model":"20-100","line":"main","next":"main-8","curve":1},
+                 {"id":"MAIN-8","model":"20-100","line":"main","next":"main-9","curve":1},
+                 {"id":"MAIN-9","model":"20-091-1","line":"main","next":"main-9B"},
+                 {"id":"MAIN-9B","model":"20-092-1","line":"main","next":"main-10"},
+                 {"id":"MAIN-10","model":"20-091-2","line":"main","next":"main-11"},
+                 {"id":"MAIN-11","model":"20-203","line":"main","next":"main-12","common":"main-10","branch":"side2-1"},
+                 {"id":"MAIN-12","model":"20-111","line":"main","next":"side3-6","curve":-1},
+                 {"id":"MAIN-13","model":"20-020","line":"main","next":"main-14"},
+                 {"id":"MAIN-14","model":"20-110","line":"main","next":"main-15","curve":1},
+                 {"id":"MAIN-15","model":"20-110","line":"main","next":"main-16","curve":1},
+                 {"id":"MAIN-16","model":"20-110","line":"main","next":"main-17","curve":1},
+                 {"id":"MAIN-17","model":"20-110","line":"main","next":"main-18","curve":1},
+                 {"id":"MAIN-18","model":"20-020","line":"main","next":"main-19"},
+                 {"id":"MAIN-19","model":"20-020","line":"main","next":"main-1"},
+                 {"id":"SIDE1-1","model":"20-020","line":"side1","next":"side1-2"},
+                 {"id":"SIDE1-2","model":"20-020","line":"side1","next":"side1-3"},
+                 {"id":"SIDE1-3","model":"20-020","line":"side1","next":"side1-4"},
+                 {"id":"SIDE1-4","model":"20-111","line":"side1","next":"main-3","curve":1},
+                 {"id":"SIDE2-1","model":"20-020","line":"side2","next":"side2-2"},
+                 {"id":"SIDE2-2","model":"20-020","line":"side2","next":"side2-3"},
+                 {"id":"SIDE2-3","model":"20-020","line":"side2","next":"side2-4"},
+                 {"id":"SIDE2-4","model":"20-020","line":"side2"},
+                 {"id":"SIDE3-1","model":"20-026","line":"side3","next":"side3-2","origin":[200000,0,180]},
+                 {"id":"SIDE3-2","model":"20-026","line":"side3","next":"side3-3"},
+                 {"id":"SIDE3-3","model":"20-020","line":"side3","next":"side3-4"},
+                 {"id":"SIDE3-4","model":"20-020","line":"side3","next":"side3-5"},
+                 {"id":"SIDE3-5","model":"20-020","line":"side3","next":"side3-6"},
+                 {"id":"SIDE3-6","model":"20-202","line":"side3","next":"main-13","common":"main-13","branch":"main-12"},
+             ],
+             "detectors":[
+                 {"id":"REED-1","line":"main","low":14,"high":15}
+             ]
+        }
+    }
+}
+
