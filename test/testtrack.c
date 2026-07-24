@@ -35,14 +35,21 @@
 #include <houseconfig.h>
 
 #include "../houserail_catalog.h"
+#include "../houserail_topology.h"
 #include "../houserail_track.h"
 
 #include "testlib.h"
 
 static const char *test_update (void) {
-    const char *error = houserail_track_reload ();
-    if (error) printf ("** Cannot load track topology: %s\n", error);
-    else printf ("== Track topology loaded.\n");
+
+    const char *error = houserail_topology_reload ();
+    if (error) {
+        printf ("** Cannot load track topology: %s\n", error);
+    } else {
+        error = houserail_track_reload ();
+        if (error) printf ("** Cannot load track topology: %s\n", error);
+        else printf ("== Track topology loaded.\n");
+    }
     return error;
 }
 
@@ -56,6 +63,7 @@ int main (int argc, const char **argv) {
     houseconfig_default ("--config=./testloop.json");
     houserail_catalog_default ("--catalog=.");
     houserail_catalog_initialize (argc, argv);
+    houserail_topology_initialize (argc, argv);
     houserail_track_initialize (argc, argv);
     const char *error = houseconfig_initialize ("testtrack", test_update, argc, argv);
     if (error) {

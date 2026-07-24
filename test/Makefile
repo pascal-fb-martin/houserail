@@ -23,8 +23,9 @@ SHARE=$(prefix)/share/house
 INSTALL=/usr/bin/install
 
 TRACKDEPENDENCIES=../houserail_path.o \
-                  ../houserail_track.o \
+                  ../houserail_topology.o \
                   ../houserail_scout.o \
+                  ../houserail_track.o \
                   ../houserail_catalog.o
 
 HAPP=houserail
