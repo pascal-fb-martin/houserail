@@ -25,6 +25,7 @@ const char *houserail_catalog_initialize (int argc, const char **argv);
 
 const char *houserail_catalog_load (const char *name);
 void houserail_catalog_set_scale (int scale);
+int  houserail_catalog_get_scale (void);
 void houserail_catalog_clear (void);
 
 int         houserail_catalog_present (int parent, const char *path);

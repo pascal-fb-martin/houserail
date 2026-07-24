@@ -20,16 +20,11 @@
  * houserail_track.h - Track topology and detectection.
  */
 
+#include "houserail_types.h"
+
 #ifndef HOUSERAIL_TRACK__H_DEFINED
 #define HOUSERAIL_TRACK__H_DEFINED
 const char *houserail_track_initialize (int argc, const char **argv);
-
-struct TrackRange {
-    const char *segment;
-    const char *line;
-    int low;
-    int high;
-};
 
 void houserail_track_testmode (int enabled);
 
@@ -44,19 +39,12 @@ void houserail_track_input (const char *name,
 void houserail_track_flush (void);
 
 const char *houserail_track_reload (void);
-int houserail_track_export (char *buffer, int size, const char *separator);
 int houserail_track_status (char *buffer, int size);
 int houserail_track_detectors (char *buffer, int size);
 
 void houserail_track_background (time_t now);
 
 // Navigate the track topology:
-
-struct TrackLocation {
-    const char *segment;
-    const char *line;
-    int post;
-};
 
 int houserail_track_vicinity (struct TrackLocation *point,
                               const char *id, int direction);

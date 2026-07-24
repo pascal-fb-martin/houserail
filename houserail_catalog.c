@@ -50,6 +50,11 @@
  *    use the scale factor from the catalog itself. This must be called
  *    after the catalog has been loaded.
  *
+ * int houserail_catalog_get_scale (void);
+ *
+ *    This returns the effective scale, either as specified above, or
+ *    the catalog's default.
+ *
  * void houserail_catalog_clear (void);
  *
  *    Clear all catalogs from memory. This is typically done before loading
@@ -209,6 +214,10 @@ const char *houserail_catalog_load (const char *name) {
 void houserail_catalog_set_scale (int scale) {
 
     if (scale > 0) CatalogScale = scale;
+}
+
+int houserail_catalog_get_scale (void) {
+    return CatalogScale;
 }
 
 void houserail_catalog_default (const char *arg) {

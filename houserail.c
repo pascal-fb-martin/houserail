@@ -55,6 +55,7 @@
 #include "housecontrol.h"
 
 #include "houserail_catalog.h"
+#include "houserail_topology.h"
 #include "houserail_field.h"
 #include "houserail_track.h"
 #include "houserail_train.h"
@@ -87,7 +88,7 @@ static int rail_export (void) {
     int c = rail_header (JsonBuffer, sizeof(JsonBuffer), ConfigState);
     int empty = c;
 
-    c += houserail_track_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
+    c += houserail_topology_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
     c += houserail_train_export (JsonBuffer+c, sizeof(JsonBuffer)-c, ",");
     if (c == empty) return 0;
     c += snprintf (JsonBuffer+c, sizeof(JsonBuffer)-c, "}}");
@@ -370,6 +371,8 @@ static const char *rail_update (void) {
 
     housestate_changed (ConfigState);
     const char *error = 0;
+    error = houserail_topology_reload ();
+    if (error) return error;
     error = houserail_track_reload ();
     if (error) return error;
     error = houserail_train_reload ();
@@ -431,6 +434,8 @@ int main (int argc, const char **argv) {
     if (error) goto fatal;
 
     error = houserail_field_initialize (housedepositor_group(), argc, argv);
+    if (error) goto fatal;
+    error = houserail_topology_initialize (argc, argv);
     if (error) goto fatal;
     error = houserail_track_initialize (argc, argv);
     if (error) goto fatal;

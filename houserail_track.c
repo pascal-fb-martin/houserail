@@ -68,11 +68,8 @@
  *
  * const char *houserail_track_reload (void);
  *
- *     Load a new configuration.
- *
- * int houserail_track_export (char *buffer, int size, const char *separator);
- *
- *     Export the current track configuration as JSON data.
+ *     Apply a newly reloaded configuration. Must be called right after
+ *     houserail_topology_reload().
  *
  * void houserail_track_background (time_t now);
  *
@@ -95,6 +92,11 @@
  * int houserail_track_restricted (void);
  *
  *     Return the restricted speed defined for this layout.
+ *
+ * int houserail_track_poll (void);
+ *
+ *     Return the field polling period as configured, or else a default value.
+ *     The value returned here is always valid, even during initialization.
  *
  * The functions below are used to move a train along the track. The path
  * followed depend on the position of the switches, like a train would.
@@ -158,16 +160,6 @@
  *     Update a signal state. This is designed to be used as a listener
  *     or through a web request. Return 0 on success, an error message on
  *     failure.
- *
- * int houserail_track_poll (void);
- *
- *     Return the field polling period as configured, or else a default value.
- *     The value returned here is always valid, even during initialization.
- *
- * LIMITATIONS:
- *
- * This design is limited to 256 segments for now. To remove this restriction,
- * change echttp_hash.[hc] to allow the caller to set the size of the hash.
  */
 
 #include <time.h>
@@ -182,165 +174,62 @@
 #include <houselog.h>
 #include <houseconfig.h>
 
-#include "houserail_catalog.h"
+#include "houserail_topology.h"
 #include "houserail_scout.h"
 #include "houserail_track.h"
 
 static int TestMode = 0;
 #define DEBUG if (TestMode || echttp_isdebug()) printf
 
-static int TrackFieldPollPeriod = 200; // Default value, see configuration.
-static int TrackRestrictedSpeed = 0; // See configuration.
-static int SwitchReverseSpeed = 0;   // See configuration.
-static int TrackStopDistance = 0;    // See configuration.
-static int TrackSlowDistance = 0;    // See configuration.
+// This data structure "augments" the TrackSegment table with current status.
+//
+struct TrackSegmentLive {
 
-static DetectionListener *TrackNextListener = 0;
-
-static const char *LayoutName = 0;
-static const char *LayoutDescription = 0;
-
-struct TrackModel {
-    const char *id;
-    unsigned int signature; // Seach accelerator.
-
-    int length;  // Length on the normal side.
-    int reverse; // Length on the reverse side, 0 if not a switch.
-    int civil;   // Civil speed limit on that track.
-};
-
-struct TrackSegment {
-    const char *id;
-    unsigned int signature; // Seach accelerator.
-
-    const char *line; // The name of the line going through the normal points.
-    int start;        // Starting milepost for this segment (optional).
-
-    // The following attributes are calculated by following the linkages.
-
-    int model;
-    int next;     // Link from exit point to the next segment. -1 if none.
-    int previous; // Link from entry point to the previous segment. -1 if none.
-
-    // The following items are for switches only, valid if branch >= 0.
-    int common;   // The adjacent segment connected to the common switch end
-    int branch;   // The adjacent segment connected to the reverse point.
     int needle;   // The adjacent segment connected to the needle's position.
 
     // The following items are to handle end of track.
     int ending;   // 1: ending up, -1: ending down, 0: no end near.
     struct TrackRange stop;
     struct TrackRange slow;
-
-    // The following attributes are calculated by following the topology from
-    // the terminal point marked as the origin.
-    int low;
-    int high;
-
-    int detector; // First detector on this segment.
 };
 
-struct TrackDetector {
-    const char *id;
-    unsigned int signature; // Seach accelerator.
+// This data structure "augments" the TrackDetector table with current status.
+//
+struct TrackDetectorLive {
 
-    int segment;
-    int next;     // Next detector on the same segment.
-    struct TrackRange area; // RESTRICTION: a detector covers only one segment.
-
-    // The following is the live status.
-    struct {
-        int occupied;
-        long long timestamp;
-    } live;
+    int occupied;
+    long long timestamp;
 };
 
-static struct TrackModel *LayoutModels = 0;
-static int                LayoutModelsCount = 0;
+static DetectionListener *TrackNextListener = 0;
 
-static struct TrackSegment *LayoutSegments = 0;
-static int                  LayoutSegmentsCount = 0;
+static const struct TrackOptions *LayoutOptions = 0;
 
-static struct TrackDetector *LayoutDetectors = 0;
-static int                   LayoutDetectorsCount = 0;
+static const struct TrackModel *LayoutModels = 0;
+static int                      LayoutModelsCount = 0;
 
-static echttp_hash       LayoutSegmentsHash;
-static int              *LayoutSegmentsMap = 0;
-static struct RangeIndex LayoutSegmentsIndex;
+static const struct TrackSegment *LayoutSegments = 0;
+static struct TrackSegmentLive   *LayoutSegmentsLive = 0;
+static int                        LayoutSegmentsCount = 0;
 
-static echttp_hash LayoutDetectorsHash;
-static int        *LayoutDetectorsMap = 0;
+static const struct TrackDetector *LayoutDetectors = 0;
+static struct TrackDetectorLive   *LayoutDetectorsLive = 0;
+static int                         LayoutDetectorsCount = 0;
 
 
 void houserail_track_testmode (int enabled) {
     TestMode = enabled;
 }
 
-static int houserail_track_search_model (const char *id) {
+static const struct TrackDetector *houserail_track_search_detector (const char *id) {
 
-    if (!id) return -1;
-    int signature = echttp_hash_signature (id);
-
-    int i;
-    for (i = 0; i < LayoutModelsCount; ++i) {
-        if (LayoutModels[i].signature != signature) continue;
-        if (strsame (LayoutModels[i].id, id)) return i;
-    }
-    return -1;
-}
-
-static int houserail_track_search_by_id (const char *id) {
-
-    if (!id) return -1;
-
-    int i = echttp_hash_find (&LayoutSegmentsHash, id);
-    if ((i > 0) && (i <= LayoutSegmentsCount)) {
-        return LayoutSegmentsMap[i];
-    }
-
-    // For now: if not in the hash, fallback to linear search.
-    // FIXME: improve echttp_hash to support variable size.
-
-    int signature = echttp_hash_signature (id);
-
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
-        if (LayoutSegments[i].signature != signature) continue;
-        if (strsame (LayoutSegments[i].id, id)) return i;
-    }
-    return -1;
-}
-
-static int houserail_track_search_by_location (const char *line, int post) {
-
-    return houserail_scout_inside (&LayoutSegmentsIndex, line, post);
-}
-
-static struct TrackDetector *houserail_track_search_detector (const char *id) {
-
-    if (!id) return 0;
-
-    int i = echttp_hash_find (&LayoutDetectorsHash, id);
-    if ((i > 0) && (i <= LayoutDetectorsCount)) {
-        return LayoutDetectors + LayoutDetectorsMap[i];
-    }
-
-    // For now: if not in the hash, fallback to linear search.
-    // FIXME: improve echttp_hash to support variable size.
-
-    int signature = echttp_hash_signature (id);
-
-    for (i = 0; i < LayoutDetectorsCount; ++i) {
-        struct TrackDetector *detector = LayoutDetectors + i;
-        if (detector->signature != signature) continue;
-        if (!detector->id) continue;
-        if (strsame (detector->id, id)) return detector;
-    }
-    return 0;
+    int index = houserail_topology_search_detector (id);
+    if (index < 0) return 0;
+    return LayoutDetectors + index;
 }
 
 const char *houserail_track_initialize (int argc, const char **argv) {
 
-    houserail_scout_initialize (&LayoutSegmentsIndex, 0);
     return 0;
 }
 
@@ -355,13 +244,17 @@ DetectionListener *houserail_track_subscribe (DetectionListener *listener) {
 void houserail_track_input (const char *name,
                             long long timestamp, const char *state) {
 
-    struct TrackDetector *detector = houserail_track_search_detector (name);
-    if (!detector) return;
+    int detectorindex = houserail_topology_search_detector (name);
+    if (detectorindex < 0) return;
+
+    const struct TrackDetector *detector = LayoutDetectors + detectorindex;
     if (detector->segment < 0) return;
 
+    struct TrackDetectorLive *status = LayoutDetectorsLive + detectorindex;
     int occupied = strsame (state, "on");
-    if (occupied == detector->live.occupied) return;
-    detector->live.occupied = occupied;
+    if (occupied == status->occupied) return;
+    status->occupied = occupied;
+    status->timestamp = timestamp;
 
     houselog_event ("DETECTOR", name, "CHANGED",
                     "%s AT %lld (%s %d TO %d)",
@@ -378,422 +271,59 @@ void houserail_track_flush (void) {
 
 const char *houserail_track_reload (void) {
 
-    if (LayoutModels) {
-       free (LayoutModels);
-       LayoutModels = 0;
-       LayoutModelsCount = 0;
+    if (LayoutSegmentsLive) {
+       free (LayoutSegmentsLive);
+       LayoutSegmentsLive = 0;
     }
-    if (LayoutSegments) {
-       free (LayoutSegments);
-       LayoutSegments = 0;
-       LayoutSegmentsCount = 0;
+    if (LayoutDetectorsLive) {
+        free (LayoutDetectorsLive);
+        LayoutDetectorsLive= 0;
     }
-    if (LayoutSegmentsMap) {
-       free (LayoutSegmentsMap);
-       LayoutSegmentsMap = 0;
-    }
-    if (LayoutDetectors) {
-        free (LayoutDetectors);
-        LayoutDetectors= 0;
-    }
-    if (LayoutDetectorsMap) {
-        free (LayoutDetectorsMap);
-        LayoutDetectorsMap = 0;
-    }
-    houserail_scout_erase (&LayoutSegmentsIndex);
 
-    LayoutName = houseconfig_string (0, ".rail.layout");
-    if (!LayoutName) return "No track layout name";
-    LayoutDescription = houseconfig_string (0, ".rail.description");
+    LayoutOptions = houserail_topology_options ();
 
-    // Calculate the size needed for each array.
+    LayoutModels      = houserail_topology_models ();
+    LayoutModelsCount = houserail_topology_model_count ();
 
-    int track = houseconfig_object (0, ".rail.track");
-    if (track < 0) return "No track topology found";
+    LayoutSegments      = houserail_topology_segments ();
+    LayoutSegmentsCount = houserail_topology_segment_count ();
 
-    int models = houseconfig_array (track, ".models");
-    int configmodelcount = 0;
-    if (models >= 0) configmodelcount = houseconfig_array_length (models);
+    LayoutSegmentsLive =
+        calloc (LayoutSegmentsCount, sizeof(struct TrackSegmentLive));
 
-    int catalogmodels = 0;
-    int catalogmodelcount = 0;
-    const char *catalog = houseconfig_string (track, ".catalog");
-    if (catalog) {
-        const char *error = houserail_catalog_load (catalog);
-        if (error) return error;
+    LayoutDetectors      = houserail_topology_detectors ();
+    LayoutDetectorsCount = houserail_topology_detector_count ();
 
-        catalogmodels = houserail_catalog_array (0, ".track.models");
-        if (catalogmodels < 0) return "Empty track in catalog";
-        catalogmodelcount = houserail_catalog_array_length (catalogmodels);
-        if (catalogmodelcount <= 0) return "Empty track.models in catalog";
-    }
-    LayoutModelsCount = configmodelcount + catalogmodelcount;
-    if (LayoutModelsCount <= 0) return "Empty track model list";
+    LayoutDetectorsLive =
+        calloc (LayoutDetectorsCount, sizeof(struct TrackDetectorLive));
 
-    int segments = houseconfig_array (track, ".segments");
-    if (segments < 0) return "No track segments found";
-
-    LayoutSegmentsCount = houseconfig_array_length (segments);
-    if (LayoutSegmentsCount <= 0) return "Empty track segment list";
-
-    int detectors = houseconfig_array (track, ".detectors");
-    if (detectors < 0) return "No track detectors found";
-
-    LayoutDetectorsCount = houseconfig_array_length (detectors);
-    if (LayoutDetectorsCount <= 0) return "Empty track detectors list";
-
-    int max = LayoutModelsCount;
-    if (LayoutSegmentsCount > max) max = LayoutSegmentsCount;
-    if (LayoutDetectorsCount > max) max = LayoutDetectorsCount;
-    int *list = calloc (max, sizeof(int));
-
-    DEBUG (__FILE__ ": %d models, %d segments, %d detectors\n",
-           LayoutModelsCount, LayoutSegmentsCount, LayoutDetectorsCount);
-
-    // Populate the models array.
-
-    LayoutModels = calloc (LayoutModelsCount, sizeof(struct TrackModel));
-    houseconfig_enumerate (models, list, max);
-
+    // Update the segment status.
+    //
     int i;
-    for (i = 0; i < configmodelcount; ++i) {
-        int element = list[i];
-        struct TrackModel *model = LayoutModels + i;
-        model->id = houseconfig_string (element, ".id");
-        model->signature = echttp_hash_signature (model->id);
-
-        model->length = houseconfig_integer (element, ".length");
-        model->reverse = houseconfig_integer (element, ".reverse");
-        model->civil = houseconfig_integer (element, ".civil");
-        if (model->reverse > 0) {
-            DEBUG (__FILE__ ": Model %s civil speed %d length %d (%d on reverse branch)\n",
-                   model->id, model->civil, model->length, model->reverse);
-        } else {
-            DEBUG (__FILE__ ": Model %s civil speed %d length %d\n",
-                   model->id, model->civil, model->length);
-        }
-    }
-
-    // Add the models from the catalog, if any.
-
-    if (catalog) {
-        houserail_catalog_enumerate (catalogmodels, list, max);
-        int c;
-        for (c = 0; c < catalogmodelcount; ++i, ++c) {
-            int element = list[c];
-            struct TrackModel *model = LayoutModels + i;
-            model->id = houserail_catalog_string (element, ".id");
-            model->signature = echttp_hash_signature (model->id);
-
-            model->length = houserail_catalog_integer (element, ".length");
-            model->reverse = houserail_catalog_integer (element, ".reverse");
-            model->civil = houserail_catalog_integer (element, ".civil");
-            if (model->reverse > 0) {
-                DEBUG (__FILE__ ": Model %s civil speed %d length %d (%d on reverse branch)\n",
-                       model->id, model->civil, model->length, model->reverse);
-            } else {
-                DEBUG (__FILE__ ": Model %s civil speed %d length %d\n",
-                       model->id, model->civil, model->length);
-            }
-        }
-    }
-
-    // Populate the segments array.
-
-    LayoutSegments = calloc (LayoutSegmentsCount, sizeof(struct TrackSegment));
-    houseconfig_enumerate (segments, list, LayoutSegmentsCount);
-
-    struct Linkage {
-        const char *previous;
-        const char *next;
-        const char *common;
-        const char *branch;
-    } *temp = calloc (LayoutSegmentsCount, sizeof(struct Linkage));
-
-    echttp_hash_reset (&LayoutSegmentsHash, 0);
-    LayoutSegmentsMap = calloc (LayoutSegmentsCount+1, sizeof(int));
-
     for (i = 0; i < LayoutSegmentsCount; ++i) {
-        int element = list[i];
-        struct TrackSegment *segment = LayoutSegments + i;
-        segment->id = houseconfig_string (element, ".id");
-        if (!segment->id) {
-            DEBUG (__FILE__ ": Error on segment at index %d\n", i);
-            return "invalid segment (no id)";
-        }
-        segment->signature =
-            echttp_hash_signature (segment->id);
 
-        segment->line = houseconfig_string (element, ".line");
-        if (!segment->line) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
-            return "invalid segment (no line)";
-        }
-        const char *modelid = houseconfig_string (element, ".model");
-        if (!modelid) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
-            return "invalid segment (no model)";
-        }
-        segment->model = houserail_track_search_model (modelid);
+        const struct TrackSegment *segment = LayoutSegments + i;
+        struct TrackSegmentLive *status = LayoutSegmentsLive + i;
 
-        if (houseconfig_present (element, ".start"))
-            segment->start = houseconfig_integer (element, ".start");
-        else
-            segment->start = -1;
-        segment->low = segment->high = -1; // To be calculated later.
-        segment->detector = -1; // List will be built later.
+        status->ending = 0; // Calculated later, if near to a track end.
+        status->stop.line = status->slow.line = 0; // Calculated later.
 
-        segment->ending = 0; // Calculated later, if near to a track end.
-        segment->stop.line = segment->slow.line = 0; // Calculated later.
-
-        temp[i].previous = houseconfig_string (element, ".previous");
-        temp[i].next = houseconfig_string (element, ".next");
-        temp[i].common = houseconfig_string (element, ".common");
-        temp[i].branch = houseconfig_string (element, ".branch");
-
-        int index = echttp_hash_insert (&LayoutSegmentsHash, segment->id);
-        if ((index > 0) && (index <= LayoutSegmentsCount))
-            LayoutSegmentsMap[index] = i;
-    }
-
-    // Resolve the segment linkages
-
-    int switchcount = 0;
-
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
-        struct TrackSegment *segment = LayoutSegments + i;
-
-        // Allow the 'previous' field to be optional.
-        // Obviously, a next link is preferred, but, if there is none
-        // a branch link is fine too.
-        // TBD: use a faster method than linear search inside a loop..
-        if (!temp[i].previous) {
-            int j;
-            // At first search a good candidate from all the next fields,
-            // except one that points to the branch of a switch.
-            for (j = 0; j < LayoutSegmentsCount; ++j) {
-                if (j == i) continue; // No self-reference allowed.
-                if (strsame (LayoutSegments[j].id, temp[i].branch)) continue;
-                if (strsame (temp[j].next, segment->id)) {
-printf ("--- Infer from next that %s previous is %s\n", segment->id, LayoutSegments[j].id);
-                    temp[i].previous = LayoutSegments[j].id;
-                    break;
-                }
-            }
-            if (!temp[i].previous) {
-                // If we could not retrieve the previous from the next fields,
-                // Then the previous might be a branch. Avoid using a branch
-                // that the next points to..
-                for (j = 0; j < LayoutSegmentsCount; ++j) {
-                    if (j == i) continue; // No self-reference allowed.
-                    if (strsame (LayoutSegments[j].id, temp[i].next)) continue;
-                    if (strsame (temp[j].branch, segment->id)) {
-printf ("--- Infer from branch that %s previous is %s\n", segment->id, LayoutSegments[j].id);
-                        temp[i].previous = LayoutSegments[j].id;
-                        break;
-                    }
-                }
-            }
-        }
-        if ((!temp[i].previous) && (!temp[i].next)) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
-            return "isolated segment";
-        }
-
-        segment->previous = houserail_track_search_by_id (temp[i].previous);
-        if ((segment->previous < 0) && temp[i].previous) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
-            return "invalid previous link";
-        }
-        segment->next = houserail_track_search_by_id (temp[i].next);
-        if ((segment->next < 0) && temp[i].next) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
-            return "invalid previous link";
-        }
-
-        segment->branch = houserail_track_search_by_id (temp[i].branch);
-        if (segment->branch >= 0) {
+        status->needle = -1;
+        if (segment->common >= 0) {
             // Default state of switch is 'normal'.
-            segment->common = houserail_track_search_by_id (temp[i].common);
-            segment->needle = (segment->common == segment->next)? segment->previous : segment->next;
-            switchcount += 1;
-        } else {
-            segment->common = segment->needle = -1;
-        }
-    }
-    free (temp);
-
-    // Find the first track on each line, and follow the layout to calculate
-    // the low and high post for each segment.
-    // (This is not a very efficient loop. Make it better later, if needed.)
-    //
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
-        struct TrackSegment *segment = LayoutSegments + i;
-        if (segment->low >= 0) continue; // Already processed.
-        int startpost = (segment->start > 0)?segment->start:0;
-        int isstart = ((segment->start >= 0) || (segment->previous < 0));
-        if (!isstart) {
-           // A branch starts at the common point of a switch, if the current
-           // segment starts at the switch (and not ends at the switch).
-           struct TrackSegment *previous = LayoutSegments + segment->previous;
-           if (previous->branch == i) {
-              isstart = 1; // This starts from a switch reverse branch.
-              startpost = LayoutModels[previous->model].reverse;
-           }
-        }
-        if (isstart) {
-           DEBUG (__FILE__ ": Segment %s is a starting point for line %s post %d\n",
-                  segment->id, segment->line, startpost);
-           segment->low = (segment->start >= 0) ? segment->start : startpost;
-           segment->high = segment->low + LayoutModels[segment->model].length;
-
-           struct TrackSegment *cursor = segment;
-           int next;
-           int high = cursor->high;
-           for (next = segment->next; next >= 0; ) {
-               LayoutSegments[next].low = high;
-               cursor = LayoutSegments + next;
-               high = cursor->high =
-                   cursor->low + LayoutModels[cursor->model].length;
-
-               // Stop when the line ends, the following segment was already
-               // processed or when reaching a different line (usually a
-               // switch).
-               if (cursor->next < 0) break;
-               if (LayoutSegments[cursor->next].low >= 0) break;
-
-               if (!strsame (LayoutSegments[cursor->next].line, cursor->line)) {
-
-                   // Special case: the next is a switch, the line name is the
-                   // same on the common and branch segments.
-                   struct TrackSegment *successor = LayoutSegments + cursor->next;
-                   if ((successor->branch == next) &&
-                       strsame (LayoutSegments[successor->common].line, cursor->line)) {
-                       next = successor->common;
-                       high += LayoutModels[successor->model].reverse;
-                       continue;
-                   }
-                   if ((successor->common == next) &&
-                       strsame (LayoutSegments[successor->branch].line, cursor->line)) {
-                       next = successor->branch;
-                       high += LayoutModels[successor->model].reverse;
-                       continue;
-                   }
-                   break;
-               }
-               next = cursor->next;
-           }
+            status->needle =
+               (segment->common == segment->next)? segment->previous : segment->next;
         }
     }
 
-    // Create the segment index to accelerate segment retrieval by location.
-    //
-    houserail_scout_initialize (&LayoutSegmentsIndex,
-                                LayoutSegmentsCount + switchcount);
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
-        struct TrackSegment *segment = LayoutSegments + i;
-        houserail_scout_add (&LayoutSegmentsIndex,
-                             i, segment->line, segment->low, segment->high);
-        DEBUG (__FILE__ ": Segment %s on %s %d to %d (between %s and %s)\n",
-               segment->id, segment->line, segment->low, segment->high,
-               (segment->previous >= 0)?LayoutSegments[segment->previous].id:"(none)",
-               (segment->next >= 0)?LayoutSegments[segment->next].id:"(none)");
-        if (segment->branch >= 0) {
-            struct TrackSegment *branch = LayoutSegments + segment->branch;
-            int low, high;
-            int reverse = LayoutModels[segment->model].reverse;
-            int branchprevious, branchnext;
-            if (branch->previous == i) {
-                // Increasing posts
-                low = branch->low - reverse;
-                high = branch->low;
-                branchprevious = segment->previous;
-                branchnext = segment->branch;
-            } else {
-                // Decreasing posts
-                low = branch->high;
-                high = low + reverse;
-                branchprevious = segment->branch;
-                branchnext = segment->next;
-            }
-            houserail_scout_add (&LayoutSegmentsIndex,
-                                 i, branch->line, low, high);
-            DEBUG (__FILE__ ": Segment %s is a switch, branch on %s %d to %d (between %s and %s)\n",
-                   segment->id, branch->line, low, high,
-                   LayoutSegments[branchprevious].id,
-                   LayoutSegments[branchnext].id);
-        }
-    }
-    houserail_scout_finalize (&LayoutSegmentsIndex);
-
-    // Populate the detectors array.
-
-    echttp_hash_reset (&LayoutDetectorsHash, 0);
-
-    LayoutDetectorsMap = calloc (LayoutDetectorsCount+1, sizeof(int));
-    LayoutDetectors = calloc (LayoutDetectorsCount, sizeof(struct TrackDetector));
-    houseconfig_enumerate (detectors, list, LayoutDetectorsCount);
+    // Update the detectors status.
 
     for (i = 0; i < LayoutDetectorsCount; ++i) {
-        int element = list[i];
-        struct TrackDetector *detector = LayoutDetectors + i;
-        detector->id = houseconfig_string (element, ".id");
-        detector->signature = echttp_hash_signature (detector->id);
 
-        detector->area.line = houseconfig_string (element, ".line");
-        detector->area.segment = 0;
-        detector->area.low = houseconfig_integer (element, ".low");
-        detector->area.high = houseconfig_integer (element, ".high");
-
-        detector->segment =
-            houserail_track_search_by_location (detector->area.line, detector->area.low);
-        if (detector->segment < 0) {
-            DEBUG (__FILE__ ": Invalid location for detector %s\n", detector->id);
-            continue;
-        }
-        struct TrackSegment *segment = LayoutSegments + detector->segment;
-        DEBUG (__FILE__ ": Detector %s is on segment %s covers %s %d to %d\n",
-               detector->id, segment->id,
-               detector->area.line, detector->area.low, detector->area.high);
-        detector->next = segment->detector;
-        segment->detector = i;
-        detector->area.segment = segment->id;
-
-        detector->live.occupied = 0;
-        detector->live.timestamp = 0;
-
-        int index = echttp_hash_insert (&LayoutDetectorsHash, detector->id);
-        if ((index > 0) && (index <= LayoutDetectorsCount))
-            LayoutDetectorsMap[index] = i;
+        struct TrackDetectorLive *status = LayoutDetectorsLive + i;
+        status->occupied = 0;
+        status->timestamp = 0;
     }
-
-    // When everything went well, set the global options for this layout.
-
-    int value = houseconfig_integer (track, ".speeds.restricted");
-    if (value <= 0) return "No Restricted speed found";
-    TrackRestrictedSpeed = value;
-    DEBUG (__FILE__ ": Restricted speed set to %d\n", TrackRestrictedSpeed);
-
-    value = houseconfig_integer (track, ".speeds.reverse");
-    if (value <= 0) return "No switch reverse speed found";
-    SwitchReverseSpeed = value;
-    DEBUG (__FILE__ ": Switch reverse speed set to %d\n", SwitchReverseSpeed);
-
-    value = houseconfig_integer (track, ".periods.poll");
-    if (value > 0) {
-        if ((value < 10) || (value >= 1000)) return "Invalid poll period";
-        TrackFieldPollPeriod = value;
-    }
-
-    value = houseconfig_integer (track, ".distances.stop");
-    if (value <= 0) return "No stop distance found";
-    TrackStopDistance = value;
-    DEBUG (__FILE__ ": Stop distance set to %d\n", TrackStopDistance);
-
-    value = houseconfig_integer (track, ".distances.slow");
-    if (value <= 0) return "No slow distance found";
-    TrackSlowDistance = value;
-    DEBUG (__FILE__ ": Slow distance set to %d\n", TrackSlowDistance);
 
     // Preprocessing for end of track.
     // The goal here is to automatically slow trains when they approach,
@@ -806,97 +336,115 @@ printf ("--- Infer from branch that %s previous is %s\n", segment->id, LayoutSeg
         struct TrackRange slow;
         struct TrackRange stop;
         slow.line = stop.line = 0;
-        struct TrackSegment *segment = LayoutSegments + i;
+        const struct TrackSegment *segment = LayoutSegments + i;
 
         if (segment->next < 0) {
 
            // The end of line is met while going in the up direction
            // This code backtrack in the down direction to find where
            // the stop and slow areas start.
+
            stop.line = slow.line = segment->line;
            stop.high = segment->high; // That's the end point.
-           stop.low = segment->high - TrackStopDistance;
+           stop.low = segment->high - LayoutOptions->stopDistance;
            slow.high = stop.low;
-           slow.low = segment->high - TrackSlowDistance;
+           slow.low = segment->high - LayoutOptions->slowDistance;
            DEBUG (__FILE__ ": track %s ends up at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->high, slow.low, slow.high, stop.low, stop.high);
 
-           struct TrackSegment *cursor = segment;
+           const struct TrackSegment *cursor = segment;
+           struct TrackSegmentLive *status = LayoutSegmentsLive + i;
+
            while (stop.low < cursor->high) {
+
               stop.segment = cursor->id;
-              cursor->ending = 1;
-              cursor->stop = stop;
-              if (cursor->high < cursor->stop.high)
-                  cursor->stop.high = cursor->high;
+              status->ending = 1;
+              status->stop = stop;
+              if (cursor->high < status->stop.high)
+                  status->stop.high = cursor->high;
               if (stop.low > cursor->low) break; // The stop area ends here
-              cursor->stop.low = cursor->low;
+              status->stop.low = cursor->low;
               DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
-                     cursor->id, cursor->stop.low, cursor->stop.high);
+                     cursor->id, status->stop.low, status->stop.high);
+
               if (cursor->previous < 0) goto nextend;
               cursor = LayoutSegments + cursor->previous;
+              status = LayoutSegmentsLive + cursor->previous;
               if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
-                  cursor->id, cursor->stop.low, cursor->stop.high);
+                  cursor->id, status->stop.low, status->stop.high);
 
            while (slow.low < cursor->high) {
+
               slow.segment = cursor->id;
-              cursor->ending = 1;
-              cursor->slow = slow;
-              if (cursor->high < cursor->slow.high)
-                  cursor->slow.high = cursor->high;
+              status->ending = 1;
+              status->slow = slow;
+              if (cursor->high < status->slow.high)
+                  status->slow.high = cursor->high;
               if (slow.low > cursor->low) break; // The slow area ends here
-              cursor->slow.low = cursor->low;
+              status->slow.low = cursor->low;
               DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
-                     cursor->id, cursor->slow.low, cursor->slow.high);
+                     cursor->id, status->slow.low, status->slow.high);
               if (cursor->previous < 0) goto nextend;
               cursor = LayoutSegments + cursor->previous;
+              status = LayoutSegmentsLive + cursor->previous;
               if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
-                  cursor->id, cursor->slow.low, cursor->slow.high);
+                  cursor->id, status->slow.low, status->slow.high);
 
         } else if (segment->previous < 0) {
 
            // The end of line is met while going in the down direction
            // This code backtrack in the up direction to find where
            // the stop and slow areas start.
+
            stop.line = slow.line = segment->line;
            stop.low = segment->low; // That's the end point.
-           stop.high = segment->low + TrackStopDistance;
+           stop.high = segment->low + LayoutOptions->stopDistance;
            slow.low = stop.high;
-           slow.high = segment->low + TrackSlowDistance;
+           slow.high = segment->low + LayoutOptions->slowDistance;
            DEBUG (__FILE__ ": track %s ends down at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->low, slow.low, slow.high, stop.low, stop.high);
 
-           struct TrackSegment *cursor = segment;
+           const struct TrackSegment *cursor = segment;
+           struct TrackSegmentLive *status = LayoutSegmentsLive + i;
+
            while (stop.high > cursor->low) {
+
               stop.segment = cursor->id;
-              cursor->ending = -1;
-              cursor->stop = stop;
-              if (cursor->low > cursor->stop.low)
-                  cursor->stop.low = cursor->low;
+              status->ending = -1;
+              status->stop = stop;
+
+              if (cursor->low > status->stop.low)
+                  status->stop.low = cursor->low;
               if (stop.high < cursor->high) break; // The stop area ends here
-              cursor->stop.high = cursor->high;
+              status->stop.high = cursor->high;
               DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
-                     cursor->id, cursor->stop.low, cursor->stop.high);
+                     cursor->id, status->stop.low, status->stop.high);
+
               if (cursor->next < 0) goto nextend;
               cursor = LayoutSegments + cursor->next;
+              status = LayoutSegmentsLive + cursor->next;
               if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
-                  cursor->id, cursor->stop.low, cursor->stop.high);
+                  cursor->id, status->stop.low, status->stop.high);
 
            while (slow.high > cursor->low) {
               slow.segment = cursor->id;
-              cursor->ending = -1;
-              cursor->slow = slow;
-              if (cursor->low > cursor->slow.low)
-                  cursor->slow.low = cursor->low;
+              status->ending = -1;
+              status->slow = slow;
+
+              if (cursor->low > status->slow.low)
+                  status->slow.low = cursor->low;
               if (slow.high < cursor->high) break; // The slow area ends here
-              cursor->slow.high = cursor->high;
+              status->slow.high = cursor->high;
               DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
-                     cursor->id, cursor->slow.low, cursor->slow.high);
+                     cursor->id, status->slow.low, status->slow.high);
+
               if (cursor->next < 0) goto nextend;
               cursor = LayoutSegments + cursor->next;
+              status = LayoutSegmentsLive + cursor->next;
               if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
@@ -914,136 +462,6 @@ printf ("--- Infer from branch that %s previous is %s\n", segment->id, LayoutSeg
     return 0;
 }
 
-int houserail_track_export (char *buffer, int size, const char *separator) {
-
-    if (!LayoutName) return 0; // No track layout was loaded.
-
-    int cursor = snprintf (buffer, size,
-                           "%s\"layout\":\"%s\"", separator, LayoutName);
-    if (cursor >= size) goto overflow;
-    if (LayoutDescription) {
-        cursor += snprintf (buffer+cursor, size-cursor,
-                            ",\"description\":\"%s\"", LayoutDescription);
-        if (cursor >= size) goto overflow;
-    }
-    cursor += snprintf (buffer+cursor, size-cursor, ",\"track\":{");
-    if (cursor >= size) goto overflow;
-    int preamble = cursor;
-
-    // Populate the global parameters
-
-    cursor += snprintf (buffer+cursor, size-cursor,
-                        ",\"speeds\":{\"restricted\":%d,\"reverse\":%d}",
-                        TrackRestrictedSpeed, SwitchReverseSpeed);
-    if (cursor >= size) goto overflow;
-
-    cursor += snprintf (buffer+cursor, size-cursor, 
-                        ",\"periods\":{\"poll\":%d}", TrackFieldPollPeriod);
-    if (cursor >= size) goto overflow;
-
-    cursor += snprintf (buffer+cursor, size-cursor,
-                        ",\"distances\":{\"stop\":%d,\"slow\":%d}",
-                        TrackStopDistance, TrackSlowDistance);
-    if (cursor >= size) goto overflow;
-
-    // Populate the models array.
-
-    const char *prefix = "\"models\":[";
-    int start = cursor;
-    int i;
-    for (i = 0; i < LayoutModelsCount; ++i) {
-        struct TrackModel *model = LayoutModels + i;
-        cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s{\"id\":\"%s\""
-                                ",\"length\":%d,\"reverse\":%d,\"civil\":%d}",
-                            prefix, model->id, model->length,
-                                    model->reverse, model->civil);
-        if (cursor >= size) goto overflow;
-        prefix = ",";
-    }
-    if (cursor > start) {
-        cursor += snprintf (buffer+cursor, size-cursor, "]");
-        if (cursor >= size) goto overflow;
-    }
-
-    // Populate the segments array.
-
-    prefix = (cursor > preamble)?",\"segments\":[":"\"segments\":[";
-    start = cursor;
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
-        struct TrackSegment *segment = LayoutSegments + i;
-        cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s{\"id\":\"%s\",\"model\":\"%s\","
-                                "\"line\":\"%s\"",
-                            prefix,
-                            segment->id, LayoutModels[segment->model].id,
-                            segment->line);
-        if (cursor >= size) goto overflow;
-        if (segment->start >= 0) {
-            cursor += snprintf (buffer+cursor, size-cursor,
-                                ",\"start\":%d", segment->start);
-            if (cursor >= size) goto overflow;
-        }
-        if (segment->previous >= 0) {
-            cursor += snprintf (buffer+cursor, size-cursor,
-                                ",\"previous\":\"%s\"",
-                                LayoutSegments[segment->previous].id);
-            if (cursor >= size) goto overflow;
-        }
-        if (segment->next >= 0) {
-            cursor += snprintf (buffer+cursor, size-cursor,
-                                ",\"next\":\"%s\"",
-                                LayoutSegments[segment->next].id);
-            if (cursor >= size) goto overflow;
-        }
-        if (segment->branch >= 0) {
-            cursor += snprintf (buffer+cursor, size-cursor,
-                                ",\"branch\":\"%s\"",
-                                LayoutSegments[segment->branch].id);
-            if (cursor >= size) goto overflow;
-        }
-        if (segment->common >= 0) {
-            cursor += snprintf (buffer+cursor, size-cursor,
-                                ",\"common\":\"%s\"",
-                                LayoutSegments[segment->common].id);
-            if (cursor >= size) goto overflow;
-        }
-        cursor += snprintf (buffer+cursor, size-cursor, "}");
-        if (cursor >= size) goto overflow;
-        prefix = ",";
-    }
-    if (cursor > start) {
-        cursor += snprintf (buffer+cursor, size-cursor, "]");
-        if (cursor >= size) goto overflow;
-    }
-
-    // Populate the detectors array.
-
-    prefix = (cursor > preamble)?",\"detectors\":[":"\"detectors\":[";
-    start = cursor;
-    for (i = 0; i < LayoutDetectorsCount; ++i) {
-        struct TrackDetector *detector = LayoutDetectors + i;
-        cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s{\"id\":\"%s\",\"line\":\"%s\","
-                                "\"low\":%d,\"high\":%d}",
-                            prefix,
-                            detector->id, detector->area.line,
-                            detector->area.low, detector->area.high);
-        if (cursor >= size) goto overflow;
-        prefix = ",";
-    }
-    if (cursor > start) {
-        cursor += snprintf (buffer+cursor, size-cursor, "]");
-        if (cursor >= size) goto overflow;
-    }
-    cursor += snprintf (buffer+cursor, size-cursor, "}");
-
-    return cursor;
-
-overflow:
-    return 0;
-}
-
 static int houserail_track_status_track (char *buffer, int size) {
 
     int cursor = 0;
@@ -1051,11 +469,11 @@ static int houserail_track_status_track (char *buffer, int size) {
 
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
-        struct TrackSegment *segment = LayoutSegments + i;
+        const struct TrackSegment *segment = LayoutSegments + i;
         const char *state = "off";
         int j;
         for (j = segment->detector; j >= 0; j = LayoutDetectors[j].next) {
-            if (LayoutDetectors[j].live.occupied) {
+            if (LayoutDetectorsLive[j].occupied) {
                 state = "on";
                 break;
             }
@@ -1075,8 +493,9 @@ int houserail_track_detectors (char *buffer, int size) {
 
     int i;
     for (i = 0; i < LayoutDetectorsCount; ++i) {
-        struct TrackDetector *detector = LayoutDetectors + i;
-        const char *state = detector->live.occupied?"on":"off";
+        const struct TrackDetector *detector = LayoutDetectors + i;
+        struct TrackDetectorLive *status = LayoutDetectorsLive + i;
+        const char *state = status->occupied?"on":"off";
         cursor += snprintf (buffer+cursor, size-cursor,
                             "%s[\"%s\",\"%s\"]", prefix, detector->id, state);
         prefix = ",";
@@ -1092,14 +511,15 @@ static int houserail_track_status_switch (char *buffer, int size) {
 
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
-        struct TrackSegment *segment = LayoutSegments + i;
+        const struct TrackSegment *segment = LayoutSegments + i;
+        struct TrackSegmentLive *status = LayoutSegmentsLive + i;
         if (segment->branch >= 0) {
             const char *state = "invalid";
-            if (segment->needle == segment->branch)
+            if (status->needle == segment->branch)
                 state = "reverse";
-            if (segment->needle == segment->next)
+            if (status->needle == segment->next)
                 state = "normal";
-            else if (segment->needle == segment->previous)
+            else if (status->needle == segment->previous)
                 state = "normal";
             cursor += snprintf (buffer+cursor, size-cursor,
                                 "%s[\"%s\",\"%s\"]",
@@ -1128,36 +548,35 @@ const char *houserail_track_segment (const struct TrackLocation *point,
                                      int direction) {
 
     if (point->segment) return point->segment;
-    int index = houserail_track_search_by_location (point->line, point->post);
+    int index = houserail_topology_search_by_location (point->line, point->post);
     if (index < 0) return 0;
+    if (!direction) return LayoutSegments[index].id;
 
     // If the point is at the limit between two segments, each of these two
     // segments would be a valid response. The direction parameter is used
     // to indicate which of the two segments is preferred.
 
-    if (direction) {
-        struct TrackSegment *segment = LayoutSegments + index;
-        if (direction > 0) {
-            if ((segment->low == point->post) && (segment->previous >= 0)) {
-                DEBUG (__FILE__ ": On the low edge of segment %s\n", segment->id);
-                int alternative = segment->previous;
-                segment = LayoutSegments + alternative;
-                DEBUG (__FILE__ ": Trying segment %s\n", segment->id);
-                if ((segment->high == point->post) &&
-                    strsame (segment->line, point->line)) {
-                    index = alternative;
-                }
+    const struct TrackSegment *segment = LayoutSegments + index;
+    if (direction > 0) {
+        if ((segment->low == point->post) && (segment->previous >= 0)) {
+            DEBUG (__FILE__ ": On the low edge of segment %s\n", segment->id);
+            int alternative = segment->previous;
+            segment = LayoutSegments + alternative;
+            DEBUG (__FILE__ ": Trying segment %s\n", segment->id);
+            if ((segment->high == point->post) &&
+                strsame (segment->line, point->line)) {
+                index = alternative;
             }
-        } else {
-            if ((segment->high == point->post) && (segment->next >= 0)) {
-                DEBUG (__FILE__ ": on the high edge of segment %s\n", segment->id);
-                int alternative = segment->next;
-                segment = LayoutSegments + alternative;
-                DEBUG (__FILE__ ": Trying segment %s\n", segment->id);
-                if ((segment->low == point->post) &&
-                    strsame (segment->line, point->line)) {
-                    index = alternative;
-                }
+        }
+    } else {
+        if ((segment->high == point->post) && (segment->next >= 0)) {
+            DEBUG (__FILE__ ": on the high edge of segment %s\n", segment->id);
+            int alternative = segment->next;
+            segment = LayoutSegments + alternative;
+            DEBUG (__FILE__ ": Trying segment %s\n", segment->id);
+            if ((segment->low == point->post) &&
+                strsame (segment->line, point->line)) {
+                index = alternative;
             }
         }
     }
@@ -1167,7 +586,7 @@ const char *houserail_track_segment (const struct TrackLocation *point,
 static int houserail_track_locate (const struct TrackLocation *point) {
 
     DEBUG (__FILE__ ": houserail_track_locate(): use location %s.%d\n", point->line, point->post);
-    return houserail_track_search_by_location (point->line, point->post);
+    return houserail_topology_search_by_location (point->line, point->post);
 }
 
 int houserail_track_vicinity (struct TrackLocation *point,
@@ -1177,15 +596,16 @@ int houserail_track_vicinity (struct TrackLocation *point,
     int high = -1;
     point->line = 0;
 
-    int index = houserail_track_search_by_id (id);
+    int index = houserail_topology_search_by_id (id);
     if (index > 0) {
-        struct TrackSegment *segment = LayoutSegments + index;
+        const struct TrackSegment *segment = LayoutSegments + index;
         point->line = segment->line;
         point->segment = segment->id;
         low = segment->low;
         high = segment->high;
     } else {
-        struct TrackDetector *detector = houserail_track_search_detector (id);
+        const struct TrackDetector *detector =
+                           houserail_track_search_detector (id);
         if (detector) {
            point->line = detector->area.line;
            point->segment = LayoutSegments[detector->segment].id;
@@ -1211,10 +631,6 @@ int houserail_track_vicinity (struct TrackLocation *point,
     return 1;
 }
 
-int houserail_track_restricted (void) {
-    return TrackRestrictedSpeed;
-}
-
 int houserail_track_civil (const struct TrackLocation *point,
                            int direction, const char **cause) {
 
@@ -1228,16 +644,17 @@ int houserail_track_civil (const struct TrackLocation *point,
         return 0; // Stop whenever there is any doubt.
     }
 
-    struct TrackSegment *segment = LayoutSegments + index;
+    const struct TrackSegment *segment = LayoutSegments + index;
+    struct TrackSegmentLive *status = LayoutSegmentsLive + index;
     speed = LayoutModels[segment->model].civil;
     *cause = "civil speed";
     DEBUG (__FILE__ ": Consider civil speed %d for segment %s (model %s)\n",
            speed, segment->id, LayoutModels[segment->model].id);
 
-    if ((speed > SwitchReverseSpeed) &&
-        (segment->branch >= 0) && (segment->needle == segment->branch)) {
+    if ((speed > LayoutOptions->switchReverseSpeed) &&
+        (segment->branch >= 0) && (status->needle == segment->branch)) {
        *cause = "reverse branch";
-       speed = SwitchReverseSpeed;
+       speed = LayoutOptions->switchReverseSpeed;
        DEBUG (__FILE__ ": use reverse civil speed %d instead for switch %s in reverse state",
               speed, segment->id);
     }
@@ -1245,20 +662,20 @@ int houserail_track_civil (const struct TrackLocation *point,
 
     // slow down and stop when coming to the end of the line.
     //
-    if (segment->ending == direction) {
-        if (segment->stop.line &&
-            (point->post >= segment->stop.low) &&
-            (point->post < segment->stop.high)) {
+    if (status->ending == direction) {
+        if (status->stop.line &&
+            (point->post >= status->stop.low) &&
+            (point->post < status->stop.high)) {
             DEBUG (__FILE__ ": Arriving at the end of line, stop %s\n", segment->line);
             *cause = "end of line";
-            return 0; // Inside the line's stop zone.
+            return 0; // Inside the stop zone.
         }
-        if (segment->slow.line &&
-            (point->post >= segment->slow.low) &&
-            (point->post < segment->slow.high)) {
-            DEBUG (__FILE__ ": Approaching the end of line %s, speed restricted to %d\n", segment->line, TrackRestrictedSpeed);
+        if (status->slow.line &&
+            (point->post >= status->slow.low) &&
+            (point->post < status->slow.high)) {
+            DEBUG (__FILE__ ": Approaching the end of line %s, speed restricted to %d\n", segment->line, LayoutOptions->restrictedSpeed);
             *cause = "end of line";
-            return TrackRestrictedSpeed; // Inside the line's slow zone.
+            return LayoutOptions->restrictedSpeed; // Inside the slow zone.
         }
     }
 
@@ -1267,11 +684,12 @@ int houserail_track_civil (const struct TrackLocation *point,
     int goal = (direction > 0)?segment->high:segment->low;
     int d = abs (point->post - goal);
     DEBUG (__FILE__ ": distance from segment after %s is %d\n", segment->id, d);
-    if (d < TrackStopDistance) {
+    if (d < LayoutOptions->stopDistance) {
         int index2 = (direction > 0) ? segment->next : segment->previous;
         if (index2 < 0) return speed;
 
         segment = LayoutSegments + index2;
+        status = LayoutSegmentsLive + index2;
         speed2 = LayoutModels[segment->model].civil;
         DEBUG (__FILE__ ": Consider civil speed %d from segment %s (model %s)\n",
                speed2, segment->id, LayoutModels[segment->model].id);
@@ -1281,18 +699,18 @@ int houserail_track_civil (const struct TrackLocation *point,
 
             // No train can enter a switch positioned for the opposite
             // direction: how is that segment connected to the original one?
-            if ((index != segment->needle) && (index != segment->common)) {
+            if ((index != status->needle) && (index != segment->common)) {
                 DEBUG (__FILE__ ": stop before entering opposite switch %s\n", segment->id);
                 *cause = "switch misaligned";
                 speed = 0;
             }
 
-            if ((speed > SwitchReverseSpeed) &&
-                (segment->needle == segment->branch)) {
+            if ((speed > LayoutOptions->switchReverseSpeed) &&
+                (status->needle == segment->branch)) {
                   DEBUG (__FILE__ ": use reverse civil speed %d instead for switch %s in reverse state",
                          speed, segment->id);
                 *cause = "reverse branch";
-                speed = SwitchReverseSpeed;
+                speed = LayoutOptions->switchReverseSpeed;
             }
         }
     }
@@ -1302,9 +720,11 @@ int houserail_track_civil (const struct TrackLocation *point,
 // Retrieve the track range covered by the specified segment.
 // This function handles switches.
 //
-void houserail_track_limits (const char *line, int direction,
-                             struct TrackSegment *segment,
-                             struct TrackRange *range) {
+static void houserail_track_limits (const char *line, int direction,
+                                    const struct TrackSegment *segment,
+                                    struct TrackRange *range) {
+
+    struct TrackSegmentLive *status = LayoutSegmentsLive + segment->index;
 
     // Consider the segment's 'normal' range as the default.
     range->line = segment->line;
@@ -1313,7 +733,7 @@ void houserail_track_limits (const char *line, int direction,
 
     if (segment->branch < 0) return; // No ambiguity: straight segment.
 
-    struct TrackSegment *branch = LayoutSegments + segment->branch;
+    const struct TrackSegment *branch = LayoutSegments + segment->branch;
 
     // What is the geometry of the switch: increasing or decreasing posts?
     int geometry = (segment->common == segment->previous)?1:-1;
@@ -1321,14 +741,14 @@ void houserail_track_limits (const char *line, int direction,
     int onbranch = 0;
     if (direction == geometry) {
         // Follow the needle on a divergent switch.
-        if (segment->needle == segment->branch) onbranch = 1;
+        if (status->needle == segment->branch) onbranch = 1;
     } else {
         // Does this come from the branch of a convergent switch?
         if (strsame (line, branch->line)) onbranch = 1;
     }
     if (onbranch) {
         range->line = branch->line;
-        struct TrackModel *model = LayoutModels + segment->model;
+        const struct TrackModel *model = LayoutModels + segment->model;
         if (geometry > 0) {
             range->low = branch->low - model->reverse;
             range->high = branch->low;
@@ -1341,7 +761,10 @@ void houserail_track_limits (const char *line, int direction,
 
 // Make one step to the next segment. This handles switches.
 //
-static int houserail_track_step (struct TrackSegment *segment, int direction) {
+static int houserail_track_step (const struct TrackSegment *segment,
+                                 int direction) {
+
+    struct TrackSegmentLive *status = LayoutSegmentsLive + segment->index;
 
     // The default is to follow the 'normal' direction
     //
@@ -1353,7 +776,7 @@ static int houserail_track_step (struct TrackSegment *segment, int direction) {
     if (next < 0) return next; // Switches to nowhere don't exist.
     int geometry = (segment->common == segment->previous)?1:-1;
     if (geometry == direction) { // Follow the needle on a divergent switch
-        return segment->needle;
+        return status->needle;
     }
     return next;
 }
@@ -1371,7 +794,7 @@ int houserail_track_walk (struct TrackRange *path, int size,
     //
     int index = houserail_track_locate (limit1);
     if (index < 0) return 0;
-    struct TrackSegment *segment = LayoutSegments + index;
+    const struct TrackSegment *segment = LayoutSegments + index;
 
     int cursor = 0;
     const char *line = path[0].line = limit1->line;
@@ -1412,7 +835,7 @@ int houserail_track_walk (struct TrackRange *path, int size,
 
         index = houserail_track_step (segment, direction);
         if (index < 0) break;
-        struct TrackSegment *next = LayoutSegments + index;
+        const struct TrackSegment *next = LayoutSegments + index;
 
         struct TrackRange upcoming;
         houserail_track_limits (current.line, direction, next, &upcoming);
@@ -1479,19 +902,20 @@ int houserail_track_distance (const struct TrackLocation *point1,
 
 const char *houserail_track_switch (const char *name, const char *state) {
 
-    int index = houserail_track_search_by_id (name);
+    int index = houserail_topology_search_by_id (name);
     if (index < 0) return "Invalid name";
 
-    struct TrackSegment *segment = LayoutSegments + index;
+    const struct TrackSegment *segment = LayoutSegments + index;
     if (segment->branch < 0) return "Not a switch";
 
+    struct TrackSegmentLive *status = LayoutSegmentsLive + index;
     if (strsame (state, "normal")) {
-        segment->needle =
+        status->needle =
             (segment->common == segment->next) ? segment->previous : segment->next;
     } else if (strsame (state, "reverse")) {
-        segment->needle = segment->branch;
+        status->needle = segment->branch;
     } else {
-        segment->needle = -1;
+        status->needle = -1;
     }
     return 0;
 }
@@ -1501,7 +925,11 @@ const char *houserail_track_signal (const char *name, const char *state) {
     return 0; // TBD: add signal to the topology database, stop trains on red.
 }
 
+int houserail_track_restricted (void) {
+    return LayoutOptions->restrictedSpeed;
+}
+
 int houserail_track_poll (void) {
-    return TrackFieldPollPeriod;
+    return LayoutOptions->fieldPollPeriod;
 }
 
