@@ -1,12 +1,6 @@
 {
     "description":"Kato N Scale Unitrack Catalog",
     "scale":160,
-    "train":{
-        "models":[
-            {"id":"GP40","length":13,"spots":[2,11]},
-            {"id":"HOPPER","length":8,"spots":[3,5]}
-        ]
-    },
     "track":{
         "models":[
             {"id":"20-000","length":40,"civil":50,"shape":[248]},

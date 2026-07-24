@@ -3,7 +3,7 @@
     "timestamp": 0,
     "rail":{
          "layout":"testloop",
-         "description":"Inspired by a 2x4 layout from Kraft Trains",
+         "description":"Inspired by a 2x4 layout from Kraft Trains, modified to use Kato Unitrack parts",
          "train":{
              "models":[
                  {"id":"ATLAS-GP-40","length":19,"spots":[4,15]},
@@ -27,13 +27,13 @@
                  {"id":"MAIN-4","model":"20-100","line":"main","next":"main-5","curve":1},
                  {"id":"MAIN-5","model":"20-100","line":"main","next":"main-6","curve":1},
                  {"id":"MAIN-6","model":"20-092-2","line":"main","next":"main-7"},
-                 {"id":"MAIN-7","model":"20-100","line":"main","next":"main-8","curve":1},
+                 {"id":"MAIN-7","model":"20-100","line":"main","next":"main-8","curve":"right"},
                  {"id":"MAIN-8","model":"20-100","line":"main","next":"main-9","curve":1},
                  {"id":"MAIN-9","model":"20-091-1","line":"main","next":"main-9B"},
                  {"id":"MAIN-9B","model":"20-092-1","line":"main","next":"main-10"},
                  {"id":"MAIN-10","model":"20-091-2","line":"main","next":"main-11"},
                  {"id":"MAIN-11","model":"20-203","line":"main","next":"main-12","common":"main-10","branch":"side2-1"},
-                 {"id":"MAIN-12","model":"20-111","line":"main","next":"side3-6","curve":-1},
+                 {"id":"MAIN-12","model":"20-111","line":"main","next":"side3-6","curve":"left"},
                  {"id":"MAIN-13","model":"20-020","line":"main","next":"main-14"},
                  {"id":"MAIN-14","model":"20-110","line":"main","next":"main-15","curve":1},
                  {"id":"MAIN-15","model":"20-110","line":"main","next":"main-16","curve":1},

@@ -264,7 +264,7 @@ const char *houserail_topology_reload (void) {
     if (!TopologyOptions.name) return "No track layout name";
     TopologyOptions.description = houseconfig_string (0, ".rail.description");
 
-    int scale = houseconfig_integer (0, ".rail.scale");
+    int scale = houseconfig_positive (0, ".rail.scale");
 
     // Calculate the size needed for each array.
 
