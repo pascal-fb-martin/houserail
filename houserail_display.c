@@ -42,7 +42,6 @@
 #include "houserail_track.h"  // Only to get data structures.
 
 static int TestMode = 0;
-
 #define DEBUG if (TestMode) printf
 
 struct TrackSegmentDisplay {
@@ -182,7 +181,8 @@ static void move_circle (const struct TrackDisplayLocation *origin,
     else
         move_straight (&center, end, rotate (angle, rotate (arc, 90)), radius);
     end->angle = rotate (angle, arc);
-printf ("---      move_circle from (%d, %d) angle %d arc %d, center (%d, %d), to (%d, %d, %d)\n", origin->x, origin->y, angle, arc, center.x, center.y, end->x, end->y, end->angle);
+
+    DEBUG ("---      move_circle from (%d, %d) angle %d arc %d, center (%d, %d), to (%d, %d, %d)\n", origin->x, origin->y, angle, arc, center.x, center.y, end->x, end->y, end->angle);
 }
 
 static void move_to_branch (const struct TrackSegment *segment,
@@ -193,18 +193,20 @@ static void move_to_branch (const struct TrackSegment *segment,
 
     const struct TrackSegment *upcoming = LayoutSegments + segment->branch;
 
-printf ("---   Move to branch: start at reverse (%d, %d, %d)\n", reverse.x, reverse.y, reverse.angle);
+    DEBUG ("---   Move to branch: start at reverse (%d, %d, %d)\n", reverse.x, reverse.y, reverse.angle);
+
     if (upcoming->next == segment->index) {
         // The reverse point is the end point of the upcoming segment:
         // retrieve its true origin.
-printf ("---   Reverse is connected to the end of %s, move to the origin.\n", upcoming->id);
+        DEBUG ("---   Reverse is connected to the end of %s, move to the origin.\n", upcoming->id);
+
         if ((upcoming->shape.arc == 0) || (upcoming->branch >= 0)) {
-printf ("---   (straight move)\n");
+            DEBUG ("---   (straight move)\n");
             int length = calculate_straight_length (upcoming);
             move_straight (&reverse, origin, reverse.angle, length);
             origin->angle = rotate (reverse.angle, 180);
         } else {
-printf ("---   (circle move on %s: radius %d, arc %d)\n", upcoming->id, upcoming->shape.radius, 0-upcoming->shape.arc);
+            DEBUG ("---   (circle move on %s: radius %d, arc %d)\n", upcoming->id, upcoming->shape.radius, 0-upcoming->shape.arc);
             move_circle (&reverse, origin, reverse.angle,
                          upcoming->shape.radius, 0-upcoming->shape.arc);
         }
@@ -212,14 +214,14 @@ printf ("---   (circle move on %s: radius %d, arc %d)\n", upcoming->id, upcoming
 
     } else if (upcoming->branch == segment->index) {
         // Two switches are connected branch to branch.
-printf ("---   Two switches connected branch to branch.\n");
-printf ("---   (circle move)\n");
+        DEBUG ("---   Two switches connected branch to branch.\n");
+        DEBUG ("---   (circle move)\n");
         move_circle (&reverse, origin, reverse.angle,
                      upcoming->shape.radius, 0-upcoming->shape.arc);
     } else {
         *origin = reverse;
     }
-printf ("---   Move to branch: found origin of %s at (%d, %d, %d)\n", upcoming->id, origin->x, origin->y, origin->angle);
+    DEBUG ("---   Move to branch: found origin of %s at (%d, %d, %d)\n", upcoming->id, origin->x, origin->y, origin->angle);
 }
 
 static void calculate_endpoints (int start,
@@ -259,41 +261,49 @@ static void calculate_endpoints (int start,
         }
         cursor = display->end;
         display->done = 1;
-printf ("--- Done with segment %s (%d, %d, %d) to (%d, %d, %d), going toward %s\n", segment->id, display->origin.x, display->origin.y, display->origin.angle, display->end.x, display->end.y, display->end.angle, (segment->next >= 0)?LayoutSegments[segment->next].id:"(null)");
-if (segment->branch >= 0) printf ("---    Segment %s is a switch, reverse point at (%d, %d, %d)\n", segment->id, display->reverse.x, display->reverse.y, display->reverse.angle);
+
+        DEBUG ("--- Done with segment %s (%d, %d, %d) to (%d, %d, %d), going toward %s\n", segment->id, display->origin.x, display->origin.y, display->origin.angle, display->end.x, display->end.y, display->end.angle, (segment->next >= 0)?LayoutSegments[segment->next].id:"(null)");
+        if (TestMode) {
+            if (segment->branch >= 0) printf ("---    Segment %s is a switch, reverse point at (%d, %d, %d)\n", segment->id, display->reverse.x, display->reverse.y, display->reverse.angle);
+        }
 
         if (segment->branch >= 0) {
-printf ("--- Taking a detour to %s\n", LayoutSegments[segment->branch].id);
+            DEBUG ("--- Taking a detour to %s\n", LayoutSegments[segment->branch].id);
             struct TrackDisplayLocation subwalk;
             move_to_branch (segment, &subwalk);
             calculate_endpoints (segment->branch, &subwalk);
-printf ("--- end of detour\n");
+            DEBUG ("--- end of detour\n");
         }
 
         if (segment->next < 0) break;
         const struct TrackSegment *upcoming = LayoutSegments + segment->next;
         if (upcoming->previous != i) {
-printf ("--- Upcoming segment %s points back to %s, not %s\n", upcoming->id, LayoutSegments[upcoming->previous].id, segment->id);
+            DEBUG ("--- Upcoming segment %s points back to %s, not %s\n", upcoming->id, LayoutSegments[upcoming->previous].id, segment->id);
+
             if (upcoming->branch == i) {
                 // This entered a switch through a branch. Calculate
                 // the location of the common endpoint and restart
                 // a walk originating from there.
-printf ("--- Upcoming segment %s is a switch: start a subwalk from there at (%d, %d, %d).\n", upcoming->id, display->end.x, display->end.y, display->end.angle);
+                DEBUG ("--- Upcoming segment %s is a switch: start a subwalk from there at (%d, %d, %d).\n", upcoming->id, display->end.x, display->end.y, display->end.angle);
+
                 struct TrackDisplayLocation common;
                 move_circle (&(display->end), &common, cursor.angle,
                              upcoming->shape.radius, 0-upcoming->shape.arc);
-printf ("--- ended on segment %s at (%d, %d, %d).\n", upcoming->id, common.x, common.y, common.angle);
+
+                DEBUG ("--- ended on segment %s at (%d, %d, %d).\n", upcoming->id, common.x, common.y, common.angle);
+
                 if (upcoming->common == upcoming->next) {
                     // Need to move back to that switch's origin.
                     struct TrackDisplayLocation normal;
                     int l = calculate_straight_length (upcoming);
                     move_straight (&common, &normal, rotate (common.angle, 180), l);
-printf ("--- moved to segment %s origin at (%d, %d, %d).\n", upcoming->id, normal.x, normal.y, normal.angle);
+                    DEBUG ("--- moved to segment %s origin at (%d, %d, %d).\n", upcoming->id, normal.x, normal.y, normal.angle);
+
                     calculate_endpoints (upcoming->index, &normal);
                 } else {
                     calculate_endpoints (upcoming->index, &common);
                 }
-printf ("--- end of subwalk\n");
+                DEBUG ("--- end of subwalk\n");
             }
             break; // We are done with this branch.
         }
@@ -345,8 +355,12 @@ printf ("--- end of subwalk\n");
         }
         cursor = display->origin;
         display->done = 1;
-printf ("--- Done backward with segment %s (%d, %d, %d) to (%d, %d, %d), going to %s\n", segment->id, display->origin.x, display->origin.y, display->origin.angle, display->end.x, display->end.y, display->end.angle, (segment->previous >= 0)?LayoutSegments[segment->previous].id:"(null)");
-if (segment->branch >= 0) printf ("---    Segment %s is a switch, reverse point at (%d, %d, %d)\n", segment->id, display->reverse.x, display->reverse.y, display->reverse.angle);
+
+        DEBUG ("--- Done backward with segment %s (%d, %d, %d) to (%d, %d, %d), going to %s\n", segment->id, display->origin.x, display->origin.y, display->origin.angle, display->end.x, display->end.y, display->end.angle, (segment->previous >= 0)?LayoutSegments[segment->previous].id:"(null)");
+        if (TestMode) {
+            if (segment->branch >= 0) printf ("---    Segment %s is a switch, reverse point at (%d, %d, %d)\n", segment->id, display->reverse.x, display->reverse.y, display->reverse.angle);
+        }
+
         if (segment->branch >= 0) {
             struct TrackDisplayLocation subwalk;
             move_to_branch (segment, &subwalk);
@@ -602,6 +616,13 @@ int main (int argc, const char **argv) {
     const char *arg = argv[argc-1];
     argc -= 1;
 
+    int i;
+    for (i = 1; i < argc; ++i) {
+        if (echttp_option_present ("-trace", argv[i])) {
+            TestMode = 1;
+        }
+    }
+
     char option[120];
     const char *prefix = "./";
     if ((arg[0] == '/') || (arg[0] == '.')) prefix = "";
@@ -621,7 +642,7 @@ int main (int argc, const char **argv) {
     return 0;
 
 fatal:
-    printf ("Configuration error: %s\n", error);
+    fprintf (stderr, "Configuration error: %s\n", error);
     return 1;
 }
 
