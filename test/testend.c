@@ -266,7 +266,7 @@ int main (int argc, const char **argv) {
 
     starting ("moving down to the end of track");
     // houserail_track_testmode (1);
-    houserail_train_testmode (1);
+    // houserail_train_testmode (1);
     houserail_train_move ("train3", "backward", 0);
 
     original = Errors;

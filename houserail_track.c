@@ -352,10 +352,9 @@ const char *houserail_track_reload (void) {
            DEBUG (__FILE__ ": track %s ends up at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->high, slow.low, slow.high, stop.low, stop.high);
 
            const struct TrackSegment *cursor = segment;
-           struct TrackSegmentLive *status = LayoutSegmentsLive + i;
+           struct TrackSegmentLive *status = LayoutSegmentsLive + cursor->index;
 
            while (stop.low < cursor->high) {
-
               stop.segment = cursor->id;
               status->ending = 1;
               status->stop = stop;
@@ -367,8 +366,8 @@ const char *houserail_track_reload (void) {
                      cursor->id, status->stop.low, status->stop.high);
 
               if (cursor->previous < 0) goto nextend;
-              cursor = LayoutSegments + cursor->previous;
               status = LayoutSegmentsLive + cursor->previous;
+              cursor = LayoutSegments + cursor->previous;
               if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
@@ -386,8 +385,8 @@ const char *houserail_track_reload (void) {
               DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
                      cursor->id, status->slow.low, status->slow.high);
               if (cursor->previous < 0) goto nextend;
-              cursor = LayoutSegments + cursor->previous;
               status = LayoutSegmentsLive + cursor->previous;
+              cursor = LayoutSegments + cursor->previous;
               if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
@@ -407,7 +406,7 @@ const char *houserail_track_reload (void) {
            DEBUG (__FILE__ ": track %s ends down at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->low, slow.low, slow.high, stop.low, stop.high);
 
            const struct TrackSegment *cursor = segment;
-           struct TrackSegmentLive *status = LayoutSegmentsLive + i;
+           struct TrackSegmentLive *status = LayoutSegmentsLive + cursor->index;
 
            while (stop.high > cursor->low) {
 
@@ -423,8 +422,8 @@ const char *houserail_track_reload (void) {
                      cursor->id, status->stop.low, status->stop.high);
 
               if (cursor->next < 0) goto nextend;
-              cursor = LayoutSegments + cursor->next;
               status = LayoutSegmentsLive + cursor->next;
+              cursor = LayoutSegments + cursor->next;
               if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
@@ -443,12 +442,12 @@ const char *houserail_track_reload (void) {
                      cursor->id, status->slow.low, status->slow.high);
 
               if (cursor->next < 0) goto nextend;
-              cursor = LayoutSegments + cursor->next;
               status = LayoutSegmentsLive + cursor->next;
+              cursor = LayoutSegments + cursor->next;
               if (!strsame (cursor->line, stop.line)) goto nextend;
            }
            DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
-                  cursor->id, cursor->slow.low, cursor->slow.high);
+                  cursor->id, status->slow.low, status->slow.high);
 
         } else {
            continue;

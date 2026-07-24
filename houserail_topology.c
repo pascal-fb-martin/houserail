@@ -448,9 +448,6 @@ const char *houserail_topology_reload (void) {
         segment->low = segment->high = -1; // To be calculated later.
         segment->detector = -1; // List will be built later.
 
-        segment->ending = 0; // Calculated later, if near to a track end.
-        segment->stop.line = segment->slow.line = 0; // Calculated later.
-
         temp[i].previous = houseconfig_string (element, ".previous");
         temp[i].next = houseconfig_string (element, ".next");
         temp[i].common = houseconfig_string (element, ".common");

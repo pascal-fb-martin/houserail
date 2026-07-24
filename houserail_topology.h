@@ -83,11 +83,6 @@ struct TrackSegment {
     int common;   // The adjacent segment connected to the common switch end
     int branch;   // The adjacent segment connected to the reverse point.
 
-    // The following items are to handle end of track.
-    int ending;   // 1: ending up, -1: ending down, 0: no end near.
-    struct TrackRange stop;
-    struct TrackRange slow;
-
     // The following attributes are calculated by following the topology from
     // the terminal point marked as the origin.
     int low;
