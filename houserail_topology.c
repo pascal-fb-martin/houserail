@@ -42,8 +42,9 @@
  * modules, that then expose data according to business rules.
  *
  * void houserail_topology_testmode (int enabled);
+ * void houserail_topology_billmode (int enabled);
  *
- *    Enable debug traces, for unit tests only.
+ *    Enable traces, for tools and unit tests only.
  *
  * const char *houserail_topology_initialize (int argc, const char **argv);
  *
@@ -134,6 +135,7 @@
 
 #define PRECISION 1000   // Goal is millimeter precision.
 
+static int BillMode = 0;
 static int TestMode = 0;
 #define DEBUG if (TestMode || echttp_isdebug()) printf
 
@@ -158,6 +160,10 @@ static int        *TopologyDetectorsMap = 0;
 
 void houserail_topology_testmode (int enabled) {
     TestMode = enabled;
+}
+
+void houserail_topology_billmode (int enabled) {
+    BillMode = enabled;
 }
 
 int houserail_topology_search_model (const char *id) {
@@ -265,12 +271,6 @@ const char *houserail_topology_reload (void) {
     int track = houseconfig_object (0, ".rail.track");
     if (track < 0) return "No track topology found";
 
-    TopologyOptions.postDistance =
-        houseconfig_integer (track, ".distances.post");
-    if (TopologyOptions.postDistance <= 0)
-        TopologyOptions.postDistance = PRECISION;
-    DEBUG (__FILE__ ": Post distance set to %d\n", TopologyOptions.postDistance);
-
     int models = houseconfig_array (track, ".models");
     int configmodelcount = 0;
     if (models >= 0) configmodelcount = houseconfig_array_length (models);
@@ -333,10 +333,10 @@ const char *houserail_topology_reload (void) {
         model->reverse = houseconfig_integer (element, ".reverse");
         model->civil = houseconfig_integer (element, ".civil");
         if (model->reverse > 0) {
-            DEBUG (__FILE__ ": Model %s civil speed %d length %d (%d on reverse branch)\n",
+            DEBUG (__FILE__ ": model %s civil speed %d length %d (%d on reverse branch)\n",
                    model->id, model->civil, model->length, model->reverse);
         } else {
-            DEBUG (__FILE__ ": Model %s civil speed %d length %d\n",
+            DEBUG (__FILE__ ": model %s civil speed %d length %d\n",
                    model->id, model->civil, model->length);
         }
 
@@ -355,6 +355,7 @@ const char *houserail_topology_reload (void) {
                 }
             }
         }
+        model->usage = 0;
     }
 
     // Add the models from the catalog, if any.
@@ -373,10 +374,10 @@ const char *houserail_topology_reload (void) {
             model->reverse = houserail_catalog_integer (element, ".reverse");
             model->civil = houserail_catalog_integer (element, ".civil");
             if (model->reverse > 0) {
-                DEBUG (__FILE__ ": Model %s civil speed %d length %d (%d on reverse branch)\n",
+                DEBUG (__FILE__ ": model %s civil speed %d length %d (%d on reverse branch)\n",
                        model->id, model->civil, model->length, model->reverse);
             } else {
-                DEBUG (__FILE__ ": Model %s civil speed %d length %d\n",
+                DEBUG (__FILE__ ": model %s civil speed %d length %d\n",
                        model->id, model->civil, model->length);
             }
 
@@ -399,6 +400,7 @@ const char *houserail_topology_reload (void) {
                     }
                 }
             }
+            model->usage = 0;
         }
     }
 
@@ -422,7 +424,7 @@ const char *houserail_topology_reload (void) {
         struct TrackSegment *segment = TopologySegments + i;
         segment->id = houseconfig_string (element, ".id");
         if (!segment->id) {
-            DEBUG (__FILE__ ": Error on segment at index %d\n", i);
+            DEBUG (__FILE__ ": error on segment at index %d\n", i);
             return "invalid segment (no id)";
         }
         segment->signature =
@@ -431,15 +433,20 @@ const char *houserail_topology_reload (void) {
 
         segment->line = houseconfig_string (element, ".line");
         if (!segment->line) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": error on segment at index %d: %s\n", i, segment->id);
             return "invalid segment (no line)";
         }
         const char *modelid = houseconfig_string (element, ".model");
         if (!modelid) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": error on segment at index %d: %s\n", i, segment->id);
             return "invalid segment (no model)";
         }
         segment->model = houserail_topology_search_model (modelid);
+        if (segment->model < 0) {
+            DEBUG (__FILE__ ": unknown model %s referenced by segment %s\n", modelid, segment->id);
+            return "invalid segment (unknown model)";
+        }
+        TopologyModels[segment->model].usage += 1;
 
         if (houseconfig_present (element, ".start"))
             segment->start = houseconfig_integer (element, ".start");
@@ -456,6 +463,9 @@ const char *houserail_topology_reload (void) {
         int index = echttp_hash_insert (&TopologySegmentsHash, segment->id);
         if ((index > 0) && (index <= TopologySegmentsCount))
             TopologySegmentsMap[index] = i;
+
+        segment->ending = 0;
+        segment->stop.line = segment->slow.line = 0;
 
         struct TrackModel *model = TopologyModels + segment->model;
         segment->shape = model->shape;
@@ -532,18 +542,18 @@ const char *houserail_topology_reload (void) {
             }
         }
         if ((!temp[i].previous) && (!temp[i].next)) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": error on segment at index %d: %s\n", i, segment->id);
             return "isolated segment";
         }
 
         segment->previous = houserail_topology_search_by_id (temp[i].previous);
         if ((segment->previous < 0) && temp[i].previous) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": error on segment at index %d: %s\n", i, segment->id);
             return "invalid previous link";
         }
         segment->next = houserail_topology_search_by_id (temp[i].next);
         if ((segment->next < 0) && temp[i].next) {
-            DEBUG (__FILE__ ": Error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": error on segment at index %d: %s\n", i, segment->id);
             return "invalid previous link";
         }
 
@@ -577,7 +587,7 @@ const char *houserail_topology_reload (void) {
            }
         }
         if (isstart) {
-           DEBUG (__FILE__ ": Segment %s is a starting point for line %s post %d\n",
+           DEBUG (__FILE__ ": segment %s is a starting point for line %s post %d\n",
                   segment->id, segment->line, startpost);
            segment->low = (segment->start >= 0) ? segment->start : startpost;
            segment->high = segment->low + TopologyModels[segment->model].length;
@@ -631,7 +641,7 @@ const char *houserail_topology_reload (void) {
         struct TrackSegment *segment = TopologySegments + i;
         houserail_scout_add (&TopologySegmentsIndex,
                              i, segment->line, segment->low, segment->high);
-        DEBUG (__FILE__ ": Segment %s on %s %d to %d (between %s and %s)\n",
+        DEBUG (__FILE__ ": segment %s on %s %d to %d (between %s and %s)\n",
                segment->id, segment->line, segment->low, segment->high,
                (segment->previous >= 0)?TopologySegments[segment->previous].id:"(none)",
                (segment->next >= 0)?TopologySegments[segment->next].id:"(none)");
@@ -655,7 +665,7 @@ const char *houserail_topology_reload (void) {
             }
             houserail_scout_add (&TopologySegmentsIndex,
                                  i, branch->line, low, high);
-            DEBUG (__FILE__ ": Segment %s is a switch, branch on %s %d to %d (between %s and %s)\n",
+            DEBUG (__FILE__ ": segment %s is a switch, branch on %s %d to %d (between %s and %s)\n",
                    segment->id, branch->line, low, high,
                    TopologySegments[branchprevious].id,
                    TopologySegments[branchnext].id);
@@ -686,11 +696,11 @@ const char *houserail_topology_reload (void) {
         detector->segment =
             houserail_topology_search_by_location (detector->area.line, detector->area.low);
         if (detector->segment < 0) {
-            DEBUG (__FILE__ ": Invalid location for detector %s\n", detector->id);
+            DEBUG (__FILE__ ": invalid location for detector %s\n", detector->id);
             continue;
         }
         struct TrackSegment *segment = TopologySegments + detector->segment;
-        DEBUG (__FILE__ ": Detector %s is on segment %s covers %s %d to %d\n",
+        DEBUG (__FILE__ ": detector %s is on segment %s covers %s %d to %d\n",
                detector->id, segment->id,
                detector->area.line, detector->area.low, detector->area.high);
         detector->next = segment->detector;
@@ -707,12 +717,12 @@ const char *houserail_topology_reload (void) {
     int value = houseconfig_integer (track, ".speeds.restricted");
     if (value <= 0) return "No Restricted speed found";
     TopologyOptions.restrictedSpeed = value;
-    DEBUG (__FILE__ ": Restricted speed set to %d\n", TopologyOptions.restrictedSpeed);
+    DEBUG (__FILE__ ": restricted speed set to %d\n", TopologyOptions.restrictedSpeed);
 
     value = houseconfig_integer (track, ".speeds.reverse");
     if (value <= 0) return "No switch reverse speed found";
     TopologyOptions.switchReverseSpeed = value;
-    DEBUG (__FILE__ ": Switch reverse speed set to %d\n", TopologyOptions.switchReverseSpeed);
+    DEBUG (__FILE__ ": switch reverse speed set to %d\n", TopologyOptions.switchReverseSpeed);
 
     value = houseconfig_integer (track, ".periods.poll");
     if (value > 0) {
@@ -721,15 +731,155 @@ const char *houserail_topology_reload (void) {
         DEBUG (__FILE__ ": field poll period set to %d\n", TopologyOptions.fieldPollPeriod);
     }
 
+    TopologyOptions.postDistance =
+        houseconfig_integer (track, ".distances.post");
+    if (TopologyOptions.postDistance <= 0)
+        TopologyOptions.postDistance = PRECISION;
+    DEBUG (__FILE__ ": post distance set to %d\n", TopologyOptions.postDistance);
+
     value = houseconfig_integer (track, ".distances.stop");
     if (value <= 0) return "No stop distance found";
     TopologyOptions.stopDistance = value;
-    DEBUG (__FILE__ ": Stop distance set to %d\n", TopologyOptions.stopDistance);
+    DEBUG (__FILE__ ": stop distance set to %d\n", TopologyOptions.stopDistance);
 
     value = houseconfig_integer (track, ".distances.slow");
     if (value <= 0) return "No slow distance found";
     TopologyOptions.slowDistance = value;
-    DEBUG (__FILE__ ": Slow distance set to %d\n", TopologyOptions.slowDistance);
+    DEBUG (__FILE__ ": slow distance set to %d\n", TopologyOptions.slowDistance);
+
+    // Preprocessing for end of track.
+    // The goal here is to automatically slow trains when they approach,
+    // and stop trains when they arrive at, a line's end.
+    // For each end of track this retrieves what segments are within
+    // the stop and slow areas.
+
+    for (i = 0; i < TopologySegmentsCount; ++i) {
+
+        struct TrackRange slow;
+        struct TrackRange stop;
+        slow.line = stop.line = 0;
+        struct TrackSegment *segment = TopologySegments + i;
+
+        if (segment->next < 0) {
+
+           // The end of line is met while going in the up direction
+           // This code backtrack in the down direction to find where
+           // the stop and slow areas start.
+
+           stop.line = slow.line = segment->line;
+           stop.high = segment->high; // That's the end point.
+           stop.low = segment->high - TopologyOptions.stopDistance;
+           slow.high = stop.low;
+           slow.low = segment->high - TopologyOptions.slowDistance;
+           DEBUG (__FILE__ ": track %s ends up at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->high, slow.low, slow.high, stop.low, stop.high);
+
+           struct TrackSegment *cursor = segment;
+
+           while (stop.low < cursor->high) {
+              stop.segment = cursor->id;
+              cursor->ending = 1;
+              cursor->stop = stop;
+              if (cursor->high < cursor->stop.high)
+                  cursor->stop.high = cursor->high;
+              if (stop.low > cursor->low) break; // The stop area ends here
+              cursor->stop.low = cursor->low;
+              DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
+                     cursor->id, cursor->stop.low, cursor->stop.high);
+
+              if (cursor->previous < 0) goto nextend;
+              cursor = TopologySegments + cursor->previous;
+              if (!strsame (cursor->line, stop.line)) goto nextend;
+           }
+           DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
+                  cursor->id, cursor->stop.low, cursor->stop.high);
+
+           while (slow.low < cursor->high) {
+
+              slow.segment = cursor->id;
+              cursor->ending = 1;
+              cursor->slow = slow;
+              if (cursor->high < cursor->slow.high)
+                  cursor->slow.high = cursor->high;
+              if (slow.low > cursor->low) break; // The slow area ends here
+              cursor->slow.low = cursor->low;
+              DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
+                     cursor->id, cursor->slow.low, cursor->slow.high);
+              if (cursor->previous < 0) goto nextend;
+              cursor = TopologySegments + cursor->previous;
+              if (!strsame (cursor->line, stop.line)) goto nextend;
+           }
+           DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
+                  cursor->id, cursor->slow.low, cursor->slow.high);
+
+        } else if (segment->previous < 0) {
+
+           // The end of line is met while going in the down direction
+           // This code backtrack in the up direction to find where
+           // the stop and slow areas start.
+
+           stop.line = slow.line = segment->line;
+           stop.low = segment->low; // That's the end point.
+           stop.high = segment->low + TopologyOptions.stopDistance;
+           slow.low = stop.high;
+           slow.high = segment->low + TopologyOptions.slowDistance;
+           DEBUG (__FILE__ ": track %s ends down at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->low, slow.low, slow.high, stop.low, stop.high);
+
+           struct TrackSegment *cursor = segment;
+
+           while (stop.high > cursor->low) {
+
+              stop.segment = cursor->id;
+              cursor->ending = -1;
+              cursor->stop = stop;
+
+              if (cursor->low > cursor->stop.low)
+                  cursor->stop.low = cursor->low;
+              if (stop.high < cursor->high) break; // The stop area ends here
+              cursor->stop.high = cursor->high;
+              DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
+                     cursor->id, cursor->stop.low, cursor->stop.high);
+
+              if (cursor->next < 0) goto nextend;
+              cursor = TopologySegments + cursor->next;
+              if (!strsame (cursor->line, stop.line)) goto nextend;
+           }
+           DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
+                  cursor->id, cursor->stop.low, cursor->stop.high);
+
+           while (slow.high > cursor->low) {
+              slow.segment = cursor->id;
+              cursor->ending = -1;
+              cursor->slow = slow;
+
+              if (cursor->low > cursor->slow.low)
+                  cursor->slow.low = cursor->low;
+              if (slow.high < cursor->high) break; // The slow area ends here
+              cursor->slow.high = cursor->high;
+              DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
+                     cursor->id, cursor->slow.low, cursor->slow.high);
+
+              if (cursor->next < 0) goto nextend;
+              cursor = TopologySegments + cursor->next;
+              if (!strsame (cursor->line, stop.line)) goto nextend;
+           }
+           DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
+                  cursor->id, cursor->slow.low, cursor->slow.high);
+
+        }
+        nextend: // Used as a multi-level continue.
+    }
+
+    if (BillMode) {
+        printf ("Bill of Material\n\n");
+        printf ("----- Track Model --- Count -\n");
+        for (i = 0; i < TopologyModelsCount; ++i) {
+            struct TrackModel *model = TopologyModels + i;
+            if (model->usage > 0) {
+                printf (" %16s  %8d\n", model->id, model->usage);
+            }
+        }
+        printf (  "-----------------------------\n");
+    }
 
     houselog_event ("TOPOLOGY", "CONFIG", "LOADED",
                     "%d models %d tracks %d detectors",

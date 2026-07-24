@@ -186,11 +186,6 @@ static int TestMode = 0;
 struct TrackSegmentLive {
 
     int needle;   // The adjacent segment connected to the needle's position.
-
-    // The following items are to handle end of track.
-    int ending;   // 1: ending up, -1: ending down, 0: no end near.
-    struct TrackRange stop;
-    struct TrackRange slow;
 };
 
 // This data structure "augments" the TrackDetector table with current status.
@@ -305,9 +300,6 @@ const char *houserail_track_reload (void) {
         const struct TrackSegment *segment = LayoutSegments + i;
         struct TrackSegmentLive *status = LayoutSegmentsLive + i;
 
-        status->ending = 0; // Calculated later, if near to a track end.
-        status->stop.line = status->slow.line = 0; // Calculated later.
-
         status->needle = -1;
         if (segment->common >= 0) {
             // Default state of switch is 'normal'.
@@ -325,139 +317,7 @@ const char *houserail_track_reload (void) {
         status->timestamp = 0;
     }
 
-    // Preprocessing for end of track.
-    // The goal here is to automatically slow trains when they approach,
-    // and stop trains when they arrive at, a line's end.
-    // For each end of track this retrieves what segments are within
-    // the stop and slow areas.
-
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
-
-        struct TrackRange slow;
-        struct TrackRange stop;
-        slow.line = stop.line = 0;
-        const struct TrackSegment *segment = LayoutSegments + i;
-
-        if (segment->next < 0) {
-
-           // The end of line is met while going in the up direction
-           // This code backtrack in the down direction to find where
-           // the stop and slow areas start.
-
-           stop.line = slow.line = segment->line;
-           stop.high = segment->high; // That's the end point.
-           stop.low = segment->high - LayoutOptions->stopDistance;
-           slow.high = stop.low;
-           slow.low = segment->high - LayoutOptions->slowDistance;
-           DEBUG (__FILE__ ": track %s ends up at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->high, slow.low, slow.high, stop.low, stop.high);
-
-           const struct TrackSegment *cursor = segment;
-           struct TrackSegmentLive *status = LayoutSegmentsLive + cursor->index;
-
-           while (stop.low < cursor->high) {
-              stop.segment = cursor->id;
-              status->ending = 1;
-              status->stop = stop;
-              if (cursor->high < status->stop.high)
-                  status->stop.high = cursor->high;
-              if (stop.low > cursor->low) break; // The stop area ends here
-              status->stop.low = cursor->low;
-              DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
-                     cursor->id, status->stop.low, status->stop.high);
-
-              if (cursor->previous < 0) goto nextend;
-              status = LayoutSegmentsLive + cursor->previous;
-              cursor = LayoutSegments + cursor->previous;
-              if (!strsame (cursor->line, stop.line)) goto nextend;
-           }
-           DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
-                  cursor->id, status->stop.low, status->stop.high);
-
-           while (slow.low < cursor->high) {
-
-              slow.segment = cursor->id;
-              status->ending = 1;
-              status->slow = slow;
-              if (cursor->high < status->slow.high)
-                  status->slow.high = cursor->high;
-              if (slow.low > cursor->low) break; // The slow area ends here
-              status->slow.low = cursor->low;
-              DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
-                     cursor->id, status->slow.low, status->slow.high);
-              if (cursor->previous < 0) goto nextend;
-              status = LayoutSegmentsLive + cursor->previous;
-              cursor = LayoutSegments + cursor->previous;
-              if (!strsame (cursor->line, stop.line)) goto nextend;
-           }
-           DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
-                  cursor->id, status->slow.low, status->slow.high);
-
-        } else if (segment->previous < 0) {
-
-           // The end of line is met while going in the down direction
-           // This code backtrack in the up direction to find where
-           // the stop and slow areas start.
-
-           stop.line = slow.line = segment->line;
-           stop.low = segment->low; // That's the end point.
-           stop.high = segment->low + LayoutOptions->stopDistance;
-           slow.low = stop.high;
-           slow.high = segment->low + LayoutOptions->slowDistance;
-           DEBUG (__FILE__ ": track %s ends down at post %d, slow %d to %d, stop %d to %d\n", stop.line, segment->low, slow.low, slow.high, stop.low, stop.high);
-
-           const struct TrackSegment *cursor = segment;
-           struct TrackSegmentLive *status = LayoutSegmentsLive + cursor->index;
-
-           while (stop.high > cursor->low) {
-
-              stop.segment = cursor->id;
-              status->ending = -1;
-              status->stop = stop;
-
-              if (cursor->low > status->stop.low)
-                  status->stop.low = cursor->low;
-              if (stop.high < cursor->high) break; // The stop area ends here
-              status->stop.high = cursor->high;
-              DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
-                     cursor->id, status->stop.low, status->stop.high);
-
-              if (cursor->next < 0) goto nextend;
-              status = LayoutSegmentsLive + cursor->next;
-              cursor = LayoutSegments + cursor->next;
-              if (!strsame (cursor->line, stop.line)) goto nextend;
-           }
-           DEBUG (__FILE__ ": stop zone covers segment %s from %d to %d\n",
-                  cursor->id, status->stop.low, status->stop.high);
-
-           while (slow.high > cursor->low) {
-              slow.segment = cursor->id;
-              status->ending = -1;
-              status->slow = slow;
-
-              if (cursor->low > status->slow.low)
-                  status->slow.low = cursor->low;
-              if (slow.high < cursor->high) break; // The slow area ends here
-              status->slow.high = cursor->high;
-              DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
-                     cursor->id, status->slow.low, status->slow.high);
-
-              if (cursor->next < 0) goto nextend;
-              status = LayoutSegmentsLive + cursor->next;
-              cursor = LayoutSegments + cursor->next;
-              if (!strsame (cursor->line, stop.line)) goto nextend;
-           }
-           DEBUG (__FILE__ ": slow zone covers segment %s from %d to %d\n",
-                  cursor->id, status->slow.low, status->slow.high);
-
-        } else {
-           continue;
-        }
-        nextend:
-    }
-
-    houselog_event ("TRACK", "CONFIG", "LOADED",
-                    "%d models %d tracks %d detectors",
-                    LayoutModelsCount, LayoutSegmentsCount, LayoutDetectorsCount);
+    houselog_event ("TRACK", "LAYOUT", "READY", "");
     return 0;
 }
 
@@ -661,17 +521,17 @@ int houserail_track_civil (const struct TrackLocation *point,
 
     // slow down and stop when coming to the end of the line.
     //
-    if (status->ending == direction) {
-        if (status->stop.line &&
-            (point->post >= status->stop.low) &&
-            (point->post < status->stop.high)) {
-            DEBUG (__FILE__ ": Arriving at the end of line, stop %s\n", segment->line);
+    if (segment->ending == direction) {
+        if (segment->stop.line &&
+            (point->post >= segment->stop.low) &&
+            (point->post < segment->stop.high)) {
+            DEBUG (__FILE__ ": Arriving at the end of line %s, stop\n", segment->line);
             *cause = "end of line";
             return 0; // Inside the stop zone.
         }
-        if (status->slow.line &&
-            (point->post >= status->slow.low) &&
-            (point->post < status->slow.high)) {
+        if (segment->slow.line &&
+            (point->post >= segment->slow.low) &&
+            (point->post < segment->slow.high)) {
             DEBUG (__FILE__ ": Approaching the end of line %s, speed restricted to %d\n", segment->line, LayoutOptions->restrictedSpeed);
             *cause = "end of line";
             return LayoutOptions->restrictedSpeed; // Inside the slow zone.

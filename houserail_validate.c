@@ -39,7 +39,10 @@
 #include "houserail_track.h"
 #include "houserail_train.h"
 
+static int BillMode = 0;
+
 static const char *validate_update (void) {
+
     const char *error = houserail_topology_reload ();
     if (error) {
         printf ("** Cannot load track topology: %s\n", error);
@@ -50,15 +53,21 @@ static const char *validate_update (void) {
         printf ("** Cannot load track topology: %s\n", error);
         return error;
     }
+    if (BillMode) return 0;
     printf ("== Track topology loaded, no error.\n");
+
     error = houserail_train_reload ();
-    if (error) printf ("** Cannot load train fleet: %s\n", error);
-    else printf ("== Train fleet loaded, no error.\n");
-    return error;
+    if (error) {
+        printf ("** Cannot load train fleet: %s\n", error);
+        return error;
+    }
+    printf ("== Train fleet loaded, no error.\n");
+    return 0;
 }
 
 int main (int argc, const char **argv) {
 
+    // Test mode is the default.
     houserail_topology_testmode (1);
     houserail_track_testmode (1);
     houserail_train_testmode (1);
@@ -69,6 +78,17 @@ int main (int argc, const char **argv) {
     }
     const char *arg = argv[argc-1];
     argc -= 1;
+
+    int i;
+    for (i = 1; i < argc; ++i) {
+        if (echttp_option_present ("-bill", argv[i])) {
+            houserail_topology_billmode (1);
+            houserail_topology_testmode (0);
+            houserail_track_testmode (0);
+            houserail_train_testmode (0);
+            BillMode = 1;
+        }
+    }
 
     char option[120];
     const char *prefix = "./";

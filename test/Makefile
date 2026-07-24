@@ -40,6 +40,9 @@ clean:
 
 rebuild: clean all
 
+test: rebuild
+	./testscout && ./testpath && ./testtrack && ./testtrain && ./testend
+
 %.o: %.c
 	gcc -c -Wall -g -O2 -o $@ $<
 

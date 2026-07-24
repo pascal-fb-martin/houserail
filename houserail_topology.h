@@ -62,6 +62,8 @@ struct TrackModel {
     int civil;   // Civil speed limit on that track.
 
     struct TrackDisplayShape shape;
+
+    int usage; // Count how many segment reference this model.
 };
 
 struct TrackSegment {
@@ -90,9 +92,16 @@ struct TrackSegment {
 
     int detector; // First detector on this segment.
 
+    // The following attributes drive the end-of-line protection mechanism.
+    // These are precalculated during loading. They can also be used to
+    // show the end-of-line zones on a track display.
+    int ending;   // 1: ending up, -1: ending down, 0: no end near.
+    struct TrackRange stop;
+    struct TrackRange slow;
+
     int curve;
+    struct TrackDisplayShape shape;      // The model's shape, adjusted.
     struct TrackDisplayLocation display; // Optional, {0,0,0} if not present.
-    struct TrackDisplayShape shape;      // A copy from the model.
 };
 
 struct TrackDetector {
@@ -107,6 +116,7 @@ struct TrackDetector {
 };
 
 void houserail_topology_testmode (int enabled);
+void houserail_topology_billmode (int enabled);
 
 const char *houserail_topology_initialize (int argc, const char **argv);
 const char *houserail_topology_reload (void);
