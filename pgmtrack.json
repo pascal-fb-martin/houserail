@@ -17,6 +17,7 @@
          "track": {
              "speeds":{"restricted": 10, "reverse": 20},
              "distances":{"stop": 20, "slow": 35},
+             "periods":{"poll": 50},
              "catalog":"KatoUnitrackN",
              "segments":[
                  {"id":"main-1","model":"20-010","line":"main","next":"main-2"},
