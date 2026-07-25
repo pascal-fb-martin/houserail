@@ -61,8 +61,8 @@ static const char *validate_update (void) {
         error = houserail_display_reload ();
         if (error) {
             printf ("** Cannot generate track display: %s\n", error);
-            return error;
         }
+        return error; // No need for train data anyway.
     }
     printf ("== Track topology loaded, no error.\n");
 
