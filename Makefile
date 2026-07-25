@@ -29,6 +29,7 @@ HCAT=Train
 
 OBJS= houserail_scout.o \
       houserail_topology.o \
+      houserail_display.o \
       houserail_field.o \
       houserail_track.o \
       houserail_path.o \
@@ -36,7 +37,10 @@ OBJS= houserail_scout.o \
       houserail_train.o
 LIBOJS=
 
-all: houserail layoutvalidate layoutdisplay
+all: houserail layoutvalidate
+
+test: all
+	(cd test ; make test)
 
 clean:
 	rm -rf build
@@ -53,14 +57,13 @@ houserail: houserail.o $(OBJS)
 layoutvalidate: houserail_validate.o $(OBJS)
 	gcc -g -O -o layoutvalidate houserail_validate.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 
-layoutdisplay: houserail_display.o $(OBJS)
-	gcc -g -O -o layoutdisplay houserail_display.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
-
 # Distribution agnostic file installation -----------------------
 
 install-ui: install-preamble
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(SHARE)/public/rail
 	$(INSTALL) -m 0644 public/* $(DESTDIR)$(SHARE)/public/rail
+	$(INSTALL) -m 0755 -d $(DESTDIR)$(SHARE)/rail/catalogs
+	$(INSTALL) -m 0644 KatoUnitrackN.json $(DESTDIR)$(SHARE)/rail/catalogs
 
 install-runtime: install-preamble
 	$(INSTALL) -m 0755 -s houserail $(DESTDIR)$(prefix)/bin

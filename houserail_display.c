@@ -21,10 +21,29 @@
  *
  * SYNOPSYS:
  *
- * layoutdisplay [options..] <file>
+ * void houserail_display_default (const char *option);
+ *
+ *    Set a hardcoded default for a command line option. Supported options:
+ *
+ *    -trace:  enable traces that document the geometry calculation steps.
+ *
+ * const char *houserail_display_initialize (int argc, const char *argv[]);
+ *
+ *    Initialize the display context. Return 0 on success, an error
+ *    message on failure.
+ *
+ * const char *houserail_display_reload (void);
+ *
+ *    Generate a track display from the current configuration.
+ *    Return 0 on success, an error message on failure.
+ *
+ * const char *houserail_display_get (void);
+ *
+ *    Return an HTML content on success, 0 on failure.
  */
 
 #include <time.h>
+#include <sys/time.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -40,6 +59,8 @@
 #include "houserail_catalog.h"
 #include "houserail_scout.h"
 #include "houserail_track.h"  // Only to get data structures.
+
+#include "houserail_display.h"
 
 static int TestMode = 0;
 #define DEBUG if (TestMode) printf
@@ -59,6 +80,11 @@ struct TrackDetectorDisplay {
     struct TrackDisplayLocation indicator;
 };
 
+static char *DisplayContent = 0;
+static int   DisplayContentLength = 0;
+static int   DisplayContentSize = 0;
+static int   DisplayContentIncrement = 0x10000;
+
 static const struct TrackOptions *LayoutOptions = 0;
 
 static const struct TrackModel *LayoutModels = 0;
@@ -73,40 +99,6 @@ static const struct TrackDetector *LayoutDetectors = 0;
 static int                         LayoutDetectorsCount = 0;
 */
 
-const char *load_config (void) {
-
-    if (LayoutSegmentsDisplay) {
-       free (LayoutSegmentsDisplay);
-       LayoutSegmentsDisplay = 0;
-    }
-
-    LayoutOptions = houserail_topology_options();
-
-    LayoutModelsCount = houserail_topology_model_count ();
-    LayoutModels = houserail_topology_models ();
-
-    LayoutSegmentsCount = houserail_topology_segment_count ();
-    LayoutSegments = houserail_topology_segments ();
-
-/* TBD: Show detectors on the display?
-    LayoutDetectorsCount = houserail_topology_detector_count ();
-    LayoutDetectors = houserail_topology_detectors ();
-*/
-
-    LayoutSegmentsDisplay =
-        calloc (LayoutSegmentsCount, sizeof (struct TrackSegmentDisplay));
-
-    // Avoid frequent indirections.
-    int i;
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
-        LayoutSegmentsDisplay[i].origin = LayoutSegments[i].display;
-        if (LayoutSegmentsDisplay[i].origin.angle == 360) {
-            LayoutSegmentsDisplay[i].origin.angle = 0;
-        }
-    }
-
-    return 0;
-}
 
 static int calculate_straight_length (const struct TrackSegment *segment) {
 
@@ -429,32 +421,52 @@ static void calculate_viewbox (struct TrackDisplayLocation *min,
     }
 }
 
+static void display_append (const char *text, int length) {
+
+    if (DisplayContentLength + length >= DisplayContentSize) {
+        DisplayContentSize += DisplayContentIncrement;
+        DisplayContentIncrement *= 2;
+        DisplayContent = realloc (DisplayContent, DisplayContentSize);
+    }
+    stpecpy (DisplayContent + DisplayContentLength,
+             DisplayContent + DisplayContentSize, text);
+    DisplayContentLength += length;
+}
+
 static void generate_html_head (void) {
-    printf ("<html>\n"
-            "<body style=\"margin: 0;\">\n"
-            "<div style=\"background-color: #355b1eff;\" width=\"100%%\">\n");
+    static const char head[] =
+        "<html>\n"
+        "<body style=\"margin: 0;\">\n"
+        "<div style=\"background-color: #355b1eff;\" width=\"100%%\">\n";
+    display_append (head, sizeof(head) - 1);
 }
 
 static void generate_svg_head (const struct TrackDisplayLocation *min,
                                int width, int height) {
 
-    printf ("<svg\n"
-            "  width=\"100%%\"\n"
-            "  height=\"100%%\"\n"
-            "  viewBox=\"%d %d %d %d\"\n"
-            "  version=\"1.1\"\n"
-            "  id=\"svg1\"\n"
-            "  xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
-            "  xmlns=\"http://www.w3.org/2000/svg\"\n"
-            "  xmlns:svg=\"http://www.w3.org/2000/svg\">\n",
-           min->x, min->y, width, height);
+    char buffer[1024];
+    int length = snprintf (buffer, sizeof(buffer),
+                           "<svg\n"
+                           "  width=\"100%%\"\n"
+                           "  height=\"100%%\"\n"
+                           "  viewBox=\"%d %d %d %d\"\n"
+                           "  version=\"1.1\"\n"
+                           "  id=\"svg1\"\n"
+                           "  xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
+                           "  xmlns=\"http://www.w3.org/2000/svg\"\n"
+                           "  xmlns:svg=\"http://www.w3.org/2000/svg\">\n",
+                           min->x, min->y, width, height);
+    display_append (buffer, length);
 }
 
 static void draw_path (const char *id, const char *d, int width) {
 
-    printf ("      <path id=\"%s\" d=\"%s\""
-                       " fill=\"none\" stroke-width=\"%d\"/>\n",
-           id, d, width);
+    char buffer[1024];
+    int length = snprintf (buffer, sizeof(buffer),
+                           "<path id=\"%s\" d=\"%s\""
+                           " fill=\"none\" stroke-width=\"%d\"/>\n",
+                           id, d, width);
+    display_append (buffer, length);
 }
 
 static void draw_straight (const char *id,
@@ -523,22 +535,27 @@ static void generate_track (const struct TrackSegment *segment, int width) {
 
 static void generate_tracks (int width) {
 
+    static const char groupstart[] = "<g id=\"tracks\" stroke=\"#f0f0f0\">\n";
+    static const char groupend[]   = "</g>\n";
+
+    display_append (groupstart, sizeof(groupstart) - 1);
     int i;
-    printf ("    <g id=\"tracks\" stroke=\"#f0f0f0\">\n");
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         const struct TrackSegment *segment = LayoutSegments + i;
         if (!LayoutSegmentsDisplay[i].done) continue;
         generate_track (segment, width);
     }
-    printf ("    </g>\n");
+    display_append (groupend, sizeof(groupend) - 1);
 }
 
 static void generate_svg_tail (void) {
-    printf ("</svg>\n");
+    static const char tail[] = "</svg>\n";
+    display_append (tail, sizeof(tail) - 1);
 }
 
 static void generate_html_tail (void) {
-    printf ("</div>\n</body>\n>/html>\n");
+    static const char tail[] = "</div>\n</body>\n>/html>\n";
+    display_append (tail, sizeof(tail) - 1);
 }
 
 static int find_preferred_origin (void) {
@@ -579,12 +596,59 @@ static void walk_the_layout (void) {
 */
 }
 
-static const char *generate_display (void) {
+void houserail_display_default (const char *option) {
 
-    const char *error = houserail_topology_reload ();
-    if (error) return error;
-    error = load_config ();
-    if (error) return error;
+    if (echttp_option_present ("-trace", option)) {
+        TestMode = 1;
+    }
+}
+
+const char *houserail_display_initialize (int argc, const char *argv[]) {
+
+    int i;
+    for (i = 1; i < argc; ++i) {
+        houserail_display_default (argv[i]);
+    }
+    return 0;
+}
+
+const char *houserail_display_reload (void) {
+
+    struct timeval start;
+    gettimeofday (&start, 0);
+
+    // Empty the current content.
+    DisplayContentLength = 0;
+
+    if (LayoutSegmentsDisplay) {
+       free (LayoutSegmentsDisplay);
+       LayoutSegmentsDisplay = 0;
+    }
+
+    LayoutOptions = houserail_topology_options();
+
+    LayoutModelsCount = houserail_topology_model_count ();
+    LayoutModels = houserail_topology_models ();
+
+    LayoutSegmentsCount = houserail_topology_segment_count ();
+    LayoutSegments = houserail_topology_segments ();
+
+/* TBD: Show detectors on the display?
+    LayoutDetectorsCount = houserail_topology_detector_count ();
+    LayoutDetectors = houserail_topology_detectors ();
+*/
+
+    LayoutSegmentsDisplay =
+        calloc (LayoutSegmentsCount, sizeof (struct TrackSegmentDisplay));
+
+    // Avoid frequent indirections.
+    int i;
+    for (i = 0; i < LayoutSegmentsCount; ++i) {
+        LayoutSegmentsDisplay[i].origin = LayoutSegments[i].display;
+        if (LayoutSegmentsDisplay[i].origin.angle == 360) {
+            LayoutSegmentsDisplay[i].origin.angle = 0;
+        }
+    }
 
     // Find where each segment fits and what is the viewbox
     walk_the_layout ();
@@ -608,41 +672,26 @@ static const char *generate_display (void) {
     generate_svg_tail ();
     generate_html_tail ();
 
+    struct timeval end;
+    gettimeofday (&end, 0);
+
+    long long elapsed = (end.tv_sec - start.tv_sec) * 1000000
+                            + (end.tv_usec - start.tv_usec);
+
+    long long s = elapsed / 1000000;
+    long long ms = elapsed % 1000000;
+    if (ms)
+        houselog_event ("DISPLAY", LayoutOptions->name,
+                        "GENERATED", "IN %lld.%06lld SECONDS", s, ms);
+    else
+        houselog_event ("DISPLAY", LayoutOptions->name,
+                        "GENERATED", "IN %lld SECONDS", s);
     return 0;
 }
 
-int main (int argc, const char **argv) {
+const char *houserail_display_get (void) {
 
-    const char *arg = argv[argc-1];
-    argc -= 1;
-
-    int i;
-    for (i = 1; i < argc; ++i) {
-        if (echttp_option_present ("-trace", argv[i])) {
-            TestMode = 1;
-        }
-    }
-
-    char option[120];
-    const char *prefix = "./";
-    if ((arg[0] == '/') || (arg[0] == '.')) prefix = "";
-    snprintf (option, sizeof(option), "--config=%s%s", prefix, arg);
-    houseconfig_default (option);
-    houserail_catalog_default ("--catalog=.");
-
-    const char *error =
-        houserail_catalog_initialize (argc, argv);
-    if (error) goto fatal;
-    error = houserail_topology_initialize (argc, argv);
-    if (error) goto fatal;
-    error = houseconfig_initialize
-                ("layoutdisplay", generate_display, argc, argv);
-    if (error) goto fatal;
-
-    return 0;
-
-fatal:
-    fprintf (stderr, "Configuration error: %s\n", error);
-    return 1;
+    if (!DisplayContent) return "";
+    return DisplayContent; // Straightfoward, and that's the point
 }
 

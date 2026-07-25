@@ -1,0 +1,44 @@
+<html>
+<head>
+<link rel="stylesheet" href="/house.css">
+<link rel="stylesheet" href="/rail/tracklayout.css">
+<script>
+function railStatus () {
+    var command = new XMLHttpRequest();
+    command.open("GET", "/rail/identify");
+    command.onreadystatechange = function () {
+        if (command.readyState === 4 && command.status === 200) {
+            var response = JSON.parse(command.responseText);
+            document.getElementsByTagName('title')[0].innerHTML =
+                response.host+' - '+response.rail.layout+' Tracks';
+        }
+    }
+    command.send(null);
+}
+
+window.onload = function() {
+   railStatus();
+};
+</script>
+<title>Tracks</title>
+</head>
+<body>
+   <nav>
+      <table>
+      <tr>
+      <td><a href="/rail/index.html">Trains</a></td>
+      <td><span>Tracks</span></td>
+      <td><a href="/rail/events.html">Events</a></td>
+      </tr>
+      </table>
+   </nav>
+   <main>
+   <article>
+   <div width="100%">
+      <iframe id="mapcontent" class="houserailcontent" src="/rail/track/display"></iframe>
+   </div>
+   </article>
+   </main>
+</body>
+</html>
+

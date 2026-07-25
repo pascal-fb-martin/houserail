@@ -58,6 +58,7 @@
 #include "houserail_topology.h"
 #include "houserail_field.h"
 #include "houserail_track.h"
+#include "houserail_display.h"
 #include "houserail_train.h"
 
 #define DEBUG if (echttp_isdebug()) printf
@@ -107,6 +108,21 @@ static const char *rail_save (const char *reason) {
     return JsonBuffer;
 }
 */
+
+static const char *rail_identify (const char *method, const char *uri,
+                                  const char *data, int length) {
+
+    int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), LiveState);
+    snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
+    echttp_content_type_json ();
+    return JsonBuffer;
+}
+
+static const char *rail_display (const char *method, const char *uri,
+                                 const char *data, int length) {
+    echttp_content_type_html ();
+    return houserail_display_get ();
+}
 
 static const char *rail_status_track (const char *method, const char *uri,
                                       const char *data, int length) {
@@ -375,6 +391,8 @@ static const char *rail_update (void) {
     if (error) return error;
     error = houserail_track_reload ();
     if (error) return error;
+    error = houserail_display_reload ();
+    if (error) return error;
     error = houserail_train_reload ();
     if (error) return error;
     echttp_fastscan (rail_background_fast, houserail_track_poll());
@@ -441,6 +459,8 @@ int main (int argc, const char **argv) {
     if (error) goto fatal;
     error = houserail_train_initialize (argc, argv);
     if (error) goto fatal;
+    error = houserail_display_initialize (argc, argv);
+    if (error) goto fatal;
 
     LiveState = housestate_declare ("live");
     ConfigState = housestate_declare ("config");
@@ -461,6 +481,9 @@ int main (int argc, const char **argv) {
     echttp_route_uri ("/rail/switch", rail_switch);
     echttp_route_uri ("/rail/signal", rail_signal);
     echttp_route_uri ("/rail/config", rail_config);
+
+    echttp_route_uri ("/rail/identify", rail_identify);
+    echttp_route_uri ("/rail/track/display", rail_display);
 
     echttp_static_route ("/", "/usr/local/share/house/public");
     echttp_background (&rail_background);

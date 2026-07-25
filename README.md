@@ -156,14 +156,26 @@ The `layoutvalidate` tool is provided to both validate that the configuration is
    layoutvalidate <path to config file>
 ```
 
+This prints a trace of the internal track topology that the file would generate.
+
 A `-bill` option can be used to print out the list of track parts to use for the layout, model by model:
 
 ```
    layoutvalidate -bill <path to config file>
 ```
 
-The track display can be generated using the `layoutdisplay` command. This prints out a web page using SVG to represent the layout.
+The track display HTML can be printed using the `-display` option. This is intended for testing and validation only: the HouseRail service will generate the track display automatically.
 
-> [!NOTE]
-> This is a work in progress. Display generation will most likely be integrated within the HouseRail server software in the future, to fully automate display generation.
+```
+   layoutvalidate -display <path to config file>
+```
+
+If the additional `-trace` option is used, the tool will also prints traces that give details about how the tool walks the track topology to calculate the display's geometry:
+
+```
+   layoutvalidate -trace -display <path to config file>
+```
+
+> [!WARNING]
+> These traces are voluminous and somewhat confusing: they are intended for dire circumstances only.
 

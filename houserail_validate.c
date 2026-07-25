@@ -37,9 +37,11 @@
 #include "houserail_catalog.h"
 #include "houserail_topology.h"
 #include "houserail_track.h"
+#include "houserail_display.h"
 #include "houserail_train.h"
 
 static int BillMode = 0;
+static int DisplayMode = 0;
 
 static const char *validate_update (void) {
 
@@ -54,6 +56,14 @@ static const char *validate_update (void) {
         return error;
     }
     if (BillMode) return 0;
+
+    if (DisplayMode) {
+        error = houserail_display_reload ();
+        if (error) {
+            printf ("** Cannot generate track display: %s\n", error);
+            return error;
+        }
+    }
     printf ("== Track topology loaded, no error.\n");
 
     error = houserail_train_reload ();
@@ -87,6 +97,15 @@ int main (int argc, const char **argv) {
             houserail_track_testmode (0);
             houserail_train_testmode (0);
             BillMode = 1;
+            DisplayMode = 0;
+        }
+        if (echttp_option_present ("-display", argv[i])) {
+            houserail_topology_billmode (0);
+            houserail_topology_testmode (0);
+            houserail_track_testmode (0);
+            houserail_train_testmode (0);
+            BillMode = 0;
+            DisplayMode = 1;
         }
     }
 
@@ -102,12 +121,17 @@ int main (int argc, const char **argv) {
         error = houserail_topology_initialize (argc, argv);
     if (!error)
         error = houserail_track_initialize (argc, argv);
+    if ((!error) && DisplayMode)
+        error = houserail_display_initialize (argc, argv);
     if (!error)
         error = houseconfig_initialize ("testtrack", validate_update, argc, argv);
     if (error) {
         printf ("** Config error: %s\n", error);
         return 1;
     }
+
+    if (DisplayMode) printf ("%s\n", houserail_display_get ());
+
     return 0;
 }
 

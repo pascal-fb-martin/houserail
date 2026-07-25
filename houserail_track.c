@@ -789,6 +789,7 @@ int houserail_track_restricted (void) {
 }
 
 int houserail_track_poll (void) {
+    if (!LayoutOptions) return 200; // Reasonable value until we get a config.
     return LayoutOptions->fieldPollPeriod;
 }
 
