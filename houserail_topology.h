@@ -138,3 +138,5 @@ int houserail_topology_search_by_id (const char *id);
 int houserail_topology_search_by_location (const char *line, int post);
 int houserail_topology_search_detector (const char *id);
 
+int houserail_topology_segment_sorted (int at);
+

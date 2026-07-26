@@ -326,19 +326,25 @@ static int houserail_track_status_track (char *buffer, int size) {
     int cursor = 0;
     const char *prefix = ",\"track\":[";
 
+    // We want to send a sorted segment list, so that the client can optimize
+    // it searches, if needed.
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
-        const struct TrackSegment *segment = LayoutSegments + i;
-        const char *state = "off";
+        int index = houserail_topology_segment_sorted (i);
+        const struct TrackSegment *segment = LayoutSegments + index;
+        const char *occupancy = "off";
         int j;
         for (j = segment->detector; j >= 0; j = LayoutDetectors[j].next) {
             if (LayoutDetectorsLive[j].occupied) {
-                state = "on";
+                occupancy = "on";
                 break;
             }
         }
         cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s[\"%s\",\"%s\"]", prefix, segment->id, state);
+                            "%s[\"%s\",\"%s\",%d,%d,\"%s\"]",
+                            prefix, segment->id,
+                            segment->line, segment->low, segment->high,
+                            occupancy);
         prefix = ",";
     }
     if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");

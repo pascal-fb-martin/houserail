@@ -74,7 +74,7 @@ Models can also be loaded from a catalog identified by the `rail.track.catalog` 
 
 The segments are specific to a layout and are stored in the `rail.track.segments` array. Each element is an object the follows the schema below:
 
-* `id`: an identifier for this segment, unique within the layout.
+* `id`: an identifier for this segment, unique within the layout. The `id` string must not include any '~' characters.
 * `line`: a line identifier. All standard tracks connected to each other belong to the same line. In the case of a switch, this refers to the normal direction.
 * `previous`: the ID of the previous segment (increasing posts order). This field is optional: the missing link will be retrieved based on the `next` or `branch` links from other segments.
 * `next`: the ID of the subsequent segment (decreasing posts order).

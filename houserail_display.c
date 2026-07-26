@@ -436,6 +436,13 @@ static void display_append (const char *text, int length) {
 static void generate_html_head (void) {
     static const char head[] =
         "<html>\n"
+        "<head>\n"
+        "<link rel=\"stylesheet\" href=\"/rail/animate.css\">\n"
+        "<script src=\"/rail/animate.js\"></script>\n"
+        "<script>\n"
+        "window.onload = function() {animateStart('/rail');}\n"
+        "</script>\n"
+        "</head>\n"
         "<body style=\"margin: 0;\">\n"
         "<div style=\"background-color: #355b1eff;\" width=\"100%%\">\n";
     display_append (head, sizeof(head) - 1);
@@ -459,7 +466,7 @@ static void generate_svg_head (const struct TrackDisplayLocation *min,
     display_append (buffer, length);
 }
 
-static void draw_path (const char *id, const char *d, int width, int length) {
+static void draw_path (const char *id, const char *d, int length) {
 
     // There are two types of path:
     // With id: this is an animated path.
@@ -470,23 +477,18 @@ static void draw_path (const char *id, const char *d, int width, int length) {
          // An animated path has no default stroke. The stroke will get set
          // when the path is animated.
          length = snprintf (buffer, sizeof(buffer),
-                            "<path id=\"%s\" d=\"%s\" fill=\"none\""
-                                " stroke=\"none\" stroke-width=\"%d\""
-                                " pathlength=\"%d\"/>\n",
-                            id, d, width, length);
+                            "<path id=\"%s\" d=\"%s\" stroke=\"none\""
+                                " pathlength=\"%d\"/>\n", id, d, length);
     } else {
          // A static background path does not need an explicit length.
-         length = snprintf (buffer, sizeof(buffer),
-                            "<path d=\"%s\" fill=\"none\""
-                                " stroke-width=\"%d\"/>\n", d, width);
+         length = snprintf (buffer, sizeof(buffer), "<path d=\"%s\"/>\n", d);
     }
     display_append (buffer, length);
 }
 
 static void draw_straight (const char *id,
                            const struct TrackDisplayLocation *origin,
-                           const struct TrackDisplayLocation *end,
-                           int width, int length) {
+                           const struct TrackDisplayLocation *end, int length) {
 
     char d[80];
     if (origin->y == end->y) {
@@ -497,65 +499,64 @@ static void draw_straight (const char *id,
         snprintf (d, sizeof(d), "M %d %d L %d %d",
                   origin->x, origin->y, end->x, end->y);
     }
-    draw_path (id, d, width, length);
+    draw_path (id, d, length);
 }
 
 static void draw_curve (const char *id,
                         const struct TrackDisplayLocation *origin,
                         const struct TrackDisplayLocation *end,
-                        const struct TrackDisplayShape *shape,
-                        int width, int length) {
+                        const struct TrackDisplayShape *shape, int length) {
 
    char d[80];
    snprintf (d, sizeof(d), "M %d %d A %d %d %d 0 %d %d %d",
              origin->x, origin->y,
              shape->radius, shape->radius, origin->angle, (shape->arc > 0)?1:0,
              end->x, end->y);
-   draw_path (id, d, width, length);
+   draw_path (id, d, length);
 }
 
 static void draw_track_background
-                (const struct TrackSegment *segment, int width) {
+                (const struct TrackSegment *segment, int gap) {
 
    const struct TrackSegmentDisplay *display =
                     LayoutSegmentsDisplay + segment->index;
 
-   int gap = width / 7;
    struct TrackDisplayLocation origin;
    struct TrackDisplayLocation end;
    move_straight (&(display->origin), &origin, display->origin.angle, gap);
+   move_straight (&(display->end), &end,
+                  rotate (display->end.angle, 180), gap);
 
    if (segment->shape.arc == 0) {
        // Straight segment.
-       move_straight (&(display->end), &end,
-                      rotate (display->end.angle, 180), gap);
-       draw_straight (0, &origin, &end, width, 0);
+       draw_straight (0, &origin, &end, 0);
    } else {
        if (segment->branch >= 0) {
-           // This is a switch. There is always a straight portion.
-           move_straight (&(display->end), &end,
-                          rotate (display->end.angle, 180), gap);
-           draw_straight (0, &origin, &end, width, 0);
+           // This is a switch. There is always a straight portion and it
+           // must be animated (show the switch state).
+           int length = segment->high - segment->low;
+           char id[80];
+           snprintf (id, sizeof(id), "%s~normal", segment->id);
+           draw_straight (id, &origin, &end, length);
 
+           snprintf (id, sizeof(id), "%s~reverse", segment->id);
            if (segment->common == segment->previous) {
                move_straight (&(display->reverse), &end,
                               rotate (display->reverse.angle, 180), gap);
+               draw_curve (id, &origin, &end, &(segment->shape), length);
            } else {
-               origin = end;
-               move_straight (&(display->reverse), &end,
+               move_straight (&(display->reverse), &origin,
                               rotate (display->reverse.angle, 180), gap);
+               draw_curve (id, &end, &origin, &(segment->shape), length);
            }
        } else {
            // This is a simple curve.
-           move_straight (&(display->end), &end,
-                          rotate (display->end.angle, 180), gap);
+           draw_curve (0, &origin, &end, &(segment->shape), 0);
        }
-       draw_curve (0, &origin, &end, &(segment->shape), width, 0);
    }
 }
 
-static void draw_track_animation
-                (const struct TrackSegment *segment, int width) {
+static void draw_train_animation (const struct TrackSegment *segment) {
 
    const struct TrackSegmentDisplay *display =
                     LayoutSegmentsDisplay + segment->index;
@@ -566,51 +567,62 @@ static void draw_track_animation
    const struct TrackDisplayShape *shape = &segment->shape;
 
    if (segment->shape.arc == 0) {
-       draw_straight (segment->id, origin, end, width, length);
+       draw_straight (segment->id, origin, end, length);
    } else {
        if (segment->branch >= 0) {
            // This is a switch. There is always a straight portion.
-           draw_straight (segment->id, origin, end, width, length);
+           draw_straight (segment->id, origin, end, length);
 
            char id[64];
-           snprintf (id, sizeof(id), "%s:reverse", segment->id);
+           snprintf (id, sizeof(id), "%s~branch", segment->id);
            if (segment->common == segment->previous) {
-               draw_curve (id, origin, end, shape, width, length);
+               draw_curve (id, origin, &(display->reverse), shape, length);
            } else {
-               draw_curve (id, end, origin, shape, width, length);
+               draw_curve (id, end, &(display->reverse), shape, length);
            }
        } else {
            // This is a regular curve.
-           draw_curve (segment->id, origin, end, shape, width, length);
+           draw_curve (segment->id, origin, end, shape, length);
        }
    }
 }
 
 static void generate_tracks (int width) {
 
-    static const char groupstart[] = "<g id=\"tracks\" stroke=\"#f0f0f0\">\n";
-    static const char groupend[]   = "</g>\n";
+    static const char groupend[] = "</g>\n";
 
-    display_append (groupstart, sizeof(groupstart) - 1);
+    char group[256];
+    int length;
 
-    // This draws each track twice, slightly differently:
-    // the track background first, then the animation shapes.
+    // This draws each track twice, differently:
+    // draw the track background first, then the train animation shapes.
     // This is done so because the SVG stacking order is defined by
     // the order of the elements, and the animations must be drawn over
-    // all track backgrounds.
+    // all track backgrounds. They also use different stroke colors.
 
+    length = snprintf (group, sizeof(group),
+                       "<g id=\"tracks\" stroke=\"#f0f0f0\""
+                           " stroke-width=\"%d\">\n", width);
+    display_append (group, length);
+
+    int gap = width / 7;
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         const struct TrackSegment *segment = LayoutSegments + i;
         if (!LayoutSegmentsDisplay[i].done) continue;
-        draw_track_background (segment, width);
+        draw_track_background (segment, gap);
     }
+    display_append (groupend, sizeof(groupend) - 1);
+
+    length = snprintf (group, sizeof(group),
+                       "<g id=\"trains\" stroke-width=\"%d\">\n", width);
+    display_append (group, length);
+
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         const struct TrackSegment *segment = LayoutSegments + i;
         if (!LayoutSegmentsDisplay[i].done) continue;
-        draw_track_animation (segment, width);
+        draw_train_animation (segment);
     }
-
     display_append (groupend, sizeof(groupend) - 1);
 }
 
@@ -620,7 +632,7 @@ static void generate_svg_tail (void) {
 }
 
 static void generate_html_tail (void) {
-    static const char tail[] = "</div>\n</body>\n>/html>\n";
+    static const char tail[] = "</div>\n</body>\n></html>\n";
     display_append (tail, sizeof(tail) - 1);
 }
 

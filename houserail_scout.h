@@ -31,7 +31,6 @@ struct RangeElement {
 struct RangeIndex {
    int size;
    int count;
-   int *ordered;
    struct RangeElement *elements;
 };
 

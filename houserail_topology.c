@@ -110,6 +110,12 @@
  *     Search for the specified track detector. Returns an index to
  *     the TrackDetector table on success, -1 otherwise.
  *
+ * int houserail_topology_segment_sorted (int at);
+ *
+ *     This function can be used to walks through the list of segments
+ *     in an order defined by line and high post. This is an iterator:
+ *     start with 0, than call with incremented value.
+ *
  * LIMITATIONS:
  *
  * This design is optimized for up to 256 segments for now. To remove this
@@ -1049,5 +1055,11 @@ const struct TrackDetector *houserail_topology_detectors (void) {
 
 const struct TrackOptions *houserail_topology_options (void) {
     return &TopologyOptions;
+}
+
+int houserail_topology_segment_sorted (int at) {
+
+    if ((at < 0) || (at > TopologySegmentsIndex.count)) return -1;
+    return TopologySegmentsIndex.elements[at].value;
 }
 

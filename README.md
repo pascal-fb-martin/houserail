@@ -40,7 +40,7 @@ One or more [HouseRelays](https://github.com/pascal-fb-martin/houserelays) servi
 /rail/train/status[?known=NUMBER]
 ```
 
-Return the last known state of trains.
+Return the last known state of trains. This is a nearly complete status, typically what you would want for a train list display, or for an external application to monitor train traffic.
 
 This returns JSON data with the following format:
 
@@ -64,10 +64,10 @@ If a train is parked (i.e not present on the layout), items `head`, `tail` and `
 A location is an array of 3 items: line name, post and segment ID.
 
 ```
-/rail/track/status[?known=NUMBER]
+/rail/status[?known=NUMBER]
 ```
 
-Return the last known state of the tracks, switches and signals on the layout. This also includes just enough information about the location of trains to show their IDs at the proper place on a track display.
+Return the last known state of the trains, tracks, switches and signals on the layout. This contains enough information to show the locations of trains, track occupancies, orientations of switches and color of signals.
 
 This returns JSON data with the following format:
 
@@ -79,11 +79,11 @@ This returns JSON data with the following format:
 * rail.track:    the current status of tracks.
 * rail.switch:   the current status of switches.
 * rail.signal:   the current status of signals.
-* rail.train:    a subset of the current status of trains.
+* rail.train:    a limited status of trains.
 
 Each `detector`, `track`, `switch` and `signal` entry is an array of arrays, where each inner array has two elements: the ID of the device followed by its status. Switches can be `reverse`, `normal` or `invalid`, signals can be `red` or `green`, detectors and tracks can be `on` or `off`.
 
-The train status subset contains enough information to locate the train on a track display: `id`, `head` and `procees`. (The last item provides the direction of travel.)
+The train status subset contains enough information to locate the train on a track display: `id`, `head` and `proceed`. (The last item provides the direction of travel.) It also contains the train's path, i.e. the portions of tracks that are covered by each train.
 
 ```
 /rail/train/consist?id=STRING&cars=STRING[+STRING..]
@@ -138,6 +138,18 @@ This returns an updated status of the tracks.
 ```
 
 Return the current configuration, including the track topology.
+
+```
+/rail/identify
+```
+
+Provide the few items needed to update a web page's title: host and layout names.
+
+```
+/rail/track/display
+```
+
+Return the track display page's content. This an HTML envelop around a SVG rendering of the track layout, matching the current layout configuration. This is intended to populate the tracks display page of the HouseRail web UI.
 
 ## Configuration
 

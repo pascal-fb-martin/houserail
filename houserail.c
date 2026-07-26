@@ -109,6 +109,9 @@ static const char *rail_save (const char *reason) {
 }
 */
 
+// This is a very short answer, that returns enough information for a web
+// page's title.
+//
 static const char *rail_identify (const char *method, const char *uri,
                                   const char *data, int length) {
 
@@ -118,21 +121,26 @@ static const char *rail_identify (const char *method, const char *uri,
     return JsonBuffer;
 }
 
+// This returns the track display page's content, which was generated
+// on the fly from the current track topology.
+//
 static const char *rail_display (const char *method, const char *uri,
                                  const char *data, int length) {
     echttp_content_type_html ();
     return houserail_display_get ();
 }
 
-static const char *rail_status_track (const char *method, const char *uri,
-                                      const char *data, int length) {
+// This is a combined status with limited information, typically the data
+// that would be needed to update a graphical display.
+//
+static const char *rail_status (const char *method, const char *uri,
+                                const char *data, int length) {
 
     if (housestate_same (LiveState)) return "";
 
     int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), LiveState);
 
     cursor += houserail_track_status (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
-    cursor += houserail_field_status (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
     cursor += houserail_train_locate (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
 
     cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
@@ -154,6 +162,8 @@ static const char *rail_detector (const char *method, const char *uri,
     return JsonBuffer;
 }
 
+// This is a full train status (but only trains).
+//
 static const char *rail_status_train (const char *method, const char *uri,
                                       const char *data, int length) {
 
@@ -167,6 +177,8 @@ static const char *rail_status_train (const char *method, const char *uri,
     return JsonBuffer;
 }
 
+// Create or modify a train consist.
+//
 static const char *rail_consist (const char *method, const char *uri,
                                  const char *data, int length) {
 
@@ -316,20 +328,17 @@ static const char *rail_switch (const char *method, const char *uri,
     const char *cmd = echttp_parameter_get("cmd");
 
     // Issue the track switch change request through DCC.
-    const char *error = houserail_field_switch_set (id, cmd);
-    if (error) {
-        echttp_error (500, error);
-        return "";
-    }
+    // Ignore any DCC error, so that we can handle manual handout.
+    houserail_field_switch_set (id, cmd);
 
     // Report the new known state locally.
-    error = houserail_track_switch (id, cmd);
+    const char *error = houserail_track_switch (id, cmd);
     if (error) {
         echttp_error (500, error);
         return "";
     }
     housestate_changed (LiveState);
-    return rail_status_track (method, uri, data, length);
+    return rail_status (method, uri, data, length);
 }
 
 static const char *rail_signal (const char *method, const char *uri,
@@ -352,7 +361,7 @@ static const char *rail_signal (const char *method, const char *uri,
         return "";
     }
     housestate_changed (LiveState);
-    return rail_status_track (method, uri, data, length);
+    return rail_status (method, uri, data, length);
 }
 
 static const char *rail_config (const char *method, const char *uri,
@@ -470,7 +479,6 @@ int main (int argc, const char **argv) {
     echttp_protect (0, rail_protect);
 
     echttp_route_uri ("/rail/train/status",   rail_status_train);
-    echttp_route_uri ("/rail/track/status",   rail_status_track);
     echttp_route_uri ("/rail/track/detector", rail_detector);
     echttp_route_uri ("/rail/train/consist",  rail_consist);
     echttp_route_uri ("/rail/train/delete",   rail_delete_train);
@@ -482,8 +490,9 @@ int main (int argc, const char **argv) {
     echttp_route_uri ("/rail/signal", rail_signal);
     echttp_route_uri ("/rail/config", rail_config);
 
-    echttp_route_uri ("/rail/identify", rail_identify);
+    echttp_route_uri ("/rail/identify",      rail_identify);
     echttp_route_uri ("/rail/track/display", rail_display);
+    echttp_route_uri ("/rail/status",        rail_status);
 
     echttp_static_route ("/", "/usr/local/share/house/public");
     echttp_background (&rail_background);
