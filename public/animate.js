@@ -19,7 +19,7 @@ function searchSegments (line, low, high) {
     var linesegments = TrackSegments[line];
     if (!linesegments) return null;
 
-    if (low > high) { // Segments are oriented in increasing posts.
+    if (low > high) { // Segments are oriented in increasing posts order.
        var temp = low;
        low = high;
        high = temp;
@@ -73,11 +73,7 @@ function searchSegments (line, low, high) {
     // Return the full information for each covered segment,
     // so that the caller can handle partial coverage.
 
-    var result = new Array();
-    for (cursor = begin; cursor <= end; ++cursor) {
-        result.push (linesegments[cursor]);
-    }
-    return result;
+    return linesegments.slice (begin, end+1);
 }
 
 function updateSegments (response) {
@@ -130,6 +126,8 @@ var SegmentOccupied = 'yellow';
 var SegmentVacant = 'inherit';
 var SegmentInactive = 'grey';
 var SegmentTrain = 'red';
+var SegmentDirection = 'yellow';
+var SegmentDirectionStopped = 'white';
 
 function updateDisplay (response) {
 
@@ -197,33 +195,82 @@ function updateDisplay (response) {
     //
     for (var i = 0; i < KnownTrainLocations.length; ++i) {
         KnownTrainLocations[i].setAttribute ('stroke', 'none');
+        KnownTrainLocations[i].removeAttribute ('stroke-dasharray');
+        KnownTrainLocations[i].removeAttribute ('stroke-dashoffset');
     }
     KnownTrainLocations = new Array();
 
+    // Show the listed trains.
     if (!response.rail.train) return;
 
-    // Show the listed trains.
-    // TBD: show exact train limits using dashed lines..
-    //
     for (var i = 0; i < response.rail.train.length; ++i) {
         var train = response.rail.train[i];
-        var path = train.path;
-        for (var j = 0; j < path.length; ++j) {
-            var section = path[j];
-            var segments = searchSegments (section[0], section[1], section[2]);
+        var section;  // Keep the last section.
+        var segments; // Keep the segments for the last section.
+        for (var j = 0; j < train.path.length; ++j) {
+            section = train.path[j];
+            segments = searchSegments (section[0], section[1], section[2]);
             if (segments) {
                 for (var k = 0; k < segments.length; ++k) {
                     var segment = segments[k];
+                    var seglength = segment[3] - segment[2];
+                    var back = section[1] - segment[2];
+                    var front = section[2] - segment[2];
+
+                    if (back < 0) back = 0;
+                    else if (back > seglength) back = seglength;
+                    if (front < 0) front = 0;
+                    else if (front > seglength) front = seglength;
+
+                    var element = null;
                     var id = segment[0].split ('~');
-                    var element;
                     if ((id.length > 1) && (id[1] == 'reverse')) {
                         element = document.getElementById (id[0]+'~branch');
                     } else {
                         element = document.getElementById (id[0]);
                     }
+                    if (!element) continue;
+
+                    var trainlength = Math.abs (front - back);
+                    if (trainlength < seglength) {
+                        var gap = seglength - trainlength + 1;
+                        element.setAttribute ('stroke-dasharray',
+                                              ''+trainlength+' '+gap);
+                        if (front < back) back = front; // reverse
+                        element.setAttribute ('stroke-dashoffset', '-'+back);
+                    }
                     element.setAttribute ('stroke', SegmentTrain);
                     KnownTrainLocations.push(element);
                 }
+            }
+        }
+        if (segments) {
+            // Draw the direction mark for this train.
+            // Select the first or last segment based on the direction
+            // (segments are always sorted by increasing post)
+            var segment;
+            if (section[2] > section[1])
+                segment = segments[segments.length - 1]; // Direction up.
+            else
+                segment = segments[0]; // Direction down.
+
+            var element = null;
+            var id = segment[0].split ('~');
+            if ((id.length > 1) && (id[1] == 'reverse')) {
+                element = document.getElementById (id[0]+'~dir~branch');
+            } else {
+                element = document.getElementById (id[0]+'~dir');
+            }
+            if (element) {
+                var length = segment[3] - segment[2];
+                var offset = section[2] - segment[2];
+                element.setAttribute ('stroke-dasharray', '0 '+length);
+                element.setAttribute ('stroke-dashoffset', '-'+offset);
+                if (train.proceed[1] > 0)
+                    element.setAttribute ('stroke', SegmentDirection);
+                else
+                    element.setAttribute ('stroke', SegmentDirectionStopped);
+                KnownTrainLocations.push(element);
             }
         }
     }

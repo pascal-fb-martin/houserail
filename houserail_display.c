@@ -529,7 +529,9 @@ static void draw_track_background
                   rotate (display->end.angle, 180), gap);
 
    char id[80];
-   snprintf (id, sizeof(id), "%s~normal", segment->id);
+   char *idend = id + sizeof(id);
+   char *idcursor = stpecpy (id, idend, segment->id);
+   stpecpy (idcursor, idend, "~normal");
 
    if (segment->shape.arc == 0) {
        // Straight segment.
@@ -539,7 +541,7 @@ static void draw_track_background
            // This is a switch. There is always a straight portion.
            draw_straight (id, &origin, &end, Stroke, 0);
 
-           snprintf (id, sizeof(id), "%s~reverse", segment->id);
+           stpecpy (idcursor, idend, "~reverse");
            if (segment->common == segment->previous) {
                move_straight (&(display->reverse), &end,
                               rotate (display->reverse.angle, 180), gap);
@@ -556,7 +558,8 @@ static void draw_track_background
    }
 }
 
-static void draw_train_animation (const struct TrackSegment *segment) {
+static void draw_train_animation (const struct TrackSegment *segment,
+                                  const char *classifier) {
 
    static const char Stroke[] = "none"; // Not visible until there is a train.
 
@@ -568,15 +571,19 @@ static void draw_train_animation (const struct TrackSegment *segment) {
    const struct TrackDisplayShape *shape = &segment->shape;
    int l = segment->high - segment->low;
 
+   char id[92];
+   char *idend = id + sizeof(id);
+   char *idcursor = stpecpy (id, idend, segment->id);
+   idcursor = stpecpy (idcursor, idend, classifier);
+
    if (segment->shape.arc == 0) {
-       draw_straight (segment->id, origin, end, Stroke, l);
+       draw_straight (id, origin, end, Stroke, l);
    } else {
        if (segment->branch >= 0) {
            // This is a switch. There is always a straight portion.
-           draw_straight (segment->id, origin, end, Stroke, l);
+           draw_straight (id, origin, end, Stroke, l);
 
-           char id[64];
-           snprintf (id, sizeof(id), "%s~branch", segment->id);
+           stpecpy (idcursor, idend, "~branch");
            if (segment->common == segment->previous) {
                draw_curve (id, origin, &(display->reverse), shape, Stroke, l);
            } else {
@@ -584,7 +591,7 @@ static void draw_train_animation (const struct TrackSegment *segment) {
            }
        } else {
            // This is a regular curve.
-           draw_curve (segment->id, origin, end, shape, Stroke, l);
+           draw_curve (id, origin, end, shape, Stroke, l);
        }
    }
 }
@@ -596,11 +603,13 @@ static void generate_tracks (int width) {
     char group[256];
     int length;
 
-    // This draws each track twice, differently:
-    // draw the track background first, then the train animation shapes.
+    // This draws each track three times, differently:
+    // draw the track background first, then the train animation paths, and
+    // last the train direction indication paths.
     // This is done so because the SVG stacking order is defined by
-    // the order of the elements, and the animations must be drawn over
-    // all track backgrounds. They also use different stroke colors.
+    // the order of the elements: the trains must be drawn over
+    // the track backgrounds, and the indicators must be drawn over
+    // the trains. They also use different stroke colors.
 
     length = snprintf (group, sizeof(group),
                        "<g id=\"tracks\" stroke=\"#f0f0f0\""
@@ -623,7 +632,21 @@ static void generate_tracks (int width) {
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         const struct TrackSegment *segment = LayoutSegments + i;
         if (!LayoutSegmentsDisplay[i].done) continue;
-        draw_train_animation (segment);
+        draw_train_animation (segment, "");
+    }
+    display_append (groupend, sizeof(groupend) - 1);
+
+    width = width / 2;
+    if (width <= 1) width = 2; // Direction indicators must remain visible.
+
+    length = snprintf (group, sizeof(group),
+                       "<g id=\"directions\" stroke-width=\"%d\">\n", width);
+    display_append (group, length);
+
+    for (i = 0; i < LayoutSegmentsCount; ++i) {
+        const struct TrackSegment *segment = LayoutSegments + i;
+        if (!LayoutSegmentsDisplay[i].done) continue;
+        draw_train_animation (segment, "~dir");
     }
     display_append (groupend, sizeof(groupend) - 1);
 }
