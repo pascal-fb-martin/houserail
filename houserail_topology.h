@@ -120,7 +120,10 @@ void houserail_topology_billmode (int enabled);
 
 const char *houserail_topology_initialize (int argc, const char **argv);
 const char *houserail_topology_reload (void);
-int houserail_topology_export (char *buffer, int size, const char *sep);
+
+int houserail_topology_export (char *buffer, int size, const char *separator);
+int houserail_topology_export_segments
+        (char *buffer, int size, const char *separator);
 
 int houserail_topology_model_count (void);
 const struct TrackModel *houserail_topology_models (void);
@@ -137,6 +140,4 @@ int houserail_topology_search_model (const char *id);
 int houserail_topology_search_by_id (const char *id);
 int houserail_topology_search_by_location (const char *line, int post);
 int houserail_topology_search_detector (const char *id);
-
-int houserail_topology_segment_sorted (int at);
 

@@ -130,6 +130,25 @@ static const char *rail_display (const char *method, const char *uri,
     return houserail_display_get ();
 }
 
+// This returns an ordered list of segments. The data is meant to allow
+// interpreting the train paths returned by rail_status().
+// That is typically needed to update a (segments oriented) track display.
+//
+static const char *rail_segments (const char *method, const char *uri,
+                                  const char *data, int length) {
+
+    if (housestate_same (ConfigState)) return "";
+
+    int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), ConfigState);
+    int empty = cursor;
+    cursor += houserail_topology_export_segments
+                 (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, ",");
+    if (cursor == empty) return "";
+    snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
+    echttp_content_type_json ();
+    return JsonBuffer;
+}
+
 // This is a combined status with limited information, typically the data
 // that would be needed to update a graphical display.
 //
@@ -490,9 +509,10 @@ int main (int argc, const char **argv) {
     echttp_route_uri ("/rail/signal", rail_signal);
     echttp_route_uri ("/rail/config", rail_config);
 
-    echttp_route_uri ("/rail/identify",      rail_identify);
-    echttp_route_uri ("/rail/track/display", rail_display);
-    echttp_route_uri ("/rail/status",        rail_status);
+    echttp_route_uri ("/rail/identify",       rail_identify);
+    echttp_route_uri ("/rail/track/display",  rail_display);
+    echttp_route_uri ("/rail/track/segments", rail_segments);
+    echttp_route_uri ("/rail/status",         rail_status);
 
     echttp_static_route ("/", "/usr/local/share/house/public");
     echttp_background (&rail_background);

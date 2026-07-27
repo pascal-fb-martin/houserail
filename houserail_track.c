@@ -321,17 +321,14 @@ const char *houserail_track_reload (void) {
     return 0;
 }
 
-static int houserail_track_status_track (char *buffer, int size) {
+static int houserail_track_status_segment (char *buffer, int size) {
 
     int cursor = 0;
-    const char *prefix = ",\"track\":[";
+    const char *prefix = ",\"segment\":[";
 
-    // We want to send a sorted segment list, so that the client can optimize
-    // it searches, if needed.
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
-        int index = houserail_topology_segment_sorted (i);
-        const struct TrackSegment *segment = LayoutSegments + index;
+        const struct TrackSegment *segment = LayoutSegments + i;
         const char *occupancy = "off";
         int j;
         for (j = segment->detector; j >= 0; j = LayoutDetectors[j].next) {
@@ -341,10 +338,8 @@ static int houserail_track_status_track (char *buffer, int size) {
             }
         }
         cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s[\"%s\",\"%s\",%d,%d,\"%s\"]",
-                            prefix, segment->id,
-                            segment->line, segment->low, segment->high,
-                            occupancy);
+                            "%s[\"%s\",\"%s\"]",
+                            prefix, segment->id, occupancy);
         prefix = ",";
     }
     if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
@@ -398,7 +393,7 @@ static int houserail_track_status_switch (char *buffer, int size) {
 
 int houserail_track_status (char *buffer, int size) {
 
-    int cursor = houserail_track_status_track (buffer, size);
+    int cursor = houserail_track_status_segment (buffer, size);
     cursor += houserail_track_status_switch (buffer+cursor, size-cursor);
     cursor += houserail_track_detectors (buffer+cursor, size-cursor);
     return cursor;
@@ -454,45 +449,113 @@ static int houserail_track_locate (const struct TrackLocation *point) {
     return houserail_topology_search_by_location (point->line, point->post);
 }
 
+// Retrieve the track range covered by the specified segment.
+// This function handles switches.
+//
+static void houserail_track_limits (const char *line, int direction,
+                                    const struct TrackSegment *segment,
+                                    struct TrackRange *range) {
+
+    struct TrackSegmentLive *status = LayoutSegmentsLive + segment->index;
+
+    // Consider the segment's 'normal' range as the default.
+    range->line = segment->line;
+    range->segment = segment->id;
+    range->low = segment->low;
+    range->high = segment->high;
+
+    if (segment->branch < 0) return; // No ambiguity: straight segment.
+
+    const struct TrackSegment *branch = LayoutSegments + segment->branch;
+
+    // What is the geometry of the switch: increasing or decreasing posts?
+    int geometry = (segment->common == segment->previous)?1:-1;
+
+    int onbranch = 0;
+    if (direction == geometry) {
+        // Follow the needle on a divergent switch.
+        if (status->needle == segment->branch) onbranch = 1;
+    } else {
+        // Does this come from the branch of a convergent switch?
+        if (strsame (line, branch->line)) onbranch = 1;
+    }
+    if (onbranch) {
+        range->line = branch->line;
+        const struct TrackModel *model = LayoutModels + segment->model;
+        if (geometry > 0) {
+            range->low = branch->low - model->reverse;
+            range->high = branch->low;
+        } else {
+            range->low = branch->high;
+            range->high = branch->high + model->reverse;
+        }
+    }
+}
+
 int houserail_track_vicinity (struct TrackLocation *point,
                               const char *id, int direction) {
 
-    int low = -1;
-    int high = -1;
-    point->line = 0;
+    struct TrackRange range = {0, 0, -1, -1};
 
     int index = houserail_topology_search_by_id (id);
-    if (index > 0) {
+    if (index >= 0) {
         const struct TrackSegment *segment = LayoutSegments + index;
-        point->line = segment->line;
-        point->segment = segment->id;
-        low = segment->low;
-        high = segment->high;
+
+        // Assume the common case first (simple segment or normal track).
+        range.line = segment->line;
+        range.segment = segment->id;
+        range.low = segment->low;
+        range.high = segment->high;
+
+        if (segment->branch >= 0) {
+            // This is a switch: we must select the active track.
+            const struct TrackSegmentLive *status = LayoutSegmentsLive + index;
+            if (status->needle == segment->branch) {
+                const char *line = LayoutSegments[segment->branch].line;
+                houserail_track_limits (line, direction, segment, &range);
+            }
+        }
+
     } else {
         const struct TrackDetector *detector =
                            houserail_track_search_detector (id);
         if (detector) {
-           point->line = detector->area.line;
-           point->segment = LayoutSegments[detector->segment].id;
-           low = detector->area.low;
-           high = detector->area.high;
+           range.segment = LayoutSegments[detector->segment].id;
+
+           int index = houserail_topology_search_by_id (range.segment);
+           const struct TrackSegment *segment = LayoutSegments + index;
+           if (segment->branch >= 0) {
+               // Cannot be positioned on the inactive track of a switch.
+               const struct TrackSegmentLive *status = LayoutSegmentsLive + index;
+               int on_normal = strsame (detector->area.line, segment->line);
+               if (status->needle == segment->branch) {
+                   if (on_normal) return 0;
+               } else {
+                   if (!on_normal) return 0;
+               }
+           }
+           range.line = detector->area.line;
+           range.low = detector->area.low;
+           range.high = detector->area.high;
         }
     }
-    if (!point->line) return 0; // Not found.
+    if (!range.line) return 0; // Not found.
 
-    if (! direction) {
-       // Not moving: choose a point in the middle.
-       point->post = (high + low) / 2;
-       return 1;
-    }
+    point->line = range.line;
+    point->segment = range.segment;
 
-    // Choose the limit according to the direction of travel.
-    if (low > high) {
-        int temp = low;
-        low = high;
-        high = temp;
+    if (! direction) { // Not moving: choose a point in the middle.
+
+        point->post = (range.high + range.low) / 2;
+
+    } else { // Choose the limit according to the direction of travel.
+
+        if (range.low < range.high) {
+            point->post = (direction > 0)? range.low : range.high;
+        } else {
+            point->post = (direction > 0)? range.high : range.low;
+        }
     }
-    point->post = (direction > 0)? low : high;
     return 1;
 }
 
@@ -580,48 +643,6 @@ int houserail_track_civil (const struct TrackLocation *point,
         }
     }
     return speed;
-}
-
-// Retrieve the track range covered by the specified segment.
-// This function handles switches.
-//
-static void houserail_track_limits (const char *line, int direction,
-                                    const struct TrackSegment *segment,
-                                    struct TrackRange *range) {
-
-    struct TrackSegmentLive *status = LayoutSegmentsLive + segment->index;
-
-    // Consider the segment's 'normal' range as the default.
-    range->line = segment->line;
-    range->low = segment->low;
-    range->high = segment->high;
-
-    if (segment->branch < 0) return; // No ambiguity: straight segment.
-
-    const struct TrackSegment *branch = LayoutSegments + segment->branch;
-
-    // What is the geometry of the switch: increasing or decreasing posts?
-    int geometry = (segment->common == segment->previous)?1:-1;
-
-    int onbranch = 0;
-    if (direction == geometry) {
-        // Follow the needle on a divergent switch.
-        if (status->needle == segment->branch) onbranch = 1;
-    } else {
-        // Does this come from the branch of a convergent switch?
-        if (strsame (line, branch->line)) onbranch = 1;
-    }
-    if (onbranch) {
-        range->line = branch->line;
-        const struct TrackModel *model = LayoutModels + segment->model;
-        if (geometry > 0) {
-            range->low = branch->low - model->reverse;
-            range->high = branch->low;
-        } else {
-            range->low = branch->high;
-            range->high = branch->high + model->reverse;
-        }
-    }
 }
 
 // Make one step to the next segment. This handles switches.

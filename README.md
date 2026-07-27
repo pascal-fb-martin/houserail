@@ -76,14 +76,16 @@ This returns JSON data with the following format:
 * latest:        the current state of the server (see the `known` parameter).
 * rail.layout:   the name of the layout managed by this server.
 * rail.detector: the current status of each individual occupancy detector.
-* rail.track:    the current status of tracks.
+* rail.segment:  the current status of track segments.
 * rail.switch:   the current status of switches.
 * rail.signal:   the current status of signals.
-* rail.train:    a limited status of trains.
+* rail.train:    a limited status of trains. This is an array of objects.
 
-Each `detector`, `track`, `switch` and `signal` entry is an array of arrays, where each inner array has two elements: the ID of the device followed by its status. Switches can be `reverse`, `normal` or `invalid`, signals can be `red` or `green`, detectors and tracks can be `on` or `off`.
+Each `detector`, `segment`, `switch` and `signal` entry is an array of arrays, where each inner array has two elements: the ID of the device followed by its status. Switches can be `reverse`, `normal` or `invalid`, signals can be `red` or `green`, detectors and segments can be `on` or `off`.
 
-The train status subset contains enough information to locate the train on a track display: `id`, `head` and `proceed`. (The last item provides the direction of travel.) It also contains the train's path, i.e. the portions of tracks that are covered by each train.
+A `segment` item is a summary of the status of the detectors on that segment.
+
+The information provided for each train is enough to locate the train on a track display: `id`, `proceed` and `path`. The `proceed` item provides the direction of travel. The `path` item represents the tracks that are covered by the train. It is an array of portions of track lines, where each portion may span multiple segments. Each portion is an array: line, low and high.
 
 ```
 /rail/train/consist?id=STRING&cars=STRING[+STRING..]
@@ -150,6 +152,24 @@ Provide the few items needed to update a web page's title: host and layout names
 ```
 
 Return the track display page's content. This an HTML envelop around a SVG rendering of the track layout, matching the current layout configuration. This is intended to populate the tracks display page of the HouseRail web UI.
+
+```
+/rail/track/segments[?known=NUMBER]
+```
+
+Return the list of track segments, sorted by line and high post. The JSON schema is:
+
+* host:          the name of the host replying.
+* timestamp:     the time when the response was built.
+* latest:        the current state of the server configuration (see the `known` parameter).
+* rail.layout:   the name of the layout managed by this server.
+* rail.segment:  the track segments. This is an array of arrays. Each subarray contains the ID, line, low and high posts.
+
+> [!NOTE]
+> The `latest` field matches the configuration, not the live status. This means that its value changes only when a new configuration is loaded.
+
+> [!NOTE]
+> Switches appear as two segments: ID+'~normal' and ID+'~reverse'. This is because each side belongs to a different line.
 
 ## Configuration
 

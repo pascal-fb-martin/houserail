@@ -62,10 +62,22 @@
  *     This module implement access to "catalog" data, i.e. model databases
  *     shared by multiple layout databases.
  *
- * int houserail_topology_export (char *buffer, int size, const char *sep);
+ * int houserail_topology_export
+ *         (char *buffer, int size, const char *separator);
  *
- *     Export the track topology configuration in JSON format. Can be used
- *     to feed other service???
+ *     Export the last loaded track topology configuration in JSON format.
+ *     Can be used to feed other service???
+ *
+ * int houserail_topology_export_segments
+ *         (char *buffer, int size, const char *separator);
+ *
+ *     Export the list of segments (ID, line, low and high posts) in JSON
+ *     format. The segments are ordered by line and high post.
+ *
+ *     This is not just a subset of the houserail_topology_export() data:
+ *     this provides post limits, which are calculated. Because switches
+ *     have two tracks on different lines, they appear here as two segments:
+ *     once for the normal track and once for the reverse track.
  *
  * int houserail_topology_model_count (void);
  * const struct TrackModel *houserail_topology_models (void);
@@ -109,12 +121,6 @@
  *
  *     Search for the specified track detector. Returns an index to
  *     the TrackDetector table on success, -1 otherwise.
- *
- * int houserail_topology_segment_sorted (int at);
- *
- *     This function can be used to walks through the list of segments
- *     in an order defined by line and high post. This is an iterator:
- *     start with 0, than call with incremented value.
  *
  * LIMITATIONS:
  *
@@ -226,7 +232,7 @@ int houserail_topology_search_detector (const char *id) {
     int signature = echttp_hash_signature (id);
 
     for (i = 0; i < TopologyDetectorsCount; ++i) {
-        struct TrackDetector *detector = TopologyDetectors + i;
+        const struct TrackDetector *detector = TopologyDetectors + i;
         if (detector->signature != signature) continue;
         if (!detector->id) continue;
         if (strsame (detector->id, id)) return i;
@@ -473,7 +479,7 @@ const char *houserail_topology_reload (void) {
         segment->ending = 0;
         segment->stop.line = segment->slow.line = 0;
 
-        struct TrackModel *model = TopologyModels + segment->model;
+        const struct TrackModel *model = TopologyModels + segment->model;
         segment->shape = model->shape;
 
         segment->curve = 0;
@@ -644,7 +650,7 @@ const char *houserail_topology_reload (void) {
     houserail_scout_initialize (&TopologySegmentsIndex,
                                 TopologySegmentsCount + switchcount);
     for (i = 0; i < TopologySegmentsCount; ++i) {
-        struct TrackSegment *segment = TopologySegments + i;
+        const struct TrackSegment *segment = TopologySegments + i;
         houserail_scout_add (&TopologySegmentsIndex,
                              i, segment->line, segment->low, segment->high);
         DEBUG (__FILE__ ": segment %s on %s %d to %d (between %s and %s)\n",
@@ -652,7 +658,7 @@ const char *houserail_topology_reload (void) {
                (segment->previous >= 0)?TopologySegments[segment->previous].id:"(none)",
                (segment->next >= 0)?TopologySegments[segment->next].id:"(none)");
         if (segment->branch >= 0) {
-            struct TrackSegment *branch = TopologySegments + segment->branch;
+            const struct TrackSegment *branch = TopologySegments + segment->branch;
             int low, high;
             int reverse = TopologyModels[segment->model].reverse;
             int branchprevious, branchnext;
@@ -879,7 +885,7 @@ const char *houserail_topology_reload (void) {
         printf ("Bill of Material\n\n");
         printf ("----- Track Model --- Count -\n");
         for (i = 0; i < TopologyModelsCount; ++i) {
-            struct TrackModel *model = TopologyModels + i;
+            const struct TrackModel *model = TopologyModels + i;
             if (model->usage > 0) {
                 printf (" %16s  %8d\n", model->id, model->usage);
             }
@@ -937,7 +943,7 @@ int houserail_topology_export (char *buffer, int size, const char *separator) {
     int start = cursor;
     int i;
     for (i = 0; i < TopologyModelsCount; ++i) {
-        struct TrackModel *model = TopologyModels + i;
+        const struct TrackModel *model = TopologyModels + i;
         cursor += snprintf (buffer+cursor, size-cursor,
                             "%s{\"id\":\"%s\""
                                 ",\"length\":%d,\"reverse\":%d,\"civil\":%d}",
@@ -956,7 +962,7 @@ int houserail_topology_export (char *buffer, int size, const char *separator) {
     prefix = (cursor > preamble)?",\"segments\":[":"\"segments\":[";
     start = cursor;
     for (i = 0; i < TopologySegmentsCount; ++i) {
-        struct TrackSegment *segment = TopologySegments + i;
+        const struct TrackSegment *segment = TopologySegments + i;
         cursor += snprintf (buffer+cursor, size-cursor,
                             "%s{\"id\":\"%s\",\"model\":\"%s\","
                                 "\"line\":\"%s\"",
@@ -1007,7 +1013,7 @@ int houserail_topology_export (char *buffer, int size, const char *separator) {
     prefix = (cursor > preamble)?",\"detectors\":[":"\"detectors\":[";
     start = cursor;
     for (i = 0; i < TopologyDetectorsCount; ++i) {
-        struct TrackDetector *detector = TopologyDetectors + i;
+        const struct TrackDetector *detector = TopologyDetectors + i;
         cursor += snprintf (buffer+cursor, size-cursor,
                             "%s{\"id\":\"%s\",\"line\":\"%s\","
                                 "\"low\":%d,\"high\":%d}",
@@ -1022,6 +1028,49 @@ int houserail_topology_export (char *buffer, int size, const char *separator) {
         if (cursor >= size) goto overflow;
     }
     cursor += snprintf (buffer+cursor, size-cursor, "}");
+
+    return cursor;
+
+overflow:
+    return 0;
+}
+
+int houserail_topology_export_segments
+        (char *buffer, int size, const char *separator) {
+
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
+    if (TopologySegmentsIndex.count <= 0) return 0; // Is it even possible?
+
+    int cursor = snprintf (buffer, size, "%s\"segment\":[", separator);
+    if (cursor >= size) goto overflow;
+
+    // Populate the segments array.
+
+    const char *prefix = "";
+    int i;
+    for (i = 0; i < TopologySegmentsIndex.count; ++i) {
+        const struct RangeElement *range = TopologySegmentsIndex.elements + i;
+        int index = TopologySegmentsIndex.elements[i].value;
+        const struct TrackSegment *segment = TopologySegments + index;
+
+        const char *suffix = "";
+        if (segment->branch >= 0) {
+            // A switch is listed twice in the index, because it belongs to
+            // different lines on the normal and reverse sides.
+            if (strsame (segment->line, TopologySegmentsIndex.elements[i].line))
+                suffix = "~normal";
+            else
+                suffix = "~reverse";
+        }
+        cursor += snprintf (buffer+cursor, size-cursor,
+                        "%s[\"%s%s\",\"%s\",%d,%d]",
+                        prefix, segment->id, suffix,
+                        range->line, range->low, range->high);
+        if (cursor >= size) goto overflow;
+        prefix = ",";
+    }
+    cursor += snprintf (buffer+cursor, size-cursor, "]");
+    if (cursor >= size) goto overflow;
 
     return cursor;
 
@@ -1055,11 +1104,5 @@ const struct TrackDetector *houserail_topology_detectors (void) {
 
 const struct TrackOptions *houserail_topology_options (void) {
     return &TopologyOptions;
-}
-
-int houserail_topology_segment_sorted (int at) {
-
-    if ((at < 0) || (at > TopologySegmentsIndex.count)) return -1;
-    return TopologySegmentsIndex.elements[at].value;
 }
 

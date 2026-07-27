@@ -782,7 +782,7 @@ const char *houserail_train_enter (const char *id,
     if (!train->parked) return "This train was not parked";
 
     if (! houserail_track_vicinity (&(train->head), facing, orientation))
-        return "Unknown track location";
+        return "Invalid track location";
 
     train->path.size = train->path.count = 0;
     train->path.sections = 0;
@@ -1173,7 +1173,10 @@ int houserail_train_locate (char *buffer, int size) {
         int direction = houserail_train_direction (train);
         if (direction == 0) direction = train->orientation;
         cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s{\"id\":\"%s\",\"path\":[", prefix, train->id);
+                            "%s{\"id\":\"%s\",\"proceed\":[\"%s\",%d]"
+                                ",\"path\":[",
+                            prefix, train->id,
+                            (direction >= 0)?"up":"down", abs(train->speed));
         if (cursor >= size) return 0;
         const char *pathprefix = "";
         const struct TrackRange *section = train->path.sections;
