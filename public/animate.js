@@ -127,31 +127,33 @@ function updateDisplay (response) {
 
     // Switch (turnout) status
     //
-    for (var i = 0; i < response.rail.switch.length; ++i) {
-        var turnout =  response.rail.switch[i];
-        var id = turnout[0];
-        var normal = document.getElementById (id + '~normal');
-        var reverse = document.getElementById (id + '~reverse');
-        var active, inactive;
-        if (turnout[1] == 'normal') {
-            active = normal;
-            inactive = reverse;
-        } else {
-            active = reverse;
-            inactive = normal;
-        }
-        var status = SegmentVacant; // Plan to keep the segment status.
-        if (inactive) {
-            status = inactive.getAttribute ('stroke');
-            if (status == SegmentInactive) continue; // No change.
+    if (response.rail.switch) {
+        for (var i = 0; i < response.rail.switch.length; ++i) {
+            var turnout =  response.rail.switch[i];
+            var id = turnout[0];
+            var normal = document.getElementById (id + '~normal');
+            var reverse = document.getElementById (id + '~reverse');
+            var active, inactive;
+            if (turnout[1] == 'normal') {
+                active = normal;
+                inactive = reverse;
+            } else {
+                active = reverse;
+                inactive = normal;
+            }
+            var status = SegmentVacant; // Plan to keep the segment status.
+            if (inactive) {
+                status = inactive.getAttribute ('stroke');
+                if (status == SegmentInactive) continue; // No change.
 
-            inactive.setAttribute ('stroke', SegmentInactive);
-            active.removeEventListener ('click', setTurnout);
-        }
-        if (active) {
-            active.setAttribute ('stroke', status);
-            active.parentNode.appendChild (active);
-            active.addEventListener ('click', setTurnout);
+                inactive.setAttribute ('stroke', SegmentInactive);
+                active.removeEventListener ('click', setTurnout);
+            }
+            if (active) {
+                active.setAttribute ('stroke', status);
+                active.parentNode.appendChild (active);
+                active.addEventListener ('click', setTurnout);
+            }
         }
     }
 
@@ -177,7 +179,7 @@ function updateDisplay (response) {
     if (!TrackSegments) return; 
 
     // Erase all previously known trains locations, if any.
-    // TBD: make it smarter and avoid touching trains that did not move.
+    // TBD: make it smarter and avoid touching trains that did not move?
     //
     for (var i = 0; i < KnownTrainLocations.length; ++i) {
         KnownTrainLocations[i].setAttribute ('stroke', 'none');
