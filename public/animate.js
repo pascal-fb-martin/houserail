@@ -12,10 +12,89 @@ ChangeTurnout['reverse'] = 'normal';
 var TrackSegments = null;
 var KnownTrainLocations = new Array();
 
+function searchSegments (line, low, high) {
+
+    if (!TrackSegments) return null;
+
+    var linesegments = TrackSegments[line];
+    if (!linesegments) return null;
+
+    if (low > high) { // Segments are oriented in increasing posts.
+       var temp = low;
+       low = high;
+       high = temp;
+    }
+
+    var begin = 0;
+    var end = linesegments.length - 1;
+    var cursor;
+
+    while (begin < end - 1) {
+        cursor = Math.trunc ((end + begin) / 2);
+        var segment = linesegments[cursor];
+
+        var seglow = segment[2];
+        var seghigh = segment[3];
+        if (high <= seglow) {
+           end = cursor - 1;
+           continue;
+        }
+        if (low >= seghigh) {
+           begin = cursor + 1;
+           continue;
+        }
+        var changed = false;
+        if (low >= seglow) {
+           begin = cursor;
+           changed = true;
+        }
+        if (high <= seghigh) {
+           end = cursor;
+           changed = true;
+        }
+        if (!changed) break; // Avoid infinite loops
+    }
+
+    // The line portion is between begin and end.
+    // Search for the exact edge segment(s).
+
+    for (; begin <= end; ++begin) {
+        var segment = linesegments[begin];
+        if ((low >= segment[2]) && (low < segment[3])) break;
+    }
+    if (begin > end) return null;
+
+    for (; end >= begin; --end) {
+        var segment = linesegments[end];
+        if ((high > segment[2]) && (high <= segment[3])) break;
+    }
+    if (end < begin) return null;
+
+    // Return the full information for each covered segment,
+    // so that the caller can handle partial coverage.
+
+    var result = new Array();
+    for (cursor = begin; cursor <= end; ++cursor) {
+        result.push (linesegments[cursor]);
+    }
+    return result;
+}
+
 function updateSegments (response) {
 
     if (response.latest) LatestConfig = response.latest;
-    TrackSegments = response.rail.segment;
+
+    if (!response.rail.segment) return;
+    var segments = response.rail.segment;
+
+    // Split the sorted list into one list per line, each one still sorted.
+    TrackSegments = new Object();
+    for (var i = 0; i < segments.length; ++i) {
+        var segment = segments[i];
+        if (!TrackSegments[segment[1]])
+            TrackSegments[segment[1]] = new Array();
+        TrackSegments[segment[1]].push (segment);
+    }
     LatestStatus = 0; // Force a display refresh.
 }
 
@@ -43,71 +122,6 @@ function setTurnout () {
         }
     }
     command.send(null);
-}
-
-function searchSegments (line, low, high) {
-
-    if (!TrackSegments) return null;
-
-    if (low > high) { // Segments are oriented in increasing posts.
-       var temp = low;
-       low = high;
-       high = temp;
-    }
-
-    var begin = 0;
-    var end = TrackSegments.length - 1;
-    var cursor;
-
-    while (begin < end - 1) {
-        cursor = Math.trunc ((end + begin) / 2);
-        var segment = TrackSegments[cursor];
-        var compare = line.localeCompare (segment[1])
-        if (compare < 0) {
-           end = cursor;
-           continue;
-        } else if (compare > 0) {
-           begin = cursor;
-           continue;
-        }
-        var seglow = segment[2];
-        var seghigh = segment[3];
-        if (high <= seglow) {
-           end = cursor - 1;
-           continue;
-        }
-        if (low >= seghigh) {
-           begin = cursor + 1;
-           continue;
-        }
-        if (low >= seglow) {
-           begin = cursor;
-        }
-        if (high <= seghigh) {
-           end = cursor;
-        }
-    }
-    // The line portion is between begin and end.
-    // Search for the exact edge segment(s).
-    for (; begin <= end; ++begin) {
-        var segment = TrackSegments[begin];
-        if (line.localeCompare (segment[1])) continue;
-        if ((low >= segment[2]) && (low < segment[3])) break;
-    }
-    if (begin > end) return null;
-    for (; end >= begin; --end) {
-        var segment = TrackSegments[end];
-        if (line.localeCompare (segment[1])) continue;
-        if ((high > segment[2]) && (high <= segment[3])) break;
-    }
-    if (end < begin) return null;
-
-    var result = new Array();
-    for (cursor = begin; cursor <= end; ++cursor) {
-        var segment = TrackSegments[cursor];
-        result.push (segment[0]);
-    }
-    return result;
 }
 
 // Track segments color conventions:
@@ -199,7 +213,8 @@ function updateDisplay (response) {
             var segments = searchSegments (section[0], section[1], section[2]);
             if (segments) {
                 for (var k = 0; k < segments.length; ++k) {
-                    var id = segments[k].split ('~');
+                    var segment = segments[k];
+                    var id = segment[0].split ('~');
                     var element;
                     if ((id.length > 1) && (id[1] == 'reverse')) {
                         element = document.getElementById (id[0]+'~branch');
