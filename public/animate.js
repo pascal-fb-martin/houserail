@@ -12,6 +12,105 @@ ChangeTurnout['reverse'] = 'normal';
 var TrackSegments = null;
 var KnownTrainLocations = new Array();
 
+var DisplayTransform = [1, 0, 0, 1, 0, 0];
+var DisplayCenter = new Object();
+var DisplayDragStart = new Object();
+var DisplayDragging = false;
+var DisplayView = new Object();
+var DisplaySvg = null;
+var PanZoomGroup;
+
+function prepareDisplayPanZoom () {
+
+    DisplaySvg = document.getElementById ('container');
+    PanZoomGroup = document.getElementById ('panzoom');
+
+    var box = DisplaySvg.getAttribute ('viewBox').split (' ');
+    DisplayView.x = parseInt (box[0]);
+    DisplayView.y = parseInt (box[1]);
+    DisplayView.width = parseInt (box[2]);
+    DisplayView.height = parseInt (box[3]);
+
+    DisplayCenter.x = DisplayView.x + DisplayView.width / 2;
+    DisplayCenter.y = DisplayView.y + DisplayView.height / 2;
+
+    DisplaySvg.addEventListener ('mousedown', (e) => {
+
+        DisplayDragging = true;
+        DisplaySvg.style.cursor = 'grabbing';
+
+        DisplayDragStart.x = e.clientX;
+        DisplayDragStart.y = e.clientY;
+    });
+
+    DisplaySvg.addEventListener ('mousemove', (e) => {
+
+        if (!DisplayDragging) return;
+
+        // Adjust for the scale difference between SVG
+        // coordinates and screen pixels, then pan the display.
+
+        const rectangle = DisplaySvg.getBoundingClientRect();
+        const scalewidth = DisplayView.width / rectangle.width;
+        const scaleheight = DisplayView.height / rectangle.height;
+
+        const dx = scalewidth * (e.clientX - DisplayDragStart.x);
+        const dy = scaleheight * (e.clientY - DisplayDragStart.y);
+
+        displayPan (dx, dy);
+
+        // The current position is now the start for the next move.
+        DisplayDragStart.x = e.clientX;
+        DisplayDragStart.y = e.clientY;
+    });
+
+    DisplaySvg.addEventListener ('mouseup', (e) => {
+
+        if (!DisplayDragging) return;
+
+        DisplayDragging = false;
+        DisplaySvg.style.cursor = 'auto';
+    });
+
+    DisplaySvg.addEventListener ('wheel', (e) => {
+
+        e.preventDefault();
+        const zoomIntensity = 0.1;
+        const direction = e.deltaY < 0 ? 1 : -1;
+        const scale = 1 + direction * zoomIntensity;
+
+        displayZoom (scale);
+    }, {passive: false});
+}
+
+function displayApplyTransform () {
+
+    PanZoomGroup.setAttribute ('transform',
+                               'matrix('+DisplayTransform.join (' ')+')');
+}
+
+function displayReset () {
+    DisplayTransform = [1, 0, 0, 1, 0, 0];
+    displayApplyTransform ();
+}
+
+function displayPan (h, v) {
+
+    DisplayTransform[4] += h;
+    DisplayTransform[5] += v;
+    displayApplyTransform ();
+}
+
+function displayZoom (scale) {
+
+    for (var i = 0; i < 4; i++) {
+        DisplayTransform[i] *= scale;
+    }
+    DisplayTransform[4] += (1 - scale) * DisplayCenter.x;
+    DisplayTransform[5] += (1 - scale) * DisplayCenter.y;
+    displayApplyTransform ();
+}
+
 function searchSegments (line, low, high) {
 
     if (!TrackSegments) return null;
@@ -277,6 +376,7 @@ function updateDisplay (response) {
 }
 
 function railStatus () {
+
     var url = RootUrl+"/status";
     if (LatestStatus) url += "?known=" + LatestStatus;
     var command = new XMLHttpRequest();
@@ -290,6 +390,9 @@ function railStatus () {
 }
 
 function animateStart (path) {
+
+   prepareDisplayPanZoom ();
+
    RootUrl = path;
    railSegments();
    setInterval (railSegments, 5000);

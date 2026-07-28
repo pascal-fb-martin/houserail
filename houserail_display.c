@@ -458,7 +458,7 @@ static void generate_svg_head (const struct TrackDisplayLocation *min,
                            "  height=\"100%%\"\n"
                            "  viewBox=\"%d %d %d %d\"\n"
                            "  version=\"1.1\"\n"
-                           "  id=\"svg1\"\n"
+                           "  id=\"container\"\n"
                            "  xmlns:xlink=\"http://www.w3.org/1999/xlink\"\n"
                            "  xmlns=\"http://www.w3.org/2000/svg\"\n"
                            "  xmlns:svg=\"http://www.w3.org/2000/svg\">\n",
@@ -603,6 +603,13 @@ static void generate_tracks (int width) {
     char group[256];
     int length;
 
+    // All the SVG elements are within a pan & zoom group. Both the pan
+    // and zoom are defined by a matrix transform.
+
+    static const char panzoom[] =
+        "<g id=\"panzoom\" transform=\"matrix(1 0 0 1 0 0)\">";
+    display_append (panzoom, sizeof(panzoom) - 1);
+
     // This draws each track three times, differently:
     // draw the track background first, then the train animation paths, and
     // last the train direction indication paths.
@@ -648,6 +655,7 @@ static void generate_tracks (int width) {
         if (!LayoutSegmentsDisplay[i].done) continue;
         draw_train_animation (segment, "~dir");
     }
+    display_append (groupend, sizeof(groupend) - 1);
     display_append (groupend, sizeof(groupend) - 1);
 }
 
