@@ -294,6 +294,6 @@ function animateStart (path) {
    railSegments();
    setInterval (railSegments, 5000);
    railStatus();
-   setInterval (railStatus, 500);
+   setInterval (railStatus, 200);
 }
 
