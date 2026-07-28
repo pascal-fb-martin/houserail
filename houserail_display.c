@@ -688,15 +688,6 @@ static void walk_the_layout (void) {
         struct TrackDisplayLocation origin = {0, 0, 0};
         calculate_endpoints (0, &origin);
     }
-
-/*
-    // Find segments not calculated yet that are linked to calculated segments.
-    for (;;) {
-        int i = find_uncalculated ();
-        if (i < 0) break;
-        // TBD
-    }
-*/
 }
 
 void houserail_display_default (const char *option) {

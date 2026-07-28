@@ -54,7 +54,7 @@
                  {"id":"SIDE3-3","model":"20-020","line":"side3","next":"side3-4"},
                  {"id":"SIDE3-4","model":"20-020","line":"side3","next":"side3-5"},
                  {"id":"SIDE3-5","model":"20-020","line":"side3","next":"side3-6"},
-                 {"id":"SIDE3-6","model":"20-202","line":"side3","next":"main-13","common":"main-13","branch":"main-12"},
+                 {"id":"SIDE3-6","model":"20-202","line":"side3","next":"main-13","common":"main-13","branch":"main-12"}
              ],
              "detectors":[
                  {"id":"REED-1","line":"main","low":14,"high":15}
