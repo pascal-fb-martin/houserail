@@ -260,6 +260,7 @@ static const char *rail_enter (const char *method, const char *uri,
     const char *id = echttp_parameter_get("id");
     const char *dir = echttp_parameter_get("dir");
     const char *at = echttp_parameter_get("at");
+    const char *color = echttp_parameter_get("color");
 
     if (!id) {
         echttp_error (404, "Missing Train ID");
@@ -269,6 +270,8 @@ static const char *rail_enter (const char *method, const char *uri,
         echttp_error (404, "Missing Track Location");
         return "";
     }
+    if (!color) color = "Red";
+
     int direction = 0;
     if (strsame (dir, "up")) direction = 1;
     else if (strsame (dir, "down")) direction = -1;
@@ -276,7 +279,7 @@ static const char *rail_enter (const char *method, const char *uri,
         echttp_error (400, "Invalid Train Orientation");
         return "";
     }
-    const char *error = houserail_train_enter (id, at, direction);
+    const char *error = houserail_train_enter (id, color, at, direction);
     if (error) {
         echttp_error (500, error);
         return "";

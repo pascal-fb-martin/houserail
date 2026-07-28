@@ -121,13 +121,18 @@ static int rotate (int value, int increment) {
 }
 
 static void move_straight (const struct TrackDisplayLocation *origin,
-                           struct TrackDisplayLocation *end, int angle, int length) {
+                           struct TrackDisplayLocation *end,
+                           int angle, int length) {
 
-    // Angle:                    0   15   30   45   60   75    90
-    static const int base[] =   {0, 259, 500, 707, 866, 966, 1000};
+    // This function uses type long long because intermediate results might
+    // overflow as that this module uses insanely large coordinates to keep
+    // good precision while still using integer arithmetic.
 
-    int sine = 1;
-    int cosine = 1;
+    // Angle:                          0   15   30   45   60   75    90
+    static const long long base[] =   {0, 259, 500, 707, 866, 966, 1000};
+
+    long long sine = 1;
+    long long cosine = 1;
 
     if (angle < 0) angle += 360;
     else if (angle >= 360) angle -= 360;

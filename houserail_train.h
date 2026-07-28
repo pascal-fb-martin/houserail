@@ -33,7 +33,7 @@ void houserail_train_tracking (const struct TrackRange *area,
 const char *houserail_train_move (const char *id, const char *to, int slow);
 const char *houserail_train_stop (const char *id, int emergency);
 
-const char *houserail_train_enter (const char *id,
+const char *houserail_train_enter (const char *id, const char *color,
                                    const char *facing, int orientation);
 const char *houserail_train_park (const char *id);
 const char *houserail_train_consist (const char *id,

@@ -163,10 +163,11 @@ int main (int argc, const char **argv) {
 
 
     // Test const char *houserail_train_enter (const char *id,
+    //                                         const char *color,
     //                                         const char *facing, int orientation);
 
     starting ("houserail_train_enter(train1)");
-    error = houserail_train_enter ("train1", "reed-2", 1);
+    error = houserail_train_enter ("train1", "Red", "reed-2", 1);
     passed =
     assert (error == 0, "houserail_train_enter (train1) status") &&
     trainlist ("After houserail_train_enter (train1)");
@@ -218,7 +219,7 @@ int main (int argc, const char **argv) {
         printf ("   error: %s\n", error);
         goto canceltest;
     }
-    error = houserail_train_enter ("train3", "reed-2", 1);
+    error = houserail_train_enter ("train3", "Magenta", "reed-2", 1);
     if (!assert (error == 0, "houserail_train_enter(train3, reed-2) return")) {
         printf ("   error: %s\n", error);
         goto canceltest;
@@ -319,7 +320,7 @@ int main (int argc, const char **argv) {
     houserail_train_delete ("train3");
 
     houserail_train_consist ("train3", cars, 4);
-    houserail_train_enter ("train3", "reed-15", 1);
+    houserail_train_enter ("train3", "VeryLongColorNameIndeed", "reed-15", 1);
     houserail_train_move ("train3", "forward", 0);
 
     error = houserail_track_switch ("main-1", "reverse");
@@ -365,7 +366,7 @@ int main (int argc, const char **argv) {
     starting ("preparing for the down trip");
 
     houserail_train_consist ("train3", cars, 4);
-    houserail_train_enter ("train3", "reed-8", -1);
+    houserail_train_enter ("train3", "red", "reed-8", -1);
     houserail_train_move ("train3", "forward", 0);
     trainlist ("after preparing for the down trip");
 
@@ -405,7 +406,7 @@ int main (int argc, const char **argv) {
     starting ("preparing for a trip against a switch");
 
     houserail_train_consist ("train3", cars, 4);
-    houserail_train_enter ("train3", "reed-2", 1);
+    houserail_train_enter ("train3", "red", "reed-2", 1);
     houserail_train_move ("train3", "forward", 0);
     trainlist ("after preparing for a trip against a switch");
 

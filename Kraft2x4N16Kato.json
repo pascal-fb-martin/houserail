@@ -11,6 +11,8 @@
              ],
              "vehicles":[
                  {"id":"PFM4001","model":"ATLAS-GP-40"},
+                 {"id":"PFM4002","model":"ATLAS-GP-40"},
+                 {"id":"PFM4003","model":"ATLAS-GP-40"},
                  {"id":"PFM1001","model":"CONCOR-N70T"},
                  {"id":"PFM1002","model":"CONCOR-N70T"},
                  {"id":"PFM1003","model":"CONCOR-N70T"}
@@ -57,7 +59,26 @@
                  {"id":"SIDE3-6","model":"20-202","line":"side3","next":"main-13","common":"main-13","branch":"main-12"}
              ],
              "detectors":[
-                 {"id":"REED-1","line":"main","low":14,"high":15}
+                 {"id":"MAIN@15","line":"main","low":14,"high":16},
+                 {"id":"MAIN@30","line":"main","low":29,"high":31},
+                 {"id":"MAIN@55","line":"main","low":54,"high":56},
+                 {"id":"MAIN@85","line":"main","low":84,"high":86},
+                 {"id":"MAIN@116","line":"main","low":114,"high":116},
+                 {"id":"MAIN@134","line":"main","low":133,"high":135},
+                 {"id":"MAIN@152","line":"main","low":151,"high":153},
+                 {"id":"MAIN@184","line":"main","low":183,"high":185},
+                 {"id":"MAIN@203","line":"main","low":202,"high":204},
+                 {"id":"MAIN@209","line":"main","low":208,"high":210},
+                 {"id":"MAIN@214","line":"main","low":213,"high":215},
+                 {"id":"MAIN@232","line":"main","low":231,"high":233},
+                 {"id":"MAIN@251","line":"main","low":250,"high":252},
+                 {"id":"MAIN@299","line":"main","low":298,"high":300},
+                 {"id":"MAIN@327","line":"main","low":326,"high":328},
+                 {"id":"MAIN@361","line":"main","low":360,"high":362},
+                 {"id":"MAIN@391","line":"main","low":390,"high":392},
+                 {"id":"MAIN@431","line":"main","low":430,"high":432},
+                 {"id":"MAIN@459","line":"main","low":458,"high":460},
+                 {"id":"MAIN@479","line":"main","low":478,"high":480}
              ]
         }
     }

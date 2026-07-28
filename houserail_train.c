@@ -44,7 +44,7 @@
  *
  *     Control the movements of one train.
  *
- * const char *houserail_train_enter (const char *id,
+ * const char *houserail_train_enter (const char *id, const char *color,
  *                                    const char *facing, int orientation);
  *
  *     Place a train on the layout, facing a detector point.
@@ -156,29 +156,31 @@ struct TrainConsist {
 
     int index;   // Self reference.
 
+    char color[16];
+
     // Train's head anf tail are relative to the consist, not to the
     // direction of travel. Watch for references to 'front' and 'rear'.
     struct TrackLocation head;
     struct TrackLocation tail;
 
-    int cars[TRAINMAXCARS]; // From head to tail.
-    int carcount;
+    short cars[TRAINMAXCARS]; // From head to tail.
+    short carcount;
+    short spotcount;
     struct TrackLocation spots[TRAINMAXSPOT]; // From head to tail.
-    int spotcount;
 
     struct TrackPath     path; // The sections of track the train is on.
 
     long long updated;
-    int orientation;    // -1: decreasing, 1: increasing, 0: unknown.
-    int length;         // Calculated from the consist.
-    int speed;          // As reported by HouseDCC.
+    short orientation;  // -1: decreasing, 1: increasing, 0: unknown.
+    short length;       // Calculated from the consist.
+    short speed;        // As reported by HouseDCC.
     char parked;        // Not currently on this layout.
 
     // The fields below this point are live field not supposed to be saved.
     char awry;           // Location not confirmed yet.
     char active;         // 1 if reported by HouseDCC.
     char hasdcc;         // Learned from HouseDCC (DCC train consist)
-    int  direction;      // As requested.
+    short  direction;    // As requested.
     struct {
         int has_speed;
         int speed;
@@ -770,7 +772,7 @@ const char *houserail_train_park (const char *id) {
     return 0; // Regardless of the stop command status.
 }
 
-const char *houserail_train_enter (const char *id,
+const char *houserail_train_enter (const char *id, const char *color,
                                    const char *facing, int orientation) {
 
     if (facing == 0) return "Please provide a track location";
@@ -814,6 +816,10 @@ const char *houserail_train_enter (const char *id,
     // to check if the move succeeded here.)
     houserail_train_recalculate_spots (train);
 
+    if (color)
+        strtcpy (train->color, color, sizeof(train->color));
+    else
+        train->color[0]= 0;
     train->orientation = orientation;
     train->direction = 0;
     train->parked = 0;
@@ -824,7 +830,8 @@ const char *houserail_train_enter (const char *id,
     train->pending = 0;
 
     houselog_event ("TRAIN", train->id, "ENTER",
-                    "FACING %s HEAD AT %s %d TAIL AT %s %d",
+                    "COLOR %s FACING %s HEAD AT %s %d TAIL AT %s %d",
+                    (train->color[0]==0)?"(NONE)":train->color,
                     (orientation >= 0)?"UP":"DOWN",
                     train->head.line, train->head.post,
                     train->tail.line, train->tail.post);
@@ -860,7 +867,7 @@ const char *houserail_train_consist (const char *id,
            if (index < 0) continue;
            struct Vehicle *vehicle = LayoutVehicles + index;
            if (vehicle->consist != train->index) continue; // Impossible?
-           vehicle->consist = 0;
+           vehicle->consist = -1;
         }
     } else {
         if (LayoutTrainsCount >= LayoutTrainsSize) {
@@ -874,6 +881,7 @@ const char *houserail_train_consist (const char *id,
         train->signature = echttp_hash_signature (id);
         train->index = LayoutTrainsCount++;
         train->path = TrackPathNew;
+        train->color[0] = 0;
         isnew = 1;
     }
     train->parked = 1;
@@ -1104,6 +1112,12 @@ int houserail_train_status (char *buffer, int size) {
                             "%s{\"id\":\"%s\",\"length\":%d%s",
                             prefix, train->id, train->length,
                             houserail_train_dccformat (train));
+        if (cursor >= size) return 0;
+        if (train->color[0]) {
+           cursor += snprintf (buffer+cursor, size-cursor,
+                               ",\"color\":\"%s\"", train->color);
+           if (cursor >= size) return 0;
+        }
         if (!train->parked) {
             if (train->head.segment)
                cursor += snprintf (buffer+cursor, size-cursor,
@@ -1144,10 +1158,12 @@ int houserail_train_status (char *buffer, int size) {
                                 "%s\"%s\"", prefix2, vehicle->id);
             prefix2 = ",";
         }
-        if (cursor > empty)
+        if (cursor > empty) {
+            if (cursor >= size) return 0;
             cursor += snprintf (buffer+cursor, size-cursor, "]}");
-        else
+        } else {
             cursor += snprintf (buffer+cursor, size-cursor, "}");
+        }
         prefix = ",";
     }
     if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
@@ -1172,11 +1188,19 @@ int houserail_train_locate (char *buffer, int size) {
 
         int direction = houserail_train_direction (train);
         if (direction == 0) direction = train->orientation;
+
+        char color[32];
+        if (train->color[0]) {
+           snprintf (color, sizeof(color), ",\"color\":\"%s\"", train->color);
+        } else {
+           color[0] = 0;
+        }
         cursor += snprintf (buffer+cursor, size-cursor,
                             "%s{\"id\":\"%s\",\"proceed\":[\"%s\",%d]"
-                                ",\"path\":[",
+                                "%s,\"path\":[",
                             prefix, train->id,
-                            (direction >= 0)?"up":"down", abs(train->speed));
+                            (direction >= 0)?"up":"down", abs(train->speed),
+                            color);
         if (cursor >= size) return 0;
         const char *pathprefix = "";
         const struct TrackRange *section = train->path.sections;

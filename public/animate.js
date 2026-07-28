@@ -336,9 +336,13 @@ function updateDisplay (response) {
                         element.setAttribute ('stroke-dasharray',
                                               ''+trainlength+' '+gap);
                         if (front < back) back = front; // reverse
-                        element.setAttribute ('stroke-dashoffset', '-'+back);
+                        if (back > 0)
+                            element.setAttribute ('stroke-dashoffset', '-'+back);
                     }
-                    element.setAttribute ('stroke', SegmentTrain);
+                    if (train.color)
+                        element.setAttribute ('stroke', train.color);
+                    else
+                        element.setAttribute ('stroke', SegmentTrain);
                     KnownTrainLocations.push(element);
                 }
             }
@@ -363,8 +367,13 @@ function updateDisplay (response) {
             if (element) {
                 var length = segment[3] - segment[2];
                 var offset = section[2] - segment[2];
-                element.setAttribute ('stroke-dasharray', '0 '+length);
-                element.setAttribute ('stroke-dashoffset', '-'+offset);
+                if (section[2] > section[1]) offset -= 1;
+                else offset += 1;
+                if (offset < 0) offset = 0;
+                else if (offset >= length) offset = length - 1;
+                element.setAttribute ('stroke-dasharray', '0 '+(length+1));
+                if (offset > 0)
+                    element.setAttribute ('stroke-dashoffset', '-'+offset);
                 if (train.proceed[1] > 0)
                     element.setAttribute ('stroke', SegmentDirection);
                 else

@@ -64,7 +64,8 @@ function railEnter () {
     var id = this.resourceId;
     var dir = document.getElementById ('dir-'+id).value;
     var at = document.getElementById ('at-'+id).value;
-    railCommand ("/rail/enter?id=" + id + "&dir=" + dir + "&at=" + at);
+    var color = document.getElementById ('color-'+id).value;
+    railCommand ("/rail/enter?id=" + id + "&dir=" + dir + "&at=" + at + "&color=" + color);
 }
 
 function railTrainDelete () {
@@ -74,6 +75,8 @@ function railTrainDelete () {
 function railSortTrains (a, b) {
     return a.id > b.id;
 }
+
+const TrainColors = ['Red', 'Salmon', 'Orange', 'DarkKhaki', 'Magenta', 'SlateBlue', 'Lime', 'SpringGreen', 'DarkTurquoise', 'RoyalBlue'];
 
 function railShowTrains (response) {
 
@@ -92,6 +95,23 @@ function railShowTrains (response) {
 
         var column = document.createElement("td");
         column.innerHTML = train.id;
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        if (train.proceed) {
+            column.innerHTML = (train.color)?train.color:'';
+        } else {
+            var entry = document.createElement ('select');
+            entry.id = 'color-'+train.id;
+            for (var c = 0; c < TrainColors.length; ++c) {
+                var opt = document.createElement ('option');
+                opt.value = TrainColors[c];
+                opt.innerHTML = TrainColors[c];
+                opt.selected = (train.color)?(TrainColors[c]==train.color):(c==0);
+                entry.appendChild(opt);
+            }
+            column.appendChild(entry);
+        }
         row.appendChild(column);
 
         column = document.createElement("td");
@@ -235,17 +255,19 @@ window.onload = function() {
    <h1>Trains</h1>
    <table id="trains" class="housewidetable" border="0">
       <tr>
-         <th width="6%">ID</th>
+         <th width="5%">ID</th>
+         <th width="5%">COLOR</th>
          <th width="28%">CONSIST</th>
-         <th width="6%">DCC</th>
-         <th width="6%">GOING</th>
-         <th width="6%">SPEED</th>
-         <th width="10%">HEAD</th>
-         <th width="10%">TAIL</th>
-         <th width="28%">CONTROLS</th>
+         <th width="5%">DCC</th>
+         <th width="5%">GOING</th>
+         <th width="5%">SPEED</th>
+         <th width="9%">HEAD</th>
+         <th width="9%">TAIL</th>
+         <th width="29%">CONTROLS</th>
       </tr>
       <tr>
          <th><input id="trainid" type="text" size="10" placeholder="ID"></th>
+         <th></th>
          <th><input id="traincars" type="text" size="32" placeholder="Cars"></th>
          <th></th>
          <th></th>

@@ -160,7 +160,7 @@ int main (int argc, const char **argv) {
         printf ("** Consist error: %s\n", error);
         return Errors + 1;
     }
-    error = houserail_train_enter ("train3", "main.5", 1);
+    error = houserail_train_enter ("train3", "red", "main.5", 1);
     if (error) {
         printf ("** Consist error: %s\n", error);
         return Errors + 1;
@@ -213,7 +213,7 @@ int main (int argc, const char **argv) {
     starting ("preparing for the forward down trip");
 
     houserail_train_consist ("train3", cars, 2);
-    houserail_train_enter ("train3", "main.5", -1);
+    houserail_train_enter ("train3", "red", "main.5", -1);
     trainlist ("after preparing for the forward down trip");
 
     starting ("moving forward down to the end of track");
@@ -261,7 +261,7 @@ int main (int argc, const char **argv) {
     const char *backtrip[] = {"main.5", "main.4", "main.3", "main.2", 0};
 
     houserail_train_consist ("train3", cars, 2);
-    houserail_train_enter ("train3", "main.8", 1);
+    houserail_train_enter ("train3", "red", "main.8", 1);
     trainlist ("after preparing for the down trip");
 
     starting ("moving down to the end of track");

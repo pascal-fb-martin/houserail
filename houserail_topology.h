@@ -28,14 +28,14 @@ struct TrackOptions {
     const char *name;
     const char *description;
 
-    int fieldPollPeriod;
-    int restrictedSpeed;
-    int switchReverseSpeed;
-    int stopDistance;
-    int slowDistance;
+    short fieldPollPeriod;
+    short restrictedSpeed;
+    short switchReverseSpeed;
+    short stopDistance;
+    short slowDistance;
 
-    int scale;
-    int postDistance;
+    short scale;
+    short postDistance;
 };
 
 struct TrackDisplayShape {
@@ -77,20 +77,20 @@ struct TrackSegment {
 
     // The following attributes are calculated by following the linkages.
 
-    int model;    // Reference index to the track model table.
-    int next;     // Link from exit point to the next segment. -1 if none.
-    int previous; // Link from entry point to the previous segment. -1 if none.
+    short model;    // Reference index to the track model table.
+    short next;     // Link from exit point to the next segment. -1 if none.
+    short previous; // Link from entry point to the previous segment. -1 if none.
 
     // The following items are for switches only, valid if branch >= 0.
-    int common;   // The adjacent segment connected to the common switch end
-    int branch;   // The adjacent segment connected to the reverse point.
+    short common;   // The adjacent segment connected to the common switch end
+    short branch;   // The adjacent segment connected to the reverse point.
+
+    short detector; // First detector on this segment.
 
     // The following attributes are calculated by following the topology from
     // the terminal point marked as the origin.
     int low;
     int high;
-
-    int detector; // First detector on this segment.
 
     // The following attributes drive the end-of-line protection mechanism.
     // These are precalculated during loading. They can also be used to
@@ -110,8 +110,8 @@ struct TrackDetector {
     unsigned int signature; // Seach accelerator.
     int index;              // Self reference.
 
-    int segment;
-    int next;     // Next detector on the same segment.
+    short segment;
+    short next;     // Next detector on the same segment.
     struct TrackRange area; // RESTRICTION: a detector covers only one segment.
 };
 
