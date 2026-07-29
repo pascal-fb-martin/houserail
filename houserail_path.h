@@ -33,6 +33,9 @@ static const struct TrackPath TrackPathNew = {0, 0, 0, 0};
 int houserail_path_covers (const struct TrackPath *path,
                            const struct TrackRange *area);
 
+int houserail_path_overlap (const struct TrackPath *path1,
+                            const struct TrackPath *path2);
+
 int houserail_path_span (struct TrackPath *path,
                          const struct TrackLocation *limit1,
                          int length, int direction);

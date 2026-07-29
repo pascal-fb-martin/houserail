@@ -772,6 +772,17 @@ const char *houserail_train_park (const char *id) {
     return 0; // Regardless of the stop command status.
 }
 
+static int houserail_train_conflict (struct TrainConsist *train) {
+
+    int i;
+    for (i = LayoutTrainsCount - 1; i >= 0; --i) {
+        if (i == train->index) continue; // No conflict with itself.
+        if (houserail_path_overlap (&(train->path), &(LayoutTrains[i].path)))
+            return i;
+    }
+    return -1;
+}
+
 const char *houserail_train_enter (const char *id, const char *color,
                                    const char *facing, int orientation) {
 
@@ -803,6 +814,13 @@ const char *houserail_train_enter (const char *id, const char *color,
     houserail_path_move (&(train->path), &(train->head), 1, 1);
     houserail_path_lengthen (&(train->path), 1);
     houserail_path_rollup (&(train->path), &(train->head));
+
+    int conflict = houserail_train_conflict (train);
+    if (conflict >= 0) {
+        houselog_event ("TRAIN", train->id, "CONFLICT",
+                        "WITH TRAIN %s", LayoutTrains[conflict].id);
+        return "Train overlap conflict";
+    }
 
     train->tail = train->head;
     houserail_path_move (&(train->path),

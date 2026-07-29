@@ -558,6 +558,89 @@ int main (int argc, const char **argv) {
     assert (strsame (cursor.line, start.line), "houserail_path_move (-5 down) line");
     printf ("   after moving: line %s post %d\n", cursor.line, cursor.post);
 
+    // Test overlap with made up paths.
+
+    struct TrackRange sections1[3];
+    struct TrackPath path1;
+    struct TrackRange sections2[3];
+    struct TrackPath path2;
+
+    path1.size = path2.size = 3;
+    path1.sections = sections1;
+    path2.sections = sections2;
+
+    path1.count = path2.count = 1;
+    sections1[0].line = sections2[0].line = "line1";
+    sections1[0].low  = sections2[0].low = 10;
+    sections1[0].high = sections2[0].high = 20;
+
+    assert (houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap (same) overlap");
+
+    sections1[0].low = 30;
+
+    assert (houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap (adjacent) overlap");
+
+    sections1[0].low  = 5;
+    sections1[0].high = 25;
+    assert (houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap (path1 includes path2) overlap");
+
+    sections1[0].low  = 12;
+    sections1[0].high = 18;
+    assert (houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap (path2 includes path1) overlap");
+
+    sections1[0].low  = 15;
+    sections1[0].high = 25;
+    assert (houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap (partial coverage higher) overlap");
+
+    sections1[0].low  = 5;
+    sections1[0].high = 15;
+    assert (houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap (partial coverage lower) overlap");
+
+    sections1[0].low  = sections2[0].high;
+    sections1[0].high = sections2[0].low;
+
+    assert (houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap(same, reversed direction) overlap");
+
+    path1.count = path2.count = 2;
+    sections2[1] = sections1[0];
+    sections1[1].line = sections2[0].line = "line2";
+    sections1[1].low = sections2[0].high = 40;
+    sections1[1].high = sections2[0].low = 60;
+
+    assert (houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap (same two sections, inverted) overlap");
+
+    path1.count = path2.count = 2;
+    sections2[1] = sections1[0];
+    sections1[0].line = sections2[0].line = "line1";
+    sections1[1].line = sections2[1].line = "line1";
+    sections1[0].low = 10;
+    sections1[0].high = 20;
+    sections2[0].low = 29;
+    sections2[0].high = 21;
+    sections1[1].low = 40;
+    sections1[1].high = 30;
+    sections2[1].low = 50;
+    sections2[1].high = 41;
+
+    assert (!houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap (disjoint) no overlap");
+
+    path1.count = path2.count = 1;
+    sections2[0].line = "line2";
+    sections1[0].low  = sections2[0].low = 10;
+    sections1[0].high = sections2[0].high = 20;
+
+    assert (!houserail_path_overlap (&path1, &path2),
+            "houserail_path_overlap (different lines) no overlap");
+
     return summary ("houserail_path.c");
 }
 

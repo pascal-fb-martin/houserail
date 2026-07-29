@@ -11,6 +11,8 @@
              ],
              "vehicles":[
                  {"id":"PFM4001","model":"ATLAS-GP-40"},
+                 {"id":"PFM4002","model":"ATLAS-GP-40"},
+                 {"id":"PFM4003","model":"ATLAS-GP-40"},
                  {"id":"PFM1001","model":"CONCOR-N70T"},
                  {"id":"PFM1002","model":"CONCOR-N70T"},
                  {"id":"PFM1003","model":"CONCOR-N70T"}

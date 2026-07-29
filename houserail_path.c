@@ -48,7 +48,12 @@
  * int houserail_path_covers (const struct TrackPath *path,
  *                            const struct TrackRange *area);
  *
- *    Return 1 if the area intersects with the specified path.
+ *    Return 1 if the specified area intersects with the specified path.
+ *
+ * int houserail_path_overlap (const struct TrackPath *path1,
+ *                             const struct TrackPath *path2);
+ *
+ *    return 1 if any sections overlap between the two paths, 0 otherwise.
  *
  * int houserail_path_span (struct TrackPath *path,
  *                          const struct TrackLocation *limit1,
@@ -131,7 +136,7 @@
 static int houserail_path_within (const struct TrackRange *area,
                                   const struct TrackLocation *point) {
 
-    if (strcasecmp (area->line, point->line)) return 0;
+    if (!strsame (area->line, point->line)) return 0;
 
     // Do not assume that the range's posts are properly sorted.
     //
@@ -159,17 +164,58 @@ static void houserail_path_scrub (struct TrackPath *path, int index) {
 int houserail_path_covers (const struct TrackPath *path,
                            const struct TrackRange *area) {
 
-    struct TrackLocation point1, point2;
-    point1.line = point2.line = area->line;
-    point1.segment = point2.segment = 0;
-    point1.post = area->low;
-    point2.post = area->high;
+    int low, high;
+
+    if (area->low <= area->high) {
+        low = area->low;
+        high = area->high;
+    } else {
+        low = area->high;
+        high = area->low;
+    }
 
     struct TrackRange *sections = path->sections;
     int i;
     for (i = 0; i < path->count; ++i) {
-        if (houserail_path_within (sections+i, &point1)) return 1;
-        if (houserail_path_within (sections+i, &point2)) return 1;
+        const struct TrackRange *section = sections + i;
+        if (!strsame (section->line, area->line)) continue;
+        if ((low > section->low) &&
+            (low > section->high)) continue; // The area is further.
+        if ((high < section->low) &&
+            (high < section->high)) continue; // The area is behind.
+
+        return 1; // There is some overlap between the two.
+    }
+    return 0;
+}
+
+int houserail_path_overlap (const struct TrackPath *path1,
+                            const struct TrackPath *path2) {
+
+    struct TrackRange *sections1 = path1->sections;
+    struct TrackRange *sections2 = path2->sections;
+
+    int count1 = path1->count;
+    int count2 = path2->count;
+    int i;
+    for (i = 0; i < count1; ++i) {
+         struct TrackRange *section1 = sections1 + i;
+         int low, high;
+         if (section1->low <= section1->high) {
+             low = section1->low;
+             high = section1->high;
+         } else {
+             low = section1->high;
+             high = section1->low;
+         }
+         int j;
+         for (j = 0; j < count2; ++j) {
+              struct TrackRange *section2 = sections2 + j;
+              if (!strsame (section1->line, section2->line)) continue;
+              if ((low > section2->high) && (low > section2->low)) continue;
+              if ((high < section2->high) && (high < section2->low)) continue;
+              return 1; // Found an overlap.
+         }
     }
     return 0;
 }
