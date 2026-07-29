@@ -25,17 +25,11 @@
   }
 }
 
-#tracks > path {
-   fill: none;
-}
-
 #trains > path {
-   fill: none;
    fill-opacity: 0.6;
    stroke-linecap: round;
 }
 #directions > path {
-   fill: none;
    stroke-linecap: round;
 }
 

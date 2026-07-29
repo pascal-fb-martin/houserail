@@ -38,19 +38,6 @@ struct TrackOptions {
     short postDistance;
 };
 
-struct TrackDisplayShape {
-
-    int arc;      // 0 means straight.
-    int radius;
-    int straight; // Physical length of the normal side. For switch only.
-};
-
-struct TrackDisplayLocation {
-    int x;
-    int y;
-    int angle; // This is a point with a direction of "travel".
-};
-
 struct TrackModel {
 
     const char *id;
@@ -61,7 +48,7 @@ struct TrackModel {
     int reverse; // Length on the reverse side, 0 if not a switch.
     int civil;   // Civil speed limit on that track.
 
-    struct TrackDisplayShape shape;
+    struct TrackShape shape;
 
     int usage; // Count how many segment reference this model.
 };
@@ -100,8 +87,8 @@ struct TrackSegment {
     struct TrackRange slow;
 
     int curve;
-    struct TrackDisplayShape shape;      // The model's shape, adjusted.
-    struct TrackDisplayLocation display; // Optional, {0,0,0} if not present.
+    struct TrackShape shape;    // The model's shape, adjusted.
+    struct TrackVertex display; // Optional, {0,0,0} if not present.
 };
 
 struct TrackDetector {

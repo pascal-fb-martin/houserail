@@ -23,6 +23,10 @@
 #ifndef HOUSERAIL_TYPES__H_DEFINED
 #define HOUSERAIL_TYPES__H_DEFINED
 
+// Use these two data structures to represent the track network
+// in the railroad world. These are the basic blocks for identifying
+// the location of trains and features on the tracks.
+
 struct TrackRange {
     const char *segment;
     const char *line;
@@ -34,6 +38,22 @@ struct TrackLocation {
     const char *segment;
     const char *line;
     int post;
+};
+
+// Use these data structures to represent the track network in the graphic
+// world. These are the basic blocks for identifying the location of track
+// segments and features on a display pane.
+
+struct TrackShape {
+    int arc;      // 0 means straight.
+    int radius;
+    int straight; // Physical length of the normal side. For switch only.
+};
+
+struct TrackVertex {
+    int x;
+    int y;
+    int angle;
 };
 #endif
 

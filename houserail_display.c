@@ -67,17 +67,17 @@ static int TestMode = 0;
 
 struct TrackSegmentDisplay {
 
-    struct TrackDisplayShape shape;
+    struct TrackShape shape;
 
     int done;
-    struct TrackDisplayLocation origin; // Can be explicit in the layout, too
-    struct TrackDisplayLocation end;
-    struct TrackDisplayLocation reverse; // If a switch.
+    struct TrackVertex origin; // Can be explicit in the layout, too
+    struct TrackVertex end;
+    struct TrackVertex reverse; // If a switch.
 };
 
 struct TrackDetectorDisplay {
 
-    struct TrackDisplayLocation indicator;
+    struct TrackVertex indicator;
 };
 
 static char *DisplayContent = 0;
@@ -120,8 +120,8 @@ static int rotate (int value, int increment) {
     return value;
 }
 
-static void move_straight (const struct TrackDisplayLocation *origin,
-                           struct TrackDisplayLocation *end,
+static void move_straight (const struct TrackVertex *origin,
+                           struct TrackVertex *end,
                            int angle, int length) {
 
     // This function uses type long long because intermediate results might
@@ -157,8 +157,8 @@ static void move_straight (const struct TrackDisplayLocation *origin,
     end->angle = origin->angle;
 }
 
-static void move_center (const struct TrackDisplayLocation *origin,
-                         struct TrackDisplayLocation *center,
+static void move_center (const struct TrackVertex *origin,
+                         struct TrackVertex *center,
                          int angle, int radius, int arc) {
 
     if (arc > 0)
@@ -167,11 +167,11 @@ static void move_center (const struct TrackDisplayLocation *origin,
         move_straight (origin, center, rotate (angle, -90), radius);
 }
 
-static void move_circle (const struct TrackDisplayLocation *origin,
-                         struct TrackDisplayLocation *end,
+static void move_circle (const struct TrackVertex *origin,
+                         struct TrackVertex *end,
                          int angle, int radius, int arc) {
 
-    struct TrackDisplayLocation center;
+    struct TrackVertex center;
     move_center (origin, &center, angle, radius, arc);
     if (arc > 0)
         move_straight (&center, end, rotate (angle, rotate (arc, -90)), radius);
@@ -183,9 +183,9 @@ static void move_circle (const struct TrackDisplayLocation *origin,
 }
 
 static void move_to_branch (const struct TrackSegment *segment,
-                            struct TrackDisplayLocation *origin) {
+                            struct TrackVertex *origin) {
 
-    struct TrackDisplayLocation reverse =
+    struct TrackVertex reverse =
          LayoutSegmentsDisplay[segment->index].reverse;
 
     const struct TrackSegment *upcoming = LayoutSegments + segment->branch;
@@ -222,14 +222,14 @@ static void move_to_branch (const struct TrackSegment *segment,
 }
 
 static void calculate_endpoints (int start,
-                                 const struct TrackDisplayLocation *origin) {
+                                 const struct TrackVertex *origin) {
 
     int i = start;
     const struct TrackSegment *segment = LayoutSegments + i;
     struct TrackSegmentDisplay *display = LayoutSegmentsDisplay + i;
     if (display->done) return;
     int previous = segment->previous;
-    struct TrackDisplayLocation cursor = *origin;
+    struct TrackVertex cursor = *origin;
     for (;;) {
 
         if (display->done) break;
@@ -242,8 +242,8 @@ static void calculate_endpoints (int start,
             move_straight (&cursor, &(display->end), cursor.angle, length);
         } else {
             int curveangle = cursor.angle;
-            const struct TrackDisplayLocation *curveorigin = &cursor;
-            struct TrackDisplayLocation *curveend = &(display->end);
+            const struct TrackVertex *curveorigin = &cursor;
+            struct TrackVertex *curveend = &(display->end);
             if (segment->branch >= 0) { // This is a switch, straight main line
                 move_straight (&cursor, &(display->end), cursor.angle, length);
                 if (segment->common == segment->next) {
@@ -266,7 +266,7 @@ static void calculate_endpoints (int start,
 
         if (segment->branch >= 0) {
             DEBUG ("--- Taking a detour to %s\n", LayoutSegments[segment->branch].id);
-            struct TrackDisplayLocation subwalk;
+            struct TrackVertex subwalk;
             move_to_branch (segment, &subwalk);
             calculate_endpoints (segment->branch, &subwalk);
             DEBUG ("--- end of detour\n");
@@ -283,7 +283,7 @@ static void calculate_endpoints (int start,
                 // a walk originating from there.
                 DEBUG ("--- Upcoming segment %s is a switch: start a subwalk from there at (%d, %d, %d).\n", upcoming->id, display->end.x, display->end.y, display->end.angle);
 
-                struct TrackDisplayLocation common;
+                struct TrackVertex common;
                 move_circle (&(display->end), &common, cursor.angle,
                              upcoming->shape.radius, 0-upcoming->shape.arc);
 
@@ -291,7 +291,7 @@ static void calculate_endpoints (int start,
 
                 if (upcoming->common == upcoming->next) {
                     // Need to move back to that switch's origin.
-                    struct TrackDisplayLocation normal;
+                    struct TrackVertex normal;
                     int l = calculate_straight_length (upcoming);
                     move_straight (&common, &normal, rotate (common.angle, 180), l);
                     DEBUG ("--- moved to segment %s origin at (%d, %d, %d).\n", upcoming->id, normal.x, normal.y, normal.angle);
@@ -331,7 +331,7 @@ static void calculate_endpoints (int start,
             move_straight (&cursor, &(display->origin), rotate (cursor.angle, 180), length);
         } else {
             int curveangle = cursor.angle;
-            const struct TrackDisplayLocation *curveorigin = &(display->end);
+            const struct TrackVertex *curveorigin = &(display->end);
             if (segment->branch >= 0) { // This is a switch.
                 move_straight (&cursor, &(display->origin), rotate (cursor.angle, 180), length);
                 if (segment->common == segment->previous) {
@@ -359,7 +359,7 @@ static void calculate_endpoints (int start,
         }
 
         if (segment->branch >= 0) {
-            struct TrackDisplayLocation subwalk;
+            struct TrackVertex subwalk;
             move_to_branch (segment, &subwalk);
             calculate_endpoints (segment->branch, &subwalk);
         }
@@ -371,12 +371,12 @@ static void calculate_endpoints (int start,
                 // This entered a switch through a branch. Calculate
                 // the location of the switch origin and restart
                 // a walk from there.
-                struct TrackDisplayLocation common;
+                struct TrackVertex common;
                 move_circle (&(display->origin), &common, rotate (cursor.angle, 180),
                              upcoming->shape.radius, 0-upcoming->shape.arc);
                 if (upcoming->common == upcoming->next) {
                     // Need to move back to that switch's origin.
-                    struct TrackDisplayLocation normal;
+                    struct TrackVertex normal;
                     move_straight (&common, &normal, rotate (cursor.angle, 180), length);
                     calculate_endpoints (segment->previous, &normal);
                 } else {
@@ -393,8 +393,8 @@ static void calculate_endpoints (int start,
     }
 }
 
-static void calculate_viewbox (struct TrackDisplayLocation *min,
-                               struct TrackDisplayLocation *max) {
+static void calculate_viewbox (struct TrackVertex *min,
+                               struct TrackVertex *max) {
 
     min->x = min->y = 1000000000;
     max->x = max->y = 0;
@@ -453,7 +453,7 @@ static void generate_html_head (void) {
     display_append (head, sizeof(head) - 1);
 }
 
-static void generate_svg_head (const struct TrackDisplayLocation *min,
+static void generate_svg_head (const struct TrackVertex *min,
                                int width, int height) {
 
     char buffer[1024];
@@ -489,8 +489,8 @@ static void draw_path (const char *id,
 }
 
 static void draw_straight (const char *id,
-                           const struct TrackDisplayLocation *origin,
-                           const struct TrackDisplayLocation *end,
+                           const struct TrackVertex *origin,
+                           const struct TrackVertex *end,
                            const char *stroke, int length) {
 
     char d[80];
@@ -506,9 +506,9 @@ static void draw_straight (const char *id,
 }
 
 static void draw_curve (const char *id,
-                        const struct TrackDisplayLocation *origin,
-                        const struct TrackDisplayLocation *end,
-                        const struct TrackDisplayShape *shape, 
+                        const struct TrackVertex *origin,
+                        const struct TrackVertex *end,
+                        const struct TrackShape *shape, 
                         const char *stroke, int length) {
 
    char d[80];
@@ -527,8 +527,8 @@ static void draw_track_background
    const struct TrackSegmentDisplay *display =
                     LayoutSegmentsDisplay + segment->index;
 
-   struct TrackDisplayLocation origin;
-   struct TrackDisplayLocation end;
+   struct TrackVertex origin;
+   struct TrackVertex end;
    move_straight (&(display->origin), &origin, display->origin.angle, gap);
    move_straight (&(display->end), &end,
                   rotate (display->end.angle, 180), gap);
@@ -571,9 +571,9 @@ static void draw_train_animation (const struct TrackSegment *segment,
    const struct TrackSegmentDisplay *display =
                     LayoutSegmentsDisplay + segment->index;
 
-   const struct TrackDisplayLocation *origin = &(display->origin);
-   const struct TrackDisplayLocation *end = &(display->end);
-   const struct TrackDisplayShape *shape = &segment->shape;
+   const struct TrackVertex *origin = &(display->origin);
+   const struct TrackVertex *end = &(display->end);
+   const struct TrackShape *shape = &segment->shape;
    int l = segment->high - segment->low;
 
    char id[92];
@@ -624,7 +624,7 @@ static void generate_tracks (int width) {
     // the trains. They also use different stroke colors.
 
     length = snprintf (group, sizeof(group),
-                       "<g id=\"tracks\" stroke=\"#f0f0f0\""
+                       "<g id=\"tracks\" fill=\"none\" stroke=\"#f0f0f0\""
                            " stroke-width=\"%d\">\n", width);
     display_append (group, length);
 
@@ -638,7 +638,8 @@ static void generate_tracks (int width) {
     display_append (groupend, sizeof(groupend) - 1);
 
     length = snprintf (group, sizeof(group),
-                       "<g id=\"trains\" stroke-width=\"%d\">\n", width);
+                       "<g id=\"trains\" fill=\"none\""
+                           " stroke-width=\"%d\">\n", width);
     display_append (group, length);
 
     for (i = 0; i < LayoutSegmentsCount; ++i) {
@@ -652,7 +653,8 @@ static void generate_tracks (int width) {
     if (width <= 1) width = 2; // Direction indicators must remain visible.
 
     length = snprintf (group, sizeof(group),
-                       "<g id=\"directions\" stroke-width=\"%d\">\n", width);
+                       "<g id=\"directions\" fill=\"none\""
+                           " stroke-width=\"%d\">\n", width);
     display_append (group, length);
 
     for (i = 0; i < LayoutSegmentsCount; ++i) {
@@ -691,14 +693,14 @@ static void walk_the_layout (void) {
     for (;;) {
         int i = find_preferred_origin();
         if (i < 0) break;
-        struct TrackDisplayLocation origin = LayoutSegmentsDisplay[i].origin;
+        struct TrackVertex origin = LayoutSegmentsDisplay[i].origin;
         calculate_endpoints (i, &origin);
         done += 1;
     }
 
     if (!done) {
         // There is no explicit origin. Just use the first segment.
-        struct TrackDisplayLocation origin = {0, 0, 0};
+        struct TrackVertex origin = {0, 0, 0};
         calculate_endpoints (0, &origin);
     }
 }
@@ -759,8 +761,8 @@ const char *houserail_display_reload (void) {
 
     // Find where each segment fits and what is the viewbox
     walk_the_layout ();
-    struct TrackDisplayLocation min;
-    struct TrackDisplayLocation max;
+    struct TrackVertex min;
+    struct TrackVertex max;
     calculate_viewbox (&min, &max);
 
     int margin = (max.x - min.x) / 30;
