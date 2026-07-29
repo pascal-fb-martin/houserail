@@ -24,6 +24,7 @@ INSTALL=/usr/bin/install
 
 TRACKDEPENDENCIES=../houserail_path.o \
                   ../houserail_topology.o \
+                  ../houserail_math.o \
                   ../houserail_scout.o \
                   ../houserail_track.o \
                   ../houserail_catalog.o
@@ -33,18 +34,21 @@ HCAT=Train
 
 # Application build. --------------------------------------------
 
-all: testscout testpath testtrack testtrain testend
+all: testmath testscout testpath testtrack testtrain testend
 
 clean:
-	rm -f *.o *.a testscout testpath testtrack testtrain testend
+	rm -f *.o *.a testmath testscout testpath testtrack testtrain testend
 
 rebuild: clean all
 
 test: rebuild
-	./testscout && ./testpath && ./testtrack && ./testtrain && ./testend && echo "== All tests passed"
+	./testmath ./testscout && ./testpath && ./testtrack && ./testtrain && ./testend && echo "== All tests passed"
 
 %.o: %.c
 	gcc -c -Wall -g -O2 -o $@ $<
+
+testmath: testmath.o ../houserail_math.o
+	gcc -g -O -o testmath testmath.o ../houserail_math.o -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 
 testscout: testscout.o ../houserail_scout.o
 	gcc -g -O -o testscout testscout.o ../houserail_scout.o -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt

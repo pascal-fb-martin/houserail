@@ -58,12 +58,17 @@
 #include "houserail_topology.h"
 #include "houserail_catalog.h"
 #include "houserail_scout.h"
-#include "houserail_track.h"  // Only to get data structures.
+#include "houserail_math.h"
 
 #include "houserail_display.h"
 
 static int TestMode = 0;
 #define DEBUG if (TestMode) printf
+
+// Local aliases.
+#define rotate        houserail_math_rotate
+#define move_straight houserail_math_straight
+#define move_arc      houserail_math_arc
 
 struct TrackSegmentDisplay {
 
@@ -113,75 +118,6 @@ static int calculate_straight_length (const struct TrackSegment *segment) {
     return LayoutModels[segment->model].length * LayoutOptions->postDistance;
 }
 
-static int rotate (int value, int increment) {
-    value += increment;
-    if (value > 180) value -= 360;
-    else if (value <= -180) value += 360;
-    return value;
-}
-
-static void move_straight (const struct TrackVertex *origin,
-                           struct TrackVertex *end,
-                           int angle, int length) {
-
-    // This function uses type long long because intermediate results might
-    // overflow as that this module uses insanely large coordinates to keep
-    // good precision while still using integer arithmetic.
-
-    // Angle:                          0   15   30   45   60   75    90
-    static const long long base[] =   {0, 259, 500, 707, 866, 966, 1000};
-
-    long long sine = 1;
-    long long cosine = 1;
-
-    if (angle < 0) angle += 360;
-    else if (angle >= 360) angle -= 360;
-
-    // Fold the angle to the first quadrant (o to 90 degrees)
-    if (angle >= 270) { // Fourth quadrant
-        angle = 360 - angle;
-        sine = -1;
-    } else if (angle >= 180) {
-        angle -= 180;
-        cosine = sine = -1;
-    } else if (angle > 90) {
-        angle = 180 - angle;
-        cosine *= -1;
-    }
-    int index = angle / 15;
-    sine *= base[index];
-    cosine *= base[6-index];
-
-    end->x = origin->x + ((length * cosine) / 1000);
-    end->y = origin->y + ((length * sine) / 1000);
-    end->angle = origin->angle;
-}
-
-static void move_center (const struct TrackVertex *origin,
-                         struct TrackVertex *center,
-                         int angle, int radius, int arc) {
-
-    if (arc > 0)
-        move_straight (origin, center, rotate (angle, 90), radius);
-    else
-        move_straight (origin, center, rotate (angle, -90), radius);
-}
-
-static void move_circle (const struct TrackVertex *origin,
-                         struct TrackVertex *end,
-                         int angle, int radius, int arc) {
-
-    struct TrackVertex center;
-    move_center (origin, &center, angle, radius, arc);
-    if (arc > 0)
-        move_straight (&center, end, rotate (angle, rotate (arc, -90)), radius);
-    else
-        move_straight (&center, end, rotate (angle, rotate (arc, 90)), radius);
-    end->angle = rotate (angle, arc);
-
-    DEBUG ("---      move_circle from (%d, %d) angle %d arc %d, center (%d, %d), to (%d, %d, %d)\n", origin->x, origin->y, angle, arc, center.x, center.y, end->x, end->y, end->angle);
-}
-
 static void move_to_branch (const struct TrackSegment *segment,
                             struct TrackVertex *origin) {
 
@@ -204,8 +140,8 @@ static void move_to_branch (const struct TrackSegment *segment,
             origin->angle = rotate (reverse.angle, 180);
         } else {
             DEBUG ("---   (circle move on %s: radius %d, arc %d)\n", upcoming->id, upcoming->shape.radius, 0-upcoming->shape.arc);
-            move_circle (&reverse, origin, reverse.angle,
-                         upcoming->shape.radius, 0-upcoming->shape.arc);
+            move_arc (&reverse, origin, reverse.angle,
+                      upcoming->shape.radius, 0-upcoming->shape.arc);
         }
         origin->angle = rotate (origin->angle, 180); // Turn around
 
@@ -213,8 +149,8 @@ static void move_to_branch (const struct TrackSegment *segment,
         // Two switches are connected branch to branch.
         DEBUG ("---   Two switches connected branch to branch.\n");
         DEBUG ("---   (circle move)\n");
-        move_circle (&reverse, origin, reverse.angle,
-                     upcoming->shape.radius, 0-upcoming->shape.arc);
+        move_arc (&reverse, origin, reverse.angle,
+                  upcoming->shape.radius, 0-upcoming->shape.arc);
     } else {
         *origin = reverse;
     }
@@ -253,8 +189,8 @@ static void calculate_endpoints (int start,
                 }
                 curveend = &(display->reverse);
             }
-            move_circle (curveorigin, curveend, curveangle,
-                         segment->shape.radius, segment->shape.arc);
+            move_arc (curveorigin, curveend, curveangle,
+                      segment->shape.radius, segment->shape.arc);
         }
         cursor = display->end;
         display->done = 1;
@@ -284,8 +220,8 @@ static void calculate_endpoints (int start,
                 DEBUG ("--- Upcoming segment %s is a switch: start a subwalk from there at (%d, %d, %d).\n", upcoming->id, display->end.x, display->end.y, display->end.angle);
 
                 struct TrackVertex common;
-                move_circle (&(display->end), &common, cursor.angle,
-                             upcoming->shape.radius, 0-upcoming->shape.arc);
+                move_arc (&(display->end), &common, cursor.angle,
+                          upcoming->shape.radius, 0-upcoming->shape.arc);
 
                 DEBUG ("--- ended on segment %s at (%d, %d, %d).\n", upcoming->id, common.x, common.y, common.angle);
 
@@ -340,13 +276,13 @@ static void calculate_endpoints (int start,
                     curveorigin = &(display->origin);
                     curveangle = rotate (curveangle, -180);
                 }
-                move_circle (curveorigin, &(display->reverse),
-                             rotate (curveangle, 180),
-                             segment->shape.radius, segment->shape.arc);
+                move_arc (curveorigin, &(display->reverse),
+                          rotate (curveangle, 180),
+                          segment->shape.radius, segment->shape.arc);
             } else {
-                move_circle (&(display->end), &(display->origin),
-                             rotate (curveangle, 180),
-                             segment->shape.radius, 0 - segment->shape.arc);
+                move_arc (&(display->end), &(display->origin),
+                          rotate (curveangle, 180),
+                          segment->shape.radius, 0 - segment->shape.arc);
                 display->origin.angle = rotate (display->origin.angle, 180);
             }
         }
@@ -372,8 +308,10 @@ static void calculate_endpoints (int start,
                 // the location of the switch origin and restart
                 // a walk from there.
                 struct TrackVertex common;
-                move_circle (&(display->origin), &common, rotate (cursor.angle, 180),
-                             upcoming->shape.radius, 0-upcoming->shape.arc);
+                move_arc (&(display->origin), &common,
+                          rotate (cursor.angle, 180),
+                          upcoming->shape.radius, 0-upcoming->shape.arc);
+
                 if (upcoming->common == upcoming->next) {
                     // Need to move back to that switch's origin.
                     struct TrackVertex normal;
