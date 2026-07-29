@@ -85,7 +85,7 @@ Each `detector`, `segment`, `switch` and `signal` entry is an array of arrays, w
 
 A `segment` item is a summary of the status of the detectors on that segment.
 
-The information provided for each train is enough to locate the train on a track display: `id`, `proceed` and `path`. The `proceed` item provides the direction of travel. The `path` item represents the tracks that are covered by the train. It is an array of portions of track lines, where each portion may span multiple segments. Each portion is an array: line, low and high.
+The information provided for each train is enough to locate the train on a track display: `id`, `color`, `proceed` and `path`. The `proceed` item provides the direction of travel. The `path` item represents the tracks that are covered by the train. It is an array of portions of track lines, where each portion may span multiple segments. Each portion is an array: line, low and high.
 
 ```
 /rail/train/consist?id=STRING&cars=STRING[+STRING..]
@@ -100,10 +100,10 @@ Declare a new train consist. This may replace an existing train consist. The car
 Remove an existing train consist.
 
 ```
-/rail/enter?id=STRING&dir=STRING&at=STRING
+/rail/enter?id=STRING&dir=STRING&at=STRING[&color=STRING
 ```
 
-Position a train on the layout. The `dir` parameter is either `up` or `down` and represents the orientation of the train (see DCC consist concepts). When the train has only one locomotive, this is the orientation of that locomotive (i.e. the direction that the cabin faces). The `at` parameter denotes a detector or segment that the train was positioned in front of.
+Position a train on the layout. The `dir` parameter is either `up` or `down` and represents the orientation of the train (see DCC consist concepts). When the train has only one locomotive, this is the orientation of that locomotive (i.e. the direction that the cabin faces). The `at` parameter denotes a detector or segment that the train was positioned in front of. The `color` parameter sets the color that will be used when showing the train on the track display. Using a different color for each train makes it easier to identify which train is where. The default color is `Red`.
 
 ```
 /rail/park?id=STRING
