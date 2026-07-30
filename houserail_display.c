@@ -135,10 +135,9 @@ static void move_to_branch (const struct TrackSegment *segment,
         DEBUG ("---   Reverse is connected to the end of %s, move to the origin.\n", upcoming->id);
 
         if ((upcoming->shape.arc == 0) || (upcoming->branch >= 0)) {
-            DEBUG ("---   (straight move)\n");
+            DEBUG ("---   (straight move at angle %d)\n", reverse.angle);
             int length = calculate_straight_length (upcoming);
             move_straight (&reverse, origin, reverse.angle, length);
-            origin->angle = uturn (reverse.angle);
         } else {
             DEBUG ("---   (circle move on %s: radius %d, arc %d)\n", upcoming->id, upcoming->shape.radius, 0-upcoming->shape.arc);
             move_arc (&reverse, origin, reverse.angle,
