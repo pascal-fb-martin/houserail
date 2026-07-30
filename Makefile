@@ -64,7 +64,9 @@ install-ui: install-preamble
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(SHARE)/public/rail
 	$(INSTALL) -m 0644 public/* $(DESTDIR)$(SHARE)/public/rail
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(SHARE)/rail/catalogs
-	$(INSTALL) -m 0644 KatoUnitrackN.json $(DESTDIR)$(SHARE)/rail/catalogs
+	$(INSTALL) -m 0644 catalogs/* $(DESTDIR)$(SHARE)/rail/catalogs
+	$(INSTALL) -m 0755 -d $(DESTDIR)$(SHARE)/rail/layouts
+	$(INSTALL) -m 0644 layouts/* $(DESTDIR)$(SHARE)/rail/layouts
 
 install-runtime: install-preamble
 	$(INSTALL) -m 0755 -s houserail $(DESTDIR)$(prefix)/bin

@@ -1,0 +1,52 @@
+{
+    "description":"Atlas Code 80 N Scale Catalog",
+    "scale":160,
+    "track":{
+        "packs":[
+            {"id":"2501","content":[[6,"2501"]]},
+            {"id":"2509","content":[[2,"2509a"],[4,"2509b"],[4,"2509c"]]},
+            {"id":"2510","content":[[6,"2510"]]},
+            {"id":"2511","content":[[6,"2511"]]},
+            {"id":"2521","content":[[6,"2521"]]},
+            {"id":"2525","content":[[6,"2525"]]},
+            {"id":"2526","content":[[6,"2526"]]},
+            {"id":"2532","content":[[3,"2532"]]},
+            {"id":"2536","content":[[2,"2536"]]},
+            {"id":"2700","content":[[1,"2700"],[1,"2514"]]},
+            {"id":"2701","content":[[1,"2701"],[1,"2514"]]},
+            {"id":"2702","content":[[1,"2702"],[1,"2514"]]},
+            {"id":"2703","content":[[1,"2703"],[1,"2504t"]]},
+            {"id":"2704","content":[[1,"2704"],[1,"2504t"]]},
+            {"id":"2705","content":[[1,"2705"],[1,"2504t"]]},
+            {"id":"2706","content":[[1,"2706"],[1,"2504t"]]}
+        ],
+        "models":[
+            {"id":"2501","length":20,"civil":50,"shape":[128]},
+            {"id":"2513","length":20,"civil":50,"shape":[128],"note":"bulk"},
+            {"id":"2509a","length":10,"civil":50,"shape":[64]},
+            {"id":"2509b","length":5,"civil":50,"shape":[32]},
+            {"id":"2509c","length":2,"civil":50,"shape":[16]},
+            {"id":"2510","length":21,"civil":20,"shape":[30,250]},
+            {"id":"2511","length":10,"civil":20,"shape":[15,250]},
+            {"id":"2514","length":21,"civil":20,"shape":[30,250],"note":"bulk"},
+            {"id":"2515","length":24,"civil":30,"shape":[22.5,282],"note":"bulk"},
+            {"id":"2520","length":24,"civil":30,"shape":[22.5,282]},
+            {"id":"2521","length":12,"civil":30,"shape":[15,282]},
+            {"id":"2525","length":36,"civil":30,"shape":[22.5,435]},
+            {"id":"2516","length":20,"civil":30,"shape":[15,486],"note":"bulk"},
+            {"id":"2526","length":20,"civil":30,"shape":[15,486]},
+            {"id":"2532","length":20,"civil":50,"shape":[128],"feature":"rerailer"},
+            {"id":"2536","length":10,"civil":10,"shape":[64],"feature":"bumper"},
+            {"id":"2700","length":20,"reverse":20,"civil":20,"shape":[-15,486,128]},
+            {"id":"2701","length":20,"reverse":20,"civil":20,"shape":[15,486,128]},
+            {"id":"2702","length":20,"reverse":20,"civil":20,"shape":[-15,486,128]},
+            {"id":"2703","length":20,"reverse":20,"civil":20,"shape":[15,486,128]},
+            {"id":"2704","length":25,"reverse":25,"civil":30,"shape":[-9.53,1000,186]},
+            {"id":"2704t","length":14,"civil":30,"shape":[9.53,1000]},
+            {"id":"2705","length":25,"reverse":25,"civil":30,"shape":[9.53,1000,186]},
+            {"id":"2706","length":25,"reverse":25,"civil":30,"shape":[-9.53,1000,186]},
+            {"id":"2707","length":25,"reverse":25,"civil":30,"shape":[9.53,1000,186]}
+        ]
+    }
+}
+

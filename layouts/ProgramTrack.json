@@ -2,7 +2,7 @@
     "host": "casabianca",
     "timestamp": 0,
     "rail":{
-         "layout":"pgmtrack",
+         "layout":"ProgramTrack",
          "description":"A layout for testing and progamming DCC locomotives",
          "train":{
              "models":[

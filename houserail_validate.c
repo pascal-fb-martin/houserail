@@ -114,7 +114,7 @@ int main (int argc, const char **argv) {
     if ((arg[0] == '/') || (arg[0] == '.')) prefix = "";
     snprintf (option, sizeof(option), "--config=%s%s", prefix, arg);
     houseconfig_default (option);
-    houserail_catalog_default ("--catalog=.");
+    houserail_catalog_default ("--catalog=./catalogs");
 
     const char *error = houserail_catalog_initialize (argc, argv);
     if (!error)

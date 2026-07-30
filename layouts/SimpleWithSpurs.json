@@ -1,0 +1,84 @@
+{
+    "host": "casabianca",
+    "timestamp": 0,
+    "rail":{
+         "layout":"SImpleWithSpurs",
+         "description":"Inspired by the 2x4 layout 16 from Kraft Trains",
+         "train":{
+             "models":[
+                 {"id":"ATLAS-GP-40","length":19,"spots":[4,15]},
+                 {"id":"CONCOR-N70T","length":12,"spots":[5,7]}
+             ],
+             "vehicles":[
+                 {"id":"PFM4001","model":"ATLAS-GP-40"},
+                 {"id":"PFM4002","model":"ATLAS-GP-40"},
+                 {"id":"PFM4003","model":"ATLAS-GP-40"},
+                 {"id":"PFM1001","model":"CONCOR-N70T"},
+                 {"id":"PFM1002","model":"CONCOR-N70T"},
+                 {"id":"PFM1003","model":"CONCOR-N70T"}
+             ]
+         },
+         "track": {
+             "speeds":{"restricted": 10, "reverse": 20},
+             "distances":{"stop": 20, "slow": 35},
+             "catalog":"AtlasCode80",
+             "segments":[
+                 {"id":"MAIN-1","model":"2532","line":"main","next":"main-2","start":0},
+                 {"id":"MAIN-2","model":"2513","line":"main","next":"main-3"},
+                 {"id":"MAIN-3","model":"2700","line":"main","next":"main-4","common":"main-4","branch":"side1-5"},
+                 {"id":"MAIN-4","model":"2514","line":"main","next":"main-5","curve":"right"},
+                 {"id":"MAIN-5","model":"2514","line":"main","next":"main-6","curve":"right"},
+                 {"id":"MAIN-6","model":"2514","line":"main","next":"main-8","curve":"right"},
+                 {"id":"MAIN-8","model":"2514","line":"main","next":"main-9","curve":"right"},
+                 {"id":"MAIN-9","model":"2514","line":"main","next":"main-10","curve":"right"},
+                 {"id":"MAIN-10","model":"2514","line":"main","next":"main-11","curve":"right"},
+                 {"id":"MAIN-11","model":"2513","line":"main","next":"main-12"},
+                 {"id":"MAIN-12","model":"2701","line":"main","next":"main-13","common":"main-11","branch":"side2-1"},
+                 {"id":"MAIN-13","model":"2701","line":"main","next":"main-14","common":"main-14","branch":"side3-4"},
+                 {"id":"MAIN-14","model":"2513","line":"main","next":"main-15"},
+                 {"id":"MAIN-15","model":"2514","line":"main","next":"main-16","curve":"right"},
+                 {"id":"MAIN-16","model":"2514","line":"main","next":"main-17","curve":"right"},
+                 {"id":"MAIN-17","model":"2514","line":"main","next":"main-18","curve":"right"},
+                 {"id":"MAIN-18","model":"2514","line":"main","next":"main-19","curve":"right"},
+                 {"id":"MAIN-19","model":"2514","line":"main","next":"main-20","curve":"right"},
+                 {"id":"MAIN-20","model":"2514","line":"main","next":"main-21","curve":"right"},
+                 {"id":"MAIN-21","model":"2513","line":"main","next":"main-1"},
+                 {"id":"SIDE1-1","model":"2513","line":"side1","next":"side1-2"},
+                 {"id":"SIDE1-2","model":"2513","line":"side1","next":"side1-3"},
+                 {"id":"SIDE1-3","model":"2513","line":"side1","next":"side1-4"},
+                 {"id":"SIDE1-4","model":"2513","line":"side1","next":"side1-5"},
+                 {"id":"SIDE1-5","model":"2516","line":"side1","next":"main-3","curve":"right"},
+                 {"id":"SIDE2-1","model":"2513","line":"side2","next":"side2-2"},
+                 {"id":"SIDE2-2","model":"2513","line":"side2","next":"side2-3"},
+                 {"id":"SIDE2-3","model":"2513","line":"side2"},
+                 {"id":"SIDE3-1","model":"2513","line":"side3","next":"side3-2","origin":[200000,0,180]},
+                 {"id":"SIDE3-2","model":"2513","line":"side3","next":"side3-3"},
+                 {"id":"SIDE3-3","model":"2513","line":"side3","next":"side3-4"},
+                 {"id":"SIDE3-4","model":"2516","line":"side3","next":"main-13","curve":"right"},
+             ],
+             "detectors":[
+                 {"id":"MAIN@15","line":"main","low":14,"high":16},
+                 {"id":"MAIN@30","line":"main","low":29,"high":31},
+                 {"id":"MAIN@55","line":"main","low":54,"high":56},
+                 {"id":"MAIN@85","line":"main","low":84,"high":86},
+                 {"id":"MAIN@116","line":"main","low":114,"high":116},
+                 {"id":"MAIN@134","line":"main","low":133,"high":135},
+                 {"id":"MAIN@152","line":"main","low":151,"high":153},
+                 {"id":"MAIN@184","line":"main","low":183,"high":185},
+                 {"id":"MAIN@203","line":"main","low":202,"high":204},
+                 {"id":"MAIN@209","line":"main","low":208,"high":210},
+                 {"id":"MAIN@214","line":"main","low":213,"high":215},
+                 {"id":"MAIN@232","line":"main","low":231,"high":233},
+                 {"id":"MAIN@251","line":"main","low":250,"high":252},
+                 {"id":"MAIN@299","line":"main","low":298,"high":300},
+                 {"id":"MAIN@327","line":"main","low":326,"high":328},
+                 {"id":"MAIN@361","line":"main","low":360,"high":362},
+                 {"id":"MAIN@391","line":"main","low":390,"high":392},
+                 {"id":"MAIN@431","line":"main","low":430,"high":432},
+                 {"id":"MAIN@459","line":"main","low":458,"high":460},
+                 {"id":"MAIN@479","line":"main","low":478,"high":480}
+             ]
+        }
+    }
+}
+
