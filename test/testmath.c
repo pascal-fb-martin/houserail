@@ -53,65 +53,114 @@ int main (int argc, const char **argv) {
     digest (Errors == original, "houserail_math_interpolate ()");
 
     // houserail_math_rotate (int value, int increment);
+    // WARNING: all angles are expressed in 1/100 of a degree!
 
     starting ("houserail_math_rotate ()");
     original = Errors;
-    result = houserail_math_rotate (45, 90);
-    assert (result == 135, "houserail_math_rotate (45, 90) returns 135");
-    result = houserail_math_rotate (45, -90);
-    assert (result == -45, "houserail_math_rotate (45, -90) returns -45");
-    result = houserail_math_rotate (45, 135);
-    assert (result == 180, "houserail_math_rotate (45, 135) returns 180");
-    result = houserail_math_rotate (45, -135);
-    assert (result == -90, "houserail_math_rotate (45, -135) returns -90");
-    result = houserail_math_rotate (135, 90);
-    assert (result == -135, "houserail_math_rotate (135, 90) returns -135");
-    result = houserail_math_rotate (-135, -90);
-    assert (result == 135, "houserail_math_rotate (-135, -90) returns 135");
+    result = houserail_math_rotate (4500, 18000);
+    assert (result == -13500, "houserail_math_rotate (45, 180) returns -135");
+    result = houserail_math_rotate (4500, -18000);
+    assert (result == -13500, "houserail_math_rotate (45, -180) returns -135");
+    result = houserail_math_rotate (-4500, 18000);
+    assert (result == 13500, "houserail_math_rotate (-45, 180) returns 135");
+    result = houserail_math_rotate (-4500, -18000);
+    assert (result == 13500, "houserail_math_rotate (-45, -180) returns 135");
+    result = houserail_math_rotate (4500, 9000);
+    assert (result == 13500, "houserail_math_rotate (45, 90) returns 135");
+    result = houserail_math_rotate (4500, -9000);
+    assert (result == -4500, "houserail_math_rotate (45, -90) returns -45");
+    result = houserail_math_rotate (4500, 13500);
+    assert (result == 18000, "houserail_math_rotate (45, 135) returns 180");
+    result = houserail_math_rotate (4500, -13500);
+    assert (result == -9000, "houserail_math_rotate (45, -135) returns -90");
+    result = houserail_math_rotate (13500, 9000);
+    assert (result == -13500, "houserail_math_rotate (135, 90) returns -135");
+    result = houserail_math_rotate (-13500, -9000);
+    assert (result == 13500, "houserail_math_rotate (-135, -90) returns 135");
     digest (Errors == original, "houserail_math_rotate ()");
 
     // houserail_math_straight (const struct TrackVertex *origin,
     //                          struct TrackVertex *end,
     //                          int angle, int length);
+    // WARNING: all angles are expressed in 1/100 of a degree!
 
-    struct TrackVertex origin = {10, 10, 30};
+    struct TrackVertex origin = {10, 10, 3000};
     struct TrackVertex end;
 
     starting ("houserail_math_straight ()");
     original = Errors;
     houserail_math_straight (&origin, &end, 0, 10);
-    assert ((end.x == 20) && (end.y == 10) && (end.angle == 30),
-                     "houserail_math_straight ({10, 10, 0} at 0 for 10");
+    assert ((end.x == 20) && (end.y == 10) && (end.angle == 3000),
+                     "houserail_math_straight ({10, 10, 30} at 0 for 10");
 
-    houserail_math_straight (&origin, &end, 180, 10);
-    assert ((end.x == 0) && (end.y == 10) && (end.angle == 30),
-                     "houserail_math_straight ({10, 10, 0} at 180 for 10");
+    houserail_math_straight (&origin, &end, 18000, 10);
+    assert ((end.x == 0) && (end.y == 10) && (end.angle == 3000),
+                     "houserail_math_straight ({10, 10, 30} at 180 for 10");
     digest (Errors == original, "houserail_math_straight ()");
 
-    houserail_math_straight (&origin, &end, -180, 10);
-    assert ((end.x == 0) && (end.y == 10) && (end.angle == 30),
+    houserail_math_straight (&origin, &end, -18000, 10);
+    assert ((end.x == 0) && (end.y == 10) && (end.angle == 3000),
                      "houserail_math_straight ({10, 10, 0} at -180 for 10");
     digest (Errors == original, "houserail_math_straight ()");
 
-    houserail_math_straight (&origin, &end, 90, 10);
-    assert ((end.x == 10) && (end.y == 20) && (end.angle == 30),
+    houserail_math_straight (&origin, &end, 9000, 10);
+    assert ((end.x == 10) && (end.y == 20) && (end.angle == 3000),
                      "houserail_math_straight ({10, 10, 0} at 90 for 10");
     digest (Errors == original, "houserail_math_straight ()");
 
-    houserail_math_straight (&origin, &end, -90, 10);
-    assert ((end.x == 10) && (end.y == 0) && (end.angle == 30),
+    houserail_math_straight (&origin, &end, -9000, 10);
+    assert ((end.x == 10) && (end.y == 0) && (end.angle == 3000),
                      "houserail_math_straight ({10, 10, 0} at -90 for 10");
     digest (Errors == original, "houserail_math_straight ()");
 
-    houserail_math_straight (&origin, &end, 45, 10);
-    assert ((end.x == 17) && (end.y == 17) && (end.angle == 30),
+    houserail_math_straight (&origin, &end, 4500, 10);
+    assert ((end.x == 17) && (end.y == 17) && (end.angle == 3000),
                      "houserail_math_straight ({10, 10, 0} at 45 for 10");
     digest (Errors == original, "houserail_math_straight ()");
 
-    houserail_math_straight (&origin, &end, -45, 10);
-    assert ((end.x == 17) && (end.y == 3) && (end.angle == 30),
+    houserail_math_straight (&origin, &end, -4500, 10);
+    assert ((end.x == 17) && (end.y == 3) && (end.angle == 3000),
                      "houserail_math_straight ({10, 10, 0} at -45 for 10");
     digest (Errors == original, "houserail_math_straight ()");
+
+    // houserail_math_arc (const struct TrackVertex *origin,
+    //                     struct TrackVertex *end,
+    //                     int angle, int radius, int arc);
+    // WARNING: all angles are expressed in 1/100 of a degree!
+
+    starting ("houserail_math_arc ()");
+    original = Errors;
+    houserail_math_arc (&origin, &end, 0, 10, 9000);
+    assert ((end.x == 20) && (end.y == 20) && (end.angle == 9000),
+                     "houserail_math_arc ({10, 10, 30} at 0 for 90 deg, 10");
+printf ("result: x %d y %d angle %d\n", end.x, end.y, end.angle);
+
+    houserail_math_arc (&origin, &end, 0, 10, -9000);
+    assert ((end.x == 20) && (end.y == 0) && (end.angle == -9000),
+                     "houserail_math_arc ({10, 10, 30} at 0 for -90 deg, 10");
+printf ("result: x %d y %d angle %d\n", end.x, end.y, end.angle);
+
+    houserail_math_arc (&origin, &end, 9000, 10, -9000);
+    assert ((end.x == 20) && (end.y == 20) && (end.angle == 0),
+                     "houserail_math_arc ({10, 10, 30} at 90 for -90 deg, 10");
+printf ("result: x %d y %d angle %d\n", end.x, end.y, end.angle);
+
+    houserail_math_arc (&origin, &end, 0, 10, 18000);
+    assert ((end.x == 10) && (end.y == 30) && (end.angle == 18000),
+                     "houserail_math_arc ({10, 10, 30} at 0 for 180 deg, 10");
+printf ("result: x %d y %d angle %d\n", end.x, end.y, end.angle);
+
+    houserail_math_arc (&origin, &end, 0, 10, -18000);
+    assert ((end.x == 10) && (end.y == -10) && (end.angle == 18000),
+                     "houserail_math_arc ({10, 10, 30} at 0 for -180 deg, 10");
+printf ("result: x %d y %d angle %d\n", end.x, end.y, end.angle);
+
+    houserail_math_arc (&origin, &end, 9000, 10, 18000);
+    assert ((end.x == -10) && (end.y == 10) && (end.angle == -9000),
+                     "houserail_math_arc ({10, 10, 30} at 90 for 180 deg, 10");
+printf ("result: x %d y %d angle %d\n", end.x, end.y, end.angle);
+
+    digest (Errors == original, "houserail_math_arc ()");
 
     return summary ("testmath");
 }

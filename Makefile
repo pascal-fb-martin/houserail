@@ -53,10 +53,10 @@ rebuild: clean all
 	gcc -c -Wall -g -O2 -o $@ $<
 
 houserail: houserail.o $(OBJS)
-	gcc -g -O -o houserail houserail.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+	gcc -g -O -o houserail houserail.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lm -lrt
 
 layoutvalidate: houserail_validate.o $(OBJS)
-	gcc -g -O -o layoutvalidate houserail_validate.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+	gcc -g -O -o layoutvalidate houserail_validate.o $(OBJS) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lm -lrt
 
 # Distribution agnostic file installation -----------------------
 

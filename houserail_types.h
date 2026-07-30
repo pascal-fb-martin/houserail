@@ -45,7 +45,7 @@ struct TrackLocation {
 // segments and features on a display pane.
 
 struct TrackShape {
-    int arc;      // 0 means straight.
+    int arc;      // 0 means straight. In 1/100 of degrees!
     int radius;
     int straight; // Physical length of the normal side. For switch only.
 };
@@ -53,7 +53,7 @@ struct TrackShape {
 struct TrackVertex {
     int x;
     int y;
-    int angle;
+    int angle; // Warning: in 1/100 of degrees!
 };
 #endif
 

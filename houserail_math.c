@@ -23,7 +23,7 @@
  * SYNOPSYS:
  *
  * This module implements geometry operations, straight lines and circle,
- * on a plan (2D).
+ * on a plan (2D). All angles are expressed in 1/100 of a degree.
  *
  * int houserail_math_interpolate (int v1, int v2, int ratio);
  *
@@ -69,7 +69,7 @@ static const int trigonometry[ 91 ] = {
 };
 
 // FUTURE: when the angle is in 1/100 of a degree.
-int houserail_math_interpolate (int v1, int v2, int ratio) {
+long long houserail_math_interpolate (long long v1, long long v2, int ratio) {
 
     return ((100 - ratio) * v1 + ratio * v2) / 100;
 }
@@ -77,8 +77,8 @@ int houserail_math_interpolate (int v1, int v2, int ratio) {
 int houserail_math_rotate (int value, int increment) {
 
     value += increment;
-    if (value > 180) value -= 360;
-    else if (value <= -180) value += 360;
+    if (value > 18000) value -= 36000;
+    else if (value <= -18000) value += 36000;
     return value;
 }
 
@@ -86,32 +86,47 @@ void houserail_math_straight (const struct TrackVertex *origin,
                               struct TrackVertex *end,
                               int angle, int length) {
 
-    // This function uses type long long because intermediate results might
-    // overflow as that this module uses insanely large coordinates to keep
-    // good precision while still using integer arithmetic.
+    // Fold the angle to the first quadrant (0 to 90 degrees)
+    int sine = 1;
+    int cosine = 1;
  
-    long long sine = 1;
-    long long cosine = 1;
+    if (angle < 0) angle += 36000;
+    else if (angle >= 36000) angle -= 36000;
  
-    if (angle < 0) angle += 360;
-    else if (angle >= 360) angle -= 360;
- 
-    // Fold the angle to the first quadrant (o to 90 degrees)
-    if (angle >= 270) { // Fourth quadrant
-        angle = 360 - angle;
+    if (angle >= 27000) { // Fold fourth quadrant to first
+        angle = 36000 - angle;
         sine = -1;
-    } else if (angle >= 180) {
-        angle -= 180;
+    } else if (angle >= 18000) { // Fold third quadrant to first
+        angle -= 18000;
         cosine = sine = -1;
-    } else if (angle > 90) {
-        angle = 180 - angle;
-        cosine *= -1;
+    } else if (angle > 9000) { // Fold second quadrant to first
+        angle = 18000 - angle;
+        cosine = -1;
     }
-    sine *= trigonometry[angle];
-    cosine *= trigonometry[90-angle];
 
-    end->x = origin->x + ((length * cosine) / 100000);
-    end->y = origin->y + ((length * sine) / 100000);
+    // This function uses type long long because intermediate results might
+    // overflow as the software uses insanely large coordinates to keep
+    // good precision while still using integer arithmetic.
+
+    int degrees = angle / 100;
+    long long sine1 = sine * trigonometry[degrees];
+    long long cosine1 = cosine * trigonometry[90-degrees];
+
+    int fraction = angle % 100;
+    if (fraction != 0) {
+        if (++degrees > 90) {
+            degrees = 180 - degrees;
+            cosine *= -1; // Reverse the sign.
+        }
+        long long sine2 = sine * trigonometry[degrees];
+        long long cosine2 = cosine * trigonometry[90-degrees];
+
+        sine1 = houserail_math_interpolate (sine1, sine2, fraction);
+        cosine1 = houserail_math_interpolate (cosine1, cosine2, fraction);
+    }
+
+    end->x = origin->x + ((length * cosine1) / 100000);
+    end->y = origin->y + ((length * sine1) / 100000);
     end->angle = origin->angle;
 }
 
@@ -121,10 +136,10 @@ void houserail_math_center (const struct TrackVertex *origin,
 
     if (arc > 0)
         houserail_math_straight (origin, center,
-                                 houserail_math_rotate (angle, 90), radius);
+                                 houserail_math_rotate (angle, 9000), radius);
     else
         houserail_math_straight (origin, center,
-                                 houserail_math_rotate (angle, -90), radius);
+                                 houserail_math_rotate (angle, -9000), radius);
 }
 
 void houserail_math_arc (const struct TrackVertex *origin,
@@ -135,11 +150,11 @@ void houserail_math_arc (const struct TrackVertex *origin,
     houserail_math_center (origin, &center, angle, radius, arc);
     if (arc > 0) {
         int rotate = houserail_math_rotate (angle,
-                                            houserail_math_rotate (arc, -90));
+                                            houserail_math_rotate (arc, -9000));
         houserail_math_straight (&center, end, rotate, radius);
     } else {
         int rotate = houserail_math_rotate (angle,
-                                            houserail_math_rotate (arc, 90));
+                                            houserail_math_rotate (arc, 9000));
         houserail_math_straight (&center, end, rotate, radius);
     }
     end->angle = houserail_math_rotate (angle, arc);

@@ -64,10 +64,13 @@
  * const char *houserail_catalog_string  (int parent, const char *path);
  * int         houserail_catalog_integer (int parent, const char *path);
  * int         houserail_catalog_positive (int parent, const char *path);
+ * double      houserail_catalog_real     (int parent, const char *path);
  * int         houserail_catalog_integer_scaled (int parent, const char *path);
  * int         houserail_catalog_positive_scaled (int parent, const char *path);
  * int         houserail_catalog_boolean (int parent, const char *path);
  *
+ * int         houserail_catalog_isreal (int parent, const char *path);
+
  *    Access individual items starting from the specified parent
  *    (the config root is index 0). If the path is an empty string,
  *    the entry being accessed is the parent itself.
@@ -97,6 +100,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <math.h>
 
 #include <echttp.h>
 #include <echttp_json.h>
@@ -240,11 +244,11 @@ const char *houserail_catalog_initialize (int argc, const char **argv) {
 }
 
 int houserail_catalog_find (int parent, const char *path, int type) {
-    int i;
     if (parent < 0 || parent >= CatalogTokenCount) return -1;
-    i = echttp_json_search(CatalogParsed+parent, path);
-    if (i >= 0 && CatalogParsed[parent+i].type == type) return parent+i;
-    return -1;
+    int i = echttp_json_search(CatalogParsed+parent, path);
+    if (i < 0) return -1;
+    if ((type > 0) && (CatalogParsed[parent+i].type != type)) return -1;
+    return parent+i;
 }
 
 int houserail_catalog_present (int parent, const char *path) {
@@ -273,6 +277,21 @@ int houserail_catalog_positive (int parent, const char *path) {
     if (i < 0) return 0;
     if (CatalogParsed[i].value.integer < 0) return 0;
     return CatalogParsed[i].value.integer;
+}
+
+double houserail_catalog_real (int parent, const char *path) {
+    int i = houserail_catalog_find(parent, path, -1);
+    if (i >= 0) {
+        if (CatalogParsed[i].type == PARSER_REAL)
+            return CatalogParsed[i].value.real;
+        else if (CatalogParsed[i].type == PARSER_INTEGER)
+            return (double)(CatalogParsed[i].value.integer);
+    }
+    return NAN;
+}
+
+int houserail_catalog_isreal (int parent, const char *path) {
+    return (houserail_catalog_find(parent, path, PARSER_REAL) >= 0);
 }
 
 int houserail_catalog_positive_scaled (int parent, const char *path) {

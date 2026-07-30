@@ -32,9 +32,12 @@ int         houserail_catalog_present (int parent, const char *path);
 const char *houserail_catalog_string  (int parent, const char *path);
 int         houserail_catalog_integer (int parent, const char *path);
 int         houserail_catalog_positive (int parent, const char *path);
+double      houserail_catalog_real     (int parent, const char *path);
 int         houserail_catalog_integer_scaled (int parent, const char *path);
 int         houserail_catalog_positive_scaled (int parent, const char *path);
 int         houserail_catalog_boolean (int parent, const char *path);
+
+int houserail_catalog_isreal (int parent, const char *path);
 
 int houserail_catalog_array (int parent, const char *path);
 int houserail_catalog_array_length (int array);

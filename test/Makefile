@@ -57,11 +57,11 @@ testpath: testpath.o ../houserail_path.o
 	gcc -g -O -o testpath testpath.o ../houserail_path.o -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
 
 testtrack: testtrack.o $(TRACKDEPENDENCIES)
-	gcc -g -O -o testtrack testtrack.o $(TRACKDEPENDENCIES) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+	gcc -g -O -o testtrack testtrack.o $(TRACKDEPENDENCIES) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lm -lrt
 
 testtrain: testtrain.o ../houserail_train.o $(TRACKDEPENDENCIES)
-	gcc -g -O -o testtrain testtrain.o ../houserail_train.o $(TRACKDEPENDENCIES) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+	gcc -g -O -o testtrain testtrain.o ../houserail_train.o $(TRACKDEPENDENCIES) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lm -lrt
 
 testend: testend.o ../houserail_train.o $(TRACKDEPENDENCIES)
-	gcc -g -O -o testend testend.o ../houserail_train.o $(TRACKDEPENDENCIES) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lrt
+	gcc -g -O -o testend testend.o ../houserail_train.o $(TRACKDEPENDENCIES) -lhouseportal -lechttp -lssl -lcrypto -lmagic -lm -lrt
 

@@ -133,6 +133,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 #include <echttp.h>
 #include <echttp_libc.h>
@@ -360,7 +361,13 @@ const char *houserail_topology_reload (void) {
             if (count == 1) { // Straight track.
                 model->shape.straight = houseconfig_integer (shapelist[0], "");
             } else if (count > 1) { // Curved track.
-                model->shape.arc = houseconfig_integer (shapelist[0], "");
+                if (houseconfig_isreal (shapelist[0], "")) {
+                    double arc = houseconfig_real (shapelist[0], "");
+                    model->shape.arc = lround (arc * 100);
+                } else {
+                    model->shape.arc =
+                        100 * houseconfig_integer (shapelist[0], "");
+                }
                 model->shape.radius = houseconfig_integer (shapelist[1], "");
                 if (count >= 3) { // Switch: curved branch and straight main
                     model->shape.straight = houseconfig_integer (shapelist[2], "");
@@ -402,8 +409,13 @@ const char *houserail_topology_reload (void) {
                     model->shape.straight =
                         houserail_catalog_integer_scaled (shapelist[0], "");
                 } else if (count > 1) { // Curved track.
-                    model->shape.arc =
-                        houserail_catalog_integer (shapelist[0], "");
+                    if (houserail_catalog_isreal (shapelist[0], "")) {
+                        double arc = houserail_catalog_real (shapelist[0], "");
+                        model->shape.arc = lround (arc * 100);
+                    } else {
+                        model->shape.arc =
+                            100 * houserail_catalog_integer (shapelist[0], "");
+                    }
                     model->shape.radius =
                         houserail_catalog_integer_scaled (shapelist[1], "");
                     if (count >= 3) { // Curved branch and straight main
@@ -509,10 +521,17 @@ const char *houserail_topology_reload (void) {
                 segment->display.x = houseconfig_integer (coordinates[0], "");
             if (count >= 2)
                 segment->display.y = houseconfig_integer (coordinates[1], "");
-            if (count >= 3)
-                segment->display.angle = houseconfig_integer (coordinates[2], "");
+            if (count >= 3) {
+                if (houseconfig_isreal (coordinates[2], "")) {
+                    double angle = houseconfig_real (coordinates[2], "");
+                    segment->display.angle = lround (angle * 100);
+                } else {
+                    segment->display.angle =
+                        100 * houseconfig_integer (coordinates[2], "");
+                }
+            }
             if (segment->display.angle == 0)
-                segment->display.angle = 360; // Used as explicit origin flag.
+                segment->display.angle = 36000; // Used as explicit origin flag.
         }
     }
 

@@ -23,7 +23,7 @@
 
 #include "houserail_types.h"
 
-int houserail_math_interpolate (int v1, int v2, int ratio);
+long long houserail_math_interpolate (long long v1, long long v2, int ratio);
 
 int houserail_math_rotate (int value, int increment);
 
