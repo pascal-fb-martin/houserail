@@ -579,13 +579,13 @@ const char *houserail_topology_reload (void) {
 
         segment->previous = houserail_topology_search_by_id (temp[i].previous);
         if ((segment->previous < 0) && temp[i].previous) {
-            DEBUG (__FILE__ ": error on segment at index %d: %s\n", i, segment->id);
+            DEBUG (__FILE__ ": error on segment %s at index %d: invalid previous %s\n", segment->id, i, temp[i].previous);
             return "invalid previous link";
         }
         segment->next = houserail_topology_search_by_id (temp[i].next);
         if ((segment->next < 0) && temp[i].next) {
-            DEBUG (__FILE__ ": error on segment at index %d: %s\n", i, segment->id);
-            return "invalid previous link";
+            DEBUG (__FILE__ ": error on segment %s at index %d: invalid next %s\n", segment->id, i, temp[i].next);
+            return "invalid next link";
         }
 
         segment->branch = houserail_topology_search_by_id (temp[i].branch);
