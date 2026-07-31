@@ -137,8 +137,8 @@ int main (int argc, const char **argv) {
     // houserail_track_testmode (1);
 
     starting ("Loading layout configuration");
-    houseconfig_default ("--config=../pgmtrack.json");
-    houserail_catalog_default ("--catalog=..");
+    houseconfig_default ("--config=../layouts/ProgramTrack.json");
+    houserail_catalog_default ("--catalog=../catalogs");
     houserail_catalog_initialize (argc, argv);
     houserail_topology_initialize (argc, argv);
     houserail_track_initialize (argc, argv);
