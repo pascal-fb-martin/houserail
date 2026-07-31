@@ -173,14 +173,22 @@ Return the list of track segments, sorted by line and high post. The JSON schema
 
 ## Configuration
 
-All configuration is stored in the HouseDepot service. The HouseService group name is used to identify the layout. This means that each instance of HouseRail only handles a single layout.
+The layout configuration is stored in the HouseDepot service. The HouseService group name is used to identify which layout to load. This means that each instance of HouseRail only handles a single layout.
 
-The full configuration is actually split into two parts: static configuration and state. The static configuration contains items that reflect permanent user data, typically the track topology. The state contains items that may change more frequently, including changed initiated by the service itself or from another service, like the list of consists.
+The full configuration is actually split into two parts: static configuration and state. The static configuration contains items that reflect permanent user data, typically the track topology and the rolling stock available. The state contains items that may change more frequently, including changed initiated by the service itself, like the list of consists.
 
 The schema of the static configuration is described is two documents:
 
 * [Track Configuration](https://github.com/pascal-fb-martin/houserail/blob/main/tracktopology.md)
 * [Train Data](https://github.com/pascal-fb-martin/houserail/blob/main/traindata.md)
+
+The software comes with a few layouts and track catalogs:
+
+* catalogs/AtlasCode80.json describes the characteristics of (many) Atlas Model Railroad Company's Code 80 N scale tracks.
+* catalogs/KatoUnitrackN.json describes the characteristics of (many) Kato's N scale UniTrack.
+* layouts/ProgramTrack.json contains just a handful of straight Unitrack segments. This is the original physical layout that HouseRail is tested against.
+* layouts/SimpleLoopKato.json contains a loop with a pocket track. This was the original layout used to test display generation and switch operations.
+* layouts/SimpleWithSpurs.json is a loop with three spurs, loosely inspired by the Atlas N-503 layout.
 
 The `layoutvalidate` tool is provided to both validate that the configuration is valid and verify that the generated topology and fleet are correct:
 

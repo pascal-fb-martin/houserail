@@ -123,5 +123,6 @@ A catalog data follows the JSON schema below:
 
 * `description`: a free format text that describes the catalog (typically the vendor and product line). This field is optional.
 * `scale`: an optional number to convert part dimensions to prototype sizes.
+* `track.packs`: a description on how track elements are sold together. This is intended to produce a bill of material that describe what to purchase.
 * `track.models`: an array that lists the track models in this catalog. This use the same schema as for the models in the track layout, with one critical exception: all length and radius values correspond to the actual part dimensions.
 

@@ -2,7 +2,7 @@
     "host": "casabianca",
     "timestamp": 0,
     "rail":{
-         "layout":"testloop",
+         "layout":"SimpleLoopKato",
          "description":"A simple layout for unit testing",
          "train":{
              "models":[

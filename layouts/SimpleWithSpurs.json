@@ -2,7 +2,7 @@
     "host": "casabianca",
     "timestamp": 0,
     "rail":{
-         "layout":"SImpleWithSpurs",
+         "layout":"SimpleWithSpurs",
          "description":"Inspired by the 2x4 layout 16 from Kraft Trains",
          "train":{
              "models":[
