@@ -12,6 +12,8 @@ The following classes of objects are considered:
 
 * Track detectors define the devices that detect the presence of cars. The technology employed (relay reeds, infrared detectors, current sensors, etc) does not really matter here, what counts at this level is the span of track where cars can be detected. Track detectors may not covers the whole length of the track: a coverage hole is handled as a dark territory.
 
+* Signals describe every individual signal on the layout. Note that signals have no links to switches at this time.
+
 > [!NOTE]
 > Flex tracks, interlocking and crossing track types are planned, but not supported yet. Crossing can be implemented as two independent segments, but no special rule protects against collisions (yet). Special cases, such as double tracks, can be represented as two independent segments.
 
@@ -60,7 +62,7 @@ Global track parameters are configurable elements of the `rail.track` object tha
 
 ## Track Models
 
-The models are stored in the `rail.track.models` array. Each element is an object the follows the schema below:
+The models are stored in the `rail.track.models` array. Each element is an object that follows the schema below:
 
 * `id`: vendor's product ID of the part.
 * `length`: the length of the part (standard track) or the length of the normal branch (switch track).
@@ -72,7 +74,7 @@ Models can also be loaded from a catalog identified by the `rail.track.catalog` 
 
 ## Track Segments
 
-The segments are specific to a layout and are stored in the `rail.track.segments` array. Each element is an object the follows the schema below:
+The segments are specific to a layout and are stored in the `rail.track.segments` array. Each element is an object that follows the schema below:
 
 * `id`: an identifier for this segment, unique within the layout. The `id` string must not include any '~' characters.
 * `line`: a line identifier. All standard tracks connected to each other belong to the same line. In the case of a switch, this refers to the normal direction.
@@ -98,7 +100,7 @@ The name of the line on the reverse point of a switch is determined from the nam
 
 ## Track Detectors
 
-Detectors are specific to a layout and are stored in the `rail.track.detectors` array. Each element is an object the follows the schema below:
+Detectors are specific to a layout and are stored in the `rail.track.detectors` array. Each element is an object that follows the schema below:
 
 * `id`: an identifier for this detector, unique within the layout
 * `line`: name of the track line where this detector resides.
@@ -107,6 +109,15 @@ Detectors are specific to a layout and are stored in the `rail.track.detectors` 
 
 > [!WARNING]
 > In this design a detector can cover at most one full segment.
+
+## Signals
+
+Signals are specific to a layout and are stored in the `rail.track.signals` array. Each element is an object that follows the schema below:
+
+* `id`: an identifier for this signal, unique within the layout
+* `line`: name of the track line where this signal is located.
+* `post`: the post where this signal is located.
+* `protect`: the direction that this signal protects.
 
 ## Track Catalogs
 

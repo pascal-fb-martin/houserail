@@ -89,6 +89,11 @@
                  {"id":"SIDE3@30","line":"side3","low":29,"high":31},
                  {"id":"SIDE3@50","line":"side3","low":49,"high":51},
                  {"id":"SIDE3@70","line":"side3","low":69,"high":71}
+             ],
+             "signals":[
+                 {"id":"SOUTH@205E","line":"main","post":205,"protect":"up"},
+                 {"id":"SOUTH@227W","line":"main","post":227,"protect":"down"},
+                 {"id":"SIDE3@79E","line":"side3","post":79,"protect":"up"}
              ]
         }
     }

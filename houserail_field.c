@@ -120,6 +120,7 @@
 #include "houseportalclient.h"
 #include "houselog.h"
 #include "housediscover.h"
+#include "housecontrol.h"
 
 #include "houserail_field.h"
 
@@ -423,24 +424,60 @@ const char *houserail_field_fleet_stop (const char *id, int emergency) {
 
 const char *houserail_field_switch_set (const char *id, const char *state) {
 
-    if (!FieldControlUri) return "No train server identified yet";
+    // The intent is to support two control methods: DCC or raw control points.
+    // The problem is that DCC control of switches would requires equipment
+    // that is more expensive than using Raspberry Pi's GPIO and relays.
+    // Eventually the goal is to support mixed configurations, for the day
+    // when turnouts with integrated DCC control become available (at a
+    // reasonable price).
+    // Given the power consumption of turnout coils, this might never happen.
 
-    char url[256];
-    snprintf (url, sizeof(url),
-              "%s/switch/set?id=%s&cmd=%s", FieldControlUri, id, state);
+    /* Disabled for now: not yet implemented.
+    if (FieldControlUri) {
+        // FIXME: check if that switch is supported by the service
+        char url[256];
+        snprintf (url, sizeof(url),
+                  "%s/switch/set?id=%s&cmd=%s", FieldControlUri, id, state);
 
-    return houserail_field_request (url, FieldControlUri);
+        return houserail_field_request (url, FieldControlUri);
+    }
+    */
+
+    char controlid[64];
+    snprintf (controlid, sizeof(controlid), "%s:%s", id, state);
+    if (housecontrol_state (controlid)) {
+        // No pulse: the service is responsible for handling pulses
+        // in a safe manner if required.
+        housecontrol_set (controlid, "on",
+                          0, 1, "HOUSERAIL SWITCH CONTROL");
+        return 0;
+    }
+
+    return "No switch control method identified yet";
 }
 
 const char *houserail_field_signal_set (const char *id, const char *state) {
 
-    if (!FieldControlUri) return "No train server identified yet";
+    // Anything matching neither "go" and "stop" turns the signal off.
+    int go = strsame (state, "go");
+    int stop = strsame (state, "stop");
 
-    char url[256];
-    snprintf (url, sizeof(url),
-              "%s/signal/set?id=%s&cmd=%s", FieldControlUri, id, state);
+    char controlid[64];
+    char *end = controlid + sizeof(controlid);
+    char *c = stpecpy (controlid, end, id);
 
-    return houserail_field_request (url, FieldControlUri);
+    stpecpy (c, end, ":go");
+    if (housecontrol_state (controlid)) {
+        housecontrol_set (controlid, go?"on":"off",
+                          0, 1, "HOUSERAIL SIGNAL CONTROL");
+    }
+    stpecpy (c, end, ":stop");
+    if (housecontrol_state (controlid)) {
+        housecontrol_set (controlid, stop?"on":"off",
+                          0, 1, "HOUSERAIL SIGNAL CONTROL");
+    }
+
+    return 0;
 }
 
 int houserail_field_status (char *buffer, int size) {
@@ -448,6 +485,8 @@ int houserail_field_status (char *buffer, int size) {
 }
 
 void houserail_field_background (time_t now) {
+
+    housecontrol_background (now);
 
     static time_t latestdiscovery = 0;
 

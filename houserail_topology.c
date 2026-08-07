@@ -94,6 +94,11 @@
  *
  *     Give read only access to the database of track detectors.
  *
+ * int houserail_topology_signal_count (void);
+ * const struct TrackSignal *houserail_topology_signals (void);
+ *
+ *     Give read only access to the database of signals.
+ *
  * const struct TrackOptions *houserail_topology_options (void);
  *
  *     Give read only access to the global options.
@@ -121,6 +126,11 @@
  *
  *     Search for the specified track detector. Returns an index to
  *     the TrackDetector table on success, -1 otherwise.
+ *
+ * int houserail_topology_search_signal (const char *id);
+ *
+ *     Search for the specified signal. Returns an index to
+ *     the TrackSignal table on success, -1 otherwise.
  *
  * LIMITATIONS:
  *
@@ -163,12 +173,18 @@ static int                  TopologySegmentsCount = 0;
 static struct TrackDetector *TopologyDetectors = 0;
 static int                   TopologyDetectorsCount = 0;
 
+static struct TrackSignal *TopologySignals = 0;
+static int                 TopologySignalsCount = 0;
+
 static echttp_hash       TopologySegmentsHash;
 static int              *TopologySegmentsMap = 0;
 static struct RangeIndex TopologySegmentsIndex;
 
 static echttp_hash TopologyDetectorsHash;
 static int        *TopologyDetectorsMap = 0;
+
+static echttp_hash TopologySignalsHash;
+static int        *TopologySignalsMap = 0;
 
 
 void houserail_topology_testmode (int enabled) {
@@ -241,6 +257,30 @@ int houserail_topology_search_detector (const char *id) {
     return -1;
 }
 
+int houserail_topology_search_signal (const char *id) {
+
+    if (!id) return -1;
+    if (TopologySignalsCount <= 0) return -1;
+
+    int i = echttp_hash_find (&TopologySignalsHash, id);
+    if ((i > 0) && (i <= TopologySignalsCount)) {
+        return TopologySignalsMap[i];
+    }
+
+    // For now: if not in the hash, fallback to linear search.
+    // FIXME: improve echttp_hash to support variable size.
+
+    int signature = echttp_hash_signature (id);
+
+    for (i = 0; i < TopologySignalsCount; ++i) {
+        const struct TrackSignal *detector = TopologySignals + i;
+        if (detector->signature != signature) continue;
+        if (!detector->id) continue;
+        if (strsame (detector->id, id)) return i;
+    }
+    return -1;
+}
+
 const char *houserail_topology_initialize (int argc, const char **argv) {
 
     houserail_scout_initialize (&TopologySegmentsIndex, 0);
@@ -270,6 +310,14 @@ const char *houserail_topology_reload (void) {
     if (TopologyDetectorsMap) {
         free (TopologyDetectorsMap);
         TopologyDetectorsMap = 0;
+    }
+    if (TopologySignals) {
+        free (TopologySignals);
+        TopologySignals= 0;
+    }
+    if (TopologySignalsMap) {
+        free (TopologySignalsMap);
+        TopologySignalsMap = 0;
     }
     houserail_scout_erase (&TopologySegmentsIndex);
 
@@ -321,13 +369,21 @@ const char *houserail_topology_reload (void) {
     TopologyDetectorsCount = houseconfig_array_length (detectors);
     if (TopologyDetectorsCount <= 0) return "Empty track detectors list";
 
+    // Signals are optional.
+    int signals = houseconfig_array (track, ".signals");
+    TopologySignalsCount = (signals>=0)?houseconfig_array_length (signals):0;
+
     int max = TopologyModelsCount;
     if (TopologySegmentsCount > max) max = TopologySegmentsCount;
     if (TopologyDetectorsCount > max) max = TopologyDetectorsCount;
+    if (TopologySignalsCount > max) max = TopologySignalsCount;
     int *list = calloc (max, sizeof(int));
 
-    DEBUG (__FILE__ ": %d models, %d segments, %d detectors\n",
-           TopologyModelsCount, TopologySegmentsCount, TopologyDetectorsCount);
+    DEBUG (__FILE__ ": %d models, %d segments, %d detectors, %d signals\n",
+           TopologyModelsCount,
+           TopologySegmentsCount,
+           TopologyDetectorsCount,
+           TopologySignalsCount);
 
     // Populate the models array.
 
@@ -743,7 +799,53 @@ const char *houserail_topology_reload (void) {
             TopologyDetectorsMap[index] = i;
     }
 
-    // When everything went well, set the global options for this layout.
+    // Populate the signal array (optional).
+
+    if (TopologySignalsCount > 0) {
+
+        echttp_hash_reset (&TopologySignalsHash, 0);
+
+        TopologySignalsMap = calloc (TopologySignalsCount+1, sizeof(int));
+        TopologySignals = calloc (TopologySignalsCount, sizeof(struct TrackSignal));
+        houseconfig_enumerate (signals, list, TopologySignalsCount);
+
+        for (i = 0; i < TopologySignalsCount; ++i) {
+            int element = list[i];
+            struct TrackSignal *signal = TopologySignals + i;
+            signal->id = houseconfig_string (element, ".id");
+            signal->signature = echttp_hash_signature (signal->id);
+            signal->index = i;
+
+            signal->direction = 0; // Unknown.
+            const char *direction = houseconfig_string (element, ".protect");
+            if (!direction) signal->direction = 1; // default is "up".
+            else if (strsame (direction, "up")) signal->direction = 1;
+            else if (strsame (direction, "down")) signal->direction = -1;
+            else DEBUG (__FILE__ ": invalid direction %s for signal %s\n", direction, signal->id);
+
+            signal->location.line = houseconfig_string (element, ".line");
+            signal->location.post = houseconfig_integer (element, ".post");
+
+            int segmentindex =
+                houserail_topology_search_by_location (signal->location.line, signal->location.post);
+            if (segmentindex < 0) {
+                DEBUG (__FILE__ ": invalid location for signal %s\n", signal->id);
+                continue;
+            }
+            struct TrackSegment *segment = TopologySegments + segmentindex;
+            DEBUG (__FILE__ ": signal %s is on segment %s at %s %d protecting direction %s\n",
+                   signal->id, segment->id,
+                   signal->location.line, signal->location.post,
+                   (signal->direction>0)?"up":((signal->direction<0)?"down":"unknown"));
+            signal->location.segment = segment->id;
+
+            int index = echttp_hash_insert (&TopologySignalsHash, signal->id);
+            if ((index > 0) && (index <= TopologySignalsCount))
+                TopologySignalsMap[index] = i;
+        }
+    }
+
+    // When everything loaded well, set the global options for this layout.
 
     int value = houseconfig_integer (track, ".speeds.restricted");
     if (value <= 0) return "No Restricted speed found";
@@ -913,9 +1015,11 @@ const char *houserail_topology_reload (void) {
     }
 
     houselog_event ("TOPOLOGY", "CONFIG", "LOADED",
-                    "%d models %d tracks %d detectors",
+                    "%d models %d tracks %d detectors %d signals",
                     TopologyModelsCount,
-                    TopologySegmentsCount, TopologyDetectorsCount);
+                    TopologySegmentsCount,
+                    TopologyDetectorsCount,
+                    TopologySignalsCount);
     return 0;
 }
 
@@ -1119,6 +1223,14 @@ int houserail_topology_detector_count (void) {
 
 const struct TrackDetector *houserail_topology_detectors (void) {
     return TopologyDetectors;
+}
+
+int houserail_topology_signal_count (void) {
+    return TopologySignalsCount;
+}
+
+const struct TrackSignal *houserail_topology_signals (void) {
+    return TopologySignals;
 }
 
 const struct TrackOptions *houserail_topology_options (void) {

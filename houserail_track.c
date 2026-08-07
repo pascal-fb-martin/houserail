@@ -155,11 +155,16 @@
  *     or through a web request. Return 0 on success, an error message on
  *     failure.
  *
+ *     The valid states are "normal" and "reverse".
+ *
  * const char *houserail_track_signal (const char *name, const char *state);
  *
  *     Update a signal state. This is designed to be used as a listener
  *     or through a web request. Return 0 on success, an error message on
  *     failure.
+ *
+ *    The valid states are "stop" and "go". Any other state causes the signal
+ *    to turn off.
  */
 
 #include <time.h>
@@ -196,6 +201,14 @@ struct TrackDetectorLive {
     long long timestamp;
 };
 
+// This data structure "augments" the TrackSignal table with current status.
+//
+struct TrackSignalLive {
+
+    int state;           // 0: off, 1 stop, 2 go.
+    long long timestamp;
+};
+
 static DetectionListener *TrackNextListener = 0;
 
 static const struct TrackOptions *LayoutOptions = 0;
@@ -210,6 +223,10 @@ static int                        LayoutSegmentsCount = 0;
 static const struct TrackDetector *LayoutDetectors = 0;
 static struct TrackDetectorLive   *LayoutDetectorsLive = 0;
 static int                         LayoutDetectorsCount = 0;
+
+static const struct TrackSignal *LayoutSignals = 0;
+static struct TrackSignalLive   *LayoutSignalsLive = 0;
+static int                       LayoutSignalsCount = 0;
 
 
 void houserail_track_testmode (int enabled) {
@@ -274,6 +291,10 @@ const char *houserail_track_reload (void) {
         free (LayoutDetectorsLive);
         LayoutDetectorsLive= 0;
     }
+    if (LayoutSignalsLive) {
+        free (LayoutSignalsLive);
+        LayoutSignalsLive= 0;
+    }
 
     LayoutOptions = houserail_topology_options ();
 
@@ -291,6 +312,13 @@ const char *houserail_track_reload (void) {
 
     LayoutDetectorsLive =
         calloc (LayoutDetectorsCount, sizeof(struct TrackDetectorLive));
+
+    LayoutSignals      = houserail_topology_signals ();
+    LayoutSignalsCount = houserail_topology_signal_count ();
+
+    if (LayoutSignalsCount > 0)
+        LayoutSignalsLive =
+            calloc (LayoutSignalsCount, sizeof(struct TrackSignalLive));
 
     // Update the segment status.
     //
@@ -317,11 +345,20 @@ const char *houserail_track_reload (void) {
         status->timestamp = 0;
     }
 
+    // Update the signal status.
+
+    for (i = 0; i < LayoutSignalsCount; ++i) {
+
+        struct TrackSignalLive *status = LayoutSignalsLive + i;
+        status->state = 0;
+        status->timestamp = 0;
+    }
+
     houselog_event ("TRACK", "LAYOUT", "READY", "");
     return 0;
 }
 
-static int houserail_track_status_segment (char *buffer, int size) {
+static int houserail_track_status_segments (char *buffer, int size) {
 
     int cursor = 0;
     const char *prefix = ",\"segment\":[";
@@ -364,7 +401,7 @@ int houserail_track_detectors (char *buffer, int size) {
     return cursor;
 }
 
-static int houserail_track_status_switch (char *buffer, int size) {
+static int houserail_track_status_switches (char *buffer, int size) {
 
     int cursor = 0;
     const char *prefix = ",\"switch\":[";
@@ -391,10 +428,31 @@ static int houserail_track_status_switch (char *buffer, int size) {
     return cursor;
 }
 
+int houserail_track_status_signals (char *buffer, int size) {
+
+    static const char *namedstate[] = {"off", "stop", "go"};
+
+    int cursor = 0;
+    const char *prefix = ",\"signal\":[";
+
+    int i;
+    for (i = 0; i < LayoutSignalsCount; ++i) {
+        const struct TrackSignal *signal = LayoutSignals + i;
+        struct TrackSignalLive *status = LayoutSignalsLive + i;
+        const char *state = namedstate[status->state];
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s[\"%s\",\"%s\"]", prefix, signal->id, state);
+        prefix = ",";
+    }
+    if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
+    return cursor;
+}
+
 int houserail_track_status (char *buffer, int size) {
 
-    int cursor = houserail_track_status_segment (buffer, size);
-    cursor += houserail_track_status_switch (buffer+cursor, size-cursor);
+    int cursor = houserail_track_status_segments (buffer, size);
+    cursor += houserail_track_status_switches (buffer+cursor, size-cursor);
+    cursor += houserail_track_status_signals (buffer+cursor, size-cursor);
     cursor += houserail_track_detectors (buffer+cursor, size-cursor);
     return cursor;
 }
@@ -808,7 +866,15 @@ const char *houserail_track_switch (const char *name, const char *state) {
 
 const char *houserail_track_signal (const char *name, const char *state) {
 
-    return 0; // TBD: add signal to the topology database, stop trains on red.
+    int index = houserail_topology_search_signal (name);
+    if (index < 0) return "Invalid signal";
+
+    if (strsame (state, "stop")) LayoutSignalsLive[index].state = 1;
+    else if (strsame (state, "go")) LayoutSignalsLive[index].state = 2;
+    else LayoutSignalsLive[index].state = 0;
+    LayoutSignalsLive[index].timestamp = time(0);
+
+    return 0;
 }
 
 int houserail_track_restricted (void) {

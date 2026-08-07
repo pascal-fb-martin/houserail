@@ -102,6 +102,16 @@ struct TrackDetector {
     struct TrackRange area; // RESTRICTION: a detector covers only one segment.
 };
 
+struct TrackSignal {
+
+    const char *id;
+    unsigned int signature; // Seach accelerator.
+    int index;              // Self reference.
+
+    int direction; // The protected direction, 1: up, -1: down
+    struct TrackLocation location;
+};
+
 void houserail_topology_testmode (int enabled);
 void houserail_topology_billmode (int enabled);
 
@@ -121,10 +131,14 @@ const struct TrackSegment *houserail_topology_segments (void);
 int houserail_topology_detector_count (void);
 const struct TrackDetector *houserail_topology_detectors (void);
 
+int houserail_topology_signal_count (void);
+const struct TrackSignal *houserail_topology_signals (void);
+
 const struct TrackOptions *houserail_topology_options (void);
 
 int houserail_topology_search_model (const char *id);
 int houserail_topology_search_by_id (const char *id);
 int houserail_topology_search_by_location (const char *line, int post);
 int houserail_topology_search_detector (const char *id);
+int houserail_topology_search_signal (const char *id);
 

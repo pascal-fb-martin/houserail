@@ -349,8 +349,8 @@ static const char *rail_switch (const char *method, const char *uri,
     const char *id = echttp_parameter_get("id");
     const char *cmd = echttp_parameter_get("cmd");
 
-    // Issue the track switch change request through DCC.
-    // Ignore any DCC error, so that we can handle manual handout.
+    // Issue the track switch change request.
+    // Ignore any error, so that we can handle manual handout.
     houserail_field_switch_set (id, cmd);
 
     // Report the new known state locally.
@@ -369,15 +369,12 @@ static const char *rail_signal (const char *method, const char *uri,
     const char *id = echttp_parameter_get("id");
     const char *cmd = echttp_parameter_get("cmd");
 
-    // Issue the track signal change request through DCC.
-    const char *error = houserail_field_signal_set (id, cmd);
-    if (error) {
-        echttp_error (500, error);
-        return "";
-    }
+    // Issue the track signal change request.
+    // Ignore any error, so that we can handle manual signals.
+    houserail_field_signal_set (id, cmd);
 
     // Report the new known state locally.
-    error = houserail_track_signal (id, cmd);
+    const char *error = houserail_track_signal (id, cmd);
     if (error) {
         echttp_error (500, error);
         return "";
