@@ -137,6 +137,11 @@
  * This design is optimized for up to 256 segments for now. To remove this
  * restriction, change echttp_hash.[hc] to allow the caller to set the size
  * of the hash.
+ *
+ * Another limit to the number of segment is the signature that identifies
+ * the feature protected by a signal: that signature assumes less than 16384
+ * segments at this time. See constant TRACK_SEGMENTS_MAX and TrackSignal's
+ * field "protected".
  */
 
 #include <time.h>
@@ -157,6 +162,8 @@
 #include "houserail_topology.h"
 
 #define PRECISION 1000   // Goal is millimeter precision.
+
+#define TRACK_SEGMENTS_MAX 0x4000
 
 static int BillMode = 0;
 static int TestMode = 0;
@@ -361,7 +368,10 @@ const char *houserail_topology_reload (void) {
     if (segments < 0) return "No track segments found";
 
     TopologySegmentsCount = houseconfig_array_length (segments);
-    if (TopologySegmentsCount <= 0) return "Empty track segment list";
+    if (TopologySegmentsCount <= 0)
+        return "Empty track segment list";
+    if (TopologySegmentsCount > TRACK_SEGMENTS_MAX)
+        return "Track segment list too long";
 
     int detectors = houseconfig_array (track, ".detectors");
     if (detectors < 0) return "No track detectors found";
@@ -842,6 +852,41 @@ const char *houserail_topology_reload (void) {
             int index = echttp_hash_insert (&TopologySignalsHash, signal->id);
             if ((index > 0) && (index <= TopologySignalsCount))
                 TopologySignalsMap[index] = i;
+
+            // What is that signal protecting?
+            int protected = -1;
+            if (signal->direction > 0) {
+                protected = TopologySegments[segmentindex].next;
+            } else if (signal->direction < 0) {
+                protected = TopologySegments[segmentindex].previous;
+            }
+            signal->protected = -1;
+            if (protected >= 0) {
+                const struct TrackSegment *segment = TopologySegments + protected;
+
+                // In front of a switch, the signal is part of a group that
+                // protects a route.
+
+                if (segment->branch >= 0) {
+                    signal->protected = protected; // Protects a switch segment.
+                    continue;
+                }
+
+                // If not in front of a switch, a signal protects
+                // the transition between two segments.
+
+                if (protected > segmentindex)
+                    signal->protected =
+                        (protected * TRACK_SEGMENTS_MAX) + segmentindex;
+                else
+                    signal->protected =
+                        (segmentindex * TRACK_SEGMENTS_MAX) + protected;
+
+                // Set a flag to differentiate switch protection from
+                // transition protection (zero is a valid segment index).
+                signal->protected |=
+                    (4 * TRACK_SEGMENTS_MAX * TRACK_SEGMENTS_MAX);
+            }
         }
     }
 

@@ -108,7 +108,9 @@ struct TrackSignal {
     unsigned int signature; // Seach accelerator.
     int index;              // Self reference.
 
-    int direction; // The protected direction, 1: up, -1: down
+    int direction;          // The protected direction, 1: up, -1: down
+    int protected;          // A unique signature of what is protected.
+
     struct TrackLocation location;
 };
 

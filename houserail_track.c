@@ -151,20 +151,23 @@
  *
  * const char *houserail_track_switch (const char *name, const char *state);
  *
- *     Update a switch position. This is designed to be used as a listener
- *     or through a web request. Return 0 on success, an error message on
- *     failure.
+ *     Set a switch to the specified position, locally and in the field
+ *     (if any). This is designed to be used as a listener or through a web
+ *     request. This function handles null pointers. Return 0 on success,
+ *     an error message on failure.
  *
  *     The valid states are "normal" and "reverse".
  *
  * const char *houserail_track_signal (const char *name, const char *state);
  *
- *     Update a signal state. This is designed to be used as a listener
- *     or through a web request. Return 0 on success, an error message on
- *     failure.
+ *     Set a signal to the specified state, locally and in the field (if any).
+ *     This is designed to be used as a listener or through a web request.
+ *     This function handles null pointers. Return 0 on success, an error
+ *     message on failure.
  *
- *    The valid states are "stop" and "go". Any other state causes the signal
- *    to turn off.
+ *     The valid states are "stop" and "go". Any other state causes the signal
+ *     to turn off. If the state is "go", other signals protecting the same
+ *     feature are forced to "stop".
  */
 
 #include <time.h>
@@ -181,6 +184,7 @@
 
 #include "houserail_topology.h"
 #include "houserail_scout.h"
+#include "houserail_field.h"
 #include "houserail_track.h"
 
 static int TestMode = 0;
@@ -844,6 +848,23 @@ int houserail_track_distance (const struct TrackLocation *point1,
    return distance;
 }
 
+static void houserail_track_cancel (int protected, int operated) {
+
+    if (protected >= 0) {
+        int i;
+        for (i = 0; i < LayoutSignalsCount; ++i) {
+            // Skip the signal being operated and signals not in its group
+            if (i == operated) continue;
+            if (LayoutSignals[i].protected != protected) continue;
+
+            // Force this signal to stop, even if it was already marked
+            // as stopped to allow manual retries.
+            LayoutSignalsLive[i].state = 1;
+            houserail_field_signal_set (LayoutSignals[i].id, "stop");
+        }
+    }
+}
+
 const char *houserail_track_switch (const char *name, const char *state) {
 
     int index = houserail_topology_search_by_id (name);
@@ -853,14 +874,26 @@ const char *houserail_track_switch (const char *name, const char *state) {
     if (segment->branch < 0) return "Not a switch";
 
     struct TrackSegmentLive *status = LayoutSegmentsLive + index;
+    int oldstate = status->needle;
+
     if (strsame (state, "normal")) {
+
         status->needle =
             (segment->common == segment->next) ? segment->previous : segment->next;
+        houserail_field_switch_set (name, state);
+
     } else if (strsame (state, "reverse")) {
+
         status->needle = segment->branch;
+        houserail_field_switch_set (name, state);
+
     } else {
         status->needle = -1;
+        return "Invalid switch command";
     }
+
+    // If the switch moved, cancel an existing route.
+    if (status->needle != oldstate) houserail_track_cancel (index, -1);
     return 0;
 }
 
@@ -869,11 +902,38 @@ const char *houserail_track_signal (const char *name, const char *state) {
     int index = houserail_topology_search_signal (name);
     if (index < 0) return "Invalid signal";
 
-    if (strsame (state, "stop")) LayoutSignalsLive[index].state = 1;
-    else if (strsame (state, "go")) LayoutSignalsLive[index].state = 2;
-    else LayoutSignalsLive[index].state = 0;
     LayoutSignalsLive[index].timestamp = time(0);
 
+    // To set an individual signal to stop does not impact other signals
+    // since this is a safe operation.
+    if (strsame (state, "stop")) {
+        LayoutSignalsLive[index].state = 1;
+        houserail_field_signal_set (name, state);
+        return 0;
+    }
+
+    // If the signal to set to "go" protects a switch, then this switch must
+    // be aligned with the signal's segment, otherwise a derail is certain.
+    // To set an individual signal to go also requires cancelling the other
+    // signals protecting the same feature, to avoid train collisions.
+    if (strsame (state, "go")) {
+        int protected = LayoutSignals[index].protected;
+        if ((protected >= 0) && (protected < LayoutSegmentsCount)) {
+           int segment = houserail_topology_search_by_id
+                             (LayoutSignals[index].location.segment);
+           if ((LayoutSegments[protected].common != segment) &&
+               (LayoutSegmentsLive[protected].needle != segment)) {
+               return "Cannot allow movement on an unaligned switch";
+           }
+        }
+        houserail_track_cancel (protected, index);
+        LayoutSignalsLive[index].state = 2;
+        houserail_field_signal_set (name, state);
+        return 0;
+    }
+
+    LayoutSignalsLive[index].state = 0;
+    houserail_field_signal_set (name, "off");
     return 0;
 }
 
