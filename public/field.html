@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel=stylesheet type="text/css" href="/house.css" title="House">
+<script>
+
+var RailLastStatus = 0;
+
+function newAction (id, text, command) {
+    var button = document.createElement("button");
+    button.innerHTML = text;
+    button.type = 'button';
+    button.disabled = false;
+    button.id = id;
+    button.onclick = command;
+    return button;
+}
+
+function railCommand (url) {
+    var command = new XMLHttpRequest();
+    command.open("GET", url);
+    command.onreadystatechange = function () {
+        if (command.readyState === 4) {
+            if (command.status === 200) {
+                railShowStatus (JSON.parse(command.responseText));
+            } else if ((command.status === 404) || (command.status === 500)) {
+                window.alert ('Error '+command.status+': '+command.statusText);
+            }
+        }
+    }
+    command.send(null);
+}
+
+function railTurnoutNormal () {
+    railCommand ("/rail/switch?id="+ this.id + "&cmd=normal");
+}
+
+function railTurnoutReverse () {
+    railCommand ("/rail/switch?id="+ this.id + "&cmd=reverse");
+}
+    
+function railSignal () {
+    var state = this.resourceState;
+    railCommand ("/rail/signal?id="+ id + "&cmd=" + ChangeState[state]);
+}
+
+function railSignalStop () {
+    railCommand ("/rail/signal?id="+ this.id + "&cmd=stop");
+}
+
+function railSignalGo () {
+    railCommand ("/rail/signal?id="+ this.id + "&cmd=go");
+}
+
+function railStopAll () {
+    railCommand ("/rail/stop?urgent=1");
+}
+
+function railCleanup (table) {
+   for (var i = table.rows.length-1; i > 0; i--) {
+      table.deleteRow(i);
+   }
+}
+
+function railSort (a, b) {
+    return a[0] > b[0];
+}
+
+function railShowTurnouts (response) {
+
+   var table = document.getElementById ('turnouts');
+   railCleanup (table);
+
+   if (!response.rail.switch) return;
+   var turnouts = response.rail.switch.sort (railSort);
+   for (var i = 0; i < turnouts.length; i++) {
+
+        var turnout = turnouts[i];
+        var id = turnout[0];
+        var state = turnout[1];
+
+        var row = table.insertRow();
+
+        var column = document.createElement("td");
+        column.innerHTML = id;
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.innerHTML = state;
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.appendChild (newAction (id, "Normal", railTurnoutNormal));
+        column.appendChild (newAction (id, "Reverse", railTurnoutReverse));
+        row.appendChild(column);
+    }
+}
+
+function railShowSignals (response) {
+
+   var table = document.getElementById ('signals');
+   railCleanup (table);
+
+   if (!response.rail.signal) return;
+   var signals = response.rail.signal.sort (railSort);
+   for (var i = 0; i < signals.length; i++) {
+
+        var signal = signals[i];
+        var id = signal[0];
+        var state = signal[1];
+
+        var row = table.insertRow();
+
+        var column = document.createElement("td");
+        column.innerHTML = id;
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.innerHTML = state;
+        row.appendChild(column);
+
+        column = document.createElement("td");
+        column.appendChild (newAction (id, "Go", railSignalGo));
+        column.appendChild (newAction (id, "Stop", railSignalStop));
+        row.appendChild(column);
+    }
+}
+
+function railShowStatus (response) {
+   railShowTurnouts (response);
+   railShowSignals (response);
+   RailLastStatus = response.latest;
+}
+
+function railStatus () {
+    var url = "/rail/status";
+    if (RailLastStatus) url += "?known=" + RailLastStatus;
+    railCommand (url);
+    if ((!LayoutDetectors) || (LayoutDetectors.length == 0)) railGetDetectors();
+}
+
+window.onload = function() {
+   railStatus();
+   setInterval (railStatus, 333);
+};
+</script>
+<head>
+   <title>Field Devices</title>
+</head>
+<body>
+   <nav>
+   <table>
+   <tr>
+   <td><a href="/rail/index.html">Trains</a></td>
+   <td><a href="/rail/tracks.html">Tracks</a></td>
+   <td><span>Field</span></td>
+   <td><a href="/rail/events.html">Events</a></td>
+   </tr>
+   </table>
+   </nav>
+   <main>
+   <article>
+   <section>
+   <table class="housewidetable" border="0">
+   <tr>
+      <td width="90%"></td>
+      <td width="10%"><button class="housepanelbutton" style="background-color: red;" onclick="railStopAll()">STOP</button></td>
+   </td></tr>
+   </table>
+   </section>
+   <section>
+   <h1>Turnouts</h1>
+   <table id="turnouts" class="housewidetable" border="0">
+      <tr>
+         <th width="10%">ID</th>
+         <th width="10%">STATE</th>
+         <th width="80%">CONTROLS</th>
+      </tr>
+   </table>
+   <h1>Signals</h1>
+   <table id="signals" class="housewidetable" border="0">
+      <tr>
+         <th width="10%">ID</th>
+         <th width="10%">STATE</th>
+         <th width="80%">CONTROLS</th>
+      </tr>
+   </table>
+   </section>
+   </article>
+   </main>
+</body>
+</html>
+
