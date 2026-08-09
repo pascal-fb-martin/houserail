@@ -40,6 +40,16 @@
 
 #include "testlib.h"
 
+const char *houserail_field_switch_set (const char *id, const char *state) {
+   assert (0 == 1, "unexpected control");
+   return "unexpected control";
+}
+
+const char *houserail_field_signal_set (const char *id, const char *state) {
+   assert (0 == 1, "unexpected control");
+   return "unexpected control";
+}
+
 static const char *test_update (void) {
 
     const char *error = houserail_topology_reload ();
