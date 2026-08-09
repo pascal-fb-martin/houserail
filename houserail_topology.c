@@ -193,6 +193,13 @@ static int        *TopologyDetectorsMap = 0;
 static echttp_hash TopologySignalsHash;
 static int        *TopologySignalsMap = 0;
 
+struct TrackLinkage {
+    const char *previous;
+    const char *next;
+    const char *common;
+    const char *branch;
+};
+
 
 void houserail_topology_testmode (int enabled) {
     TestMode = enabled;
@@ -499,12 +506,8 @@ const char *houserail_topology_reload (void) {
     TopologySegments = calloc (TopologySegmentsCount, sizeof(struct TrackSegment));
     houseconfig_enumerate (segments, list, TopologySegmentsCount);
 
-    struct Linkage {
-        const char *previous;
-        const char *next;
-        const char *common;
-        const char *branch;
-    } *temp = calloc (TopologySegmentsCount, sizeof(struct Linkage));
+    struct TrackLinkage *temp =
+        calloc (TopologySegmentsCount, sizeof(struct TrackLinkage));
 
     echttp_hash_reset (&TopologySegmentsHash, 0);
     TopologySegmentsMap = calloc (TopologySegmentsCount+1, sizeof(int));
@@ -550,6 +553,8 @@ const char *houserail_topology_reload (void) {
         temp[i].common = houseconfig_string (element, ".common");
         temp[i].branch = houseconfig_string (element, ".branch");
 
+        // All these links will be resolved later.
+        segment->next = segment->previous = segment->common = segment->branch = -1;
         int index = echttp_hash_insert (&TopologySegmentsHash, segment->id);
         if ((index > 0) && (index <= TopologySegmentsCount))
             TopologySegmentsMap[index] = i;
@@ -601,66 +606,165 @@ const char *houserail_topology_reload (void) {
         }
     }
 
-    // Resolve the segment linkages
+    // Infer missing "next" links: could it be the subsequent segment?
+
+    for (i = TopologySegmentsCount-2; i >= 0; --i) {
+
+        if (!temp[i].next) {
+            struct TrackSegment *segment = TopologySegments + i;
+            struct TrackSegment *subsequent = segment + 1;
+
+            if (!strsame (segment->line, subsequent->line)) continue;
+            if (temp[i+1].previous &&
+                (!strsame (temp[i+1].previous, segment->id))) continue;
+            temp[i].next = subsequent->id;
+        }
+    }
+
+    // Resolve the "next" links and infers missing obvious "previous" links.
+
+    for (i = 0; i < TopologySegmentsCount; ++i) {
+
+        const char *next = temp[i].next;
+        if (!next) continue;
+
+        struct TrackSegment *segment = TopologySegments + i;
+        int nextindex = houserail_topology_search_by_id (next);
+        if (nextindex < 0) {
+            DEBUG (__FILE__ ": error on segment %s at index %d: invalid next %s\n", segment->id, segment->index, next);
+            return "invalid next link";
+        }
+        segment->next = nextindex;
+
+        // Allow the 'previous' field to be optional.
+        // Since there is now a valid "next" link, this can be used to infer
+        // (and resolve) a "previous" field for the target, if:
+        // - the target's "previous" field is missing (duh..), and
+        // - the current segment is not the target's next or branch.
+        // (That method is cheaper than scanning the whole table later.)
+
+        if ((!temp[nextindex].previous) &&
+            (!strsame (temp[nextindex].next, segment->id)) &&
+            (!strsame (temp[nextindex].branch, segment->id))) {
+            temp[nextindex].previous = segment->id;
+            TopologySegments[nextindex].previous = i;
+        }
+    }
+
+    // Resolve the other segment linkages. Infer "previous" links that are
+    // still missing from "branch" links, when applicable.
 
     int switchcount = 0;
 
     for (i = 0; i < TopologySegmentsCount; ++i) {
+
         struct TrackSegment *segment = TopologySegments + i;
 
-        // Allow the 'previous' field to be optional.
-        // Obviously, inferring it from a next link is preferred but,
-        // if there is none, a branch link is fine too.
-        // TBD: use a faster method than linear search inside a loop..
-        if (!temp[i].previous) {
-            int j;
-            // At first search a good candidate from all the next fields,
-            // except one that points to the branch of a switch.
-            for (j = 0; j < TopologySegmentsCount; ++j) {
-                if (j == i) continue; // No self-reference allowed.
-                if (strsame (TopologySegments[j].id, temp[i].branch)) continue;
-                if (strsame (temp[j].next, segment->id)) {
-                    temp[i].previous = TopologySegments[j].id;
-                    break;
-                }
-            }
-            if (!temp[i].previous) {
-                // If we could not retrieve the previous from the next fields,
-                // Then the previous might be a branch. Avoid using a branch
-                // that the next points to..
-                for (j = 0; j < TopologySegmentsCount; ++j) {
-                    if (j == i) continue; // No self-reference allowed.
-                    if (strsame (TopologySegments[j].id, temp[i].next)) continue;
-                    if (strsame (temp[j].branch, segment->id)) {
-                        temp[i].previous = TopologySegments[j].id;
-                        break;
-                    }
-                }
+        if (segment->previous < 0) {
+            segment->previous = houserail_topology_search_by_id (temp[i].previous);
+            if ((segment->previous < 0) && temp[i].previous) {
+                DEBUG (__FILE__ ": error on segment %s at index %d: invalid previous %s\n", segment->id, i, temp[i].previous);
+                return "invalid previous link";
             }
         }
-        if ((!temp[i].previous) && (!temp[i].next)) {
-            DEBUG (__FILE__ ": error on segment at index %d: %s\n", i, segment->id);
-            return "isolated segment";
-        }
 
-        segment->previous = houserail_topology_search_by_id (temp[i].previous);
-        if ((segment->previous < 0) && temp[i].previous) {
-            DEBUG (__FILE__ ": error on segment %s at index %d: invalid previous %s\n", segment->id, i, temp[i].previous);
-            return "invalid previous link";
-        }
-        segment->next = houserail_topology_search_by_id (temp[i].next);
-        if ((segment->next < 0) && temp[i].next) {
-            DEBUG (__FILE__ ": error on segment %s at index %d: invalid next %s\n", segment->id, i, temp[i].next);
-            return "invalid next link";
-        }
+        if (temp[i].branch) {
 
-        segment->branch = houserail_topology_search_by_id (temp[i].branch);
-        if (segment->branch >= 0) {
-            // Default state of switch is 'normal'.
+            segment->branch = houserail_topology_search_by_id (temp[i].branch);
+            if (segment->branch < 0) {
+                DEBUG (__FILE__ ": error on segment %s at index %d: invalid branch %s\n", segment->id, i, temp[i].branch);
+                return "invalid branch link";
+            }
             segment->common = houserail_topology_search_by_id (temp[i].common);
+            if (segment->common < 0) {
+                DEBUG (__FILE__ ": error on segment %s at index %d: invalid common %s\n", segment->id, i, temp[i].common?temp[i].common:"(missing)");
+                return "invalid common link";
+            }
+
+            // Allow the 'previous' field to be optional.
+            // See if a missing "previous" link could be inferred from this
+            // branch link. (All the "next" inferences have alreay been done.)
+            // Using a branch link is fine now, as long as the branch target
+            // does not already points to the current segment by another mean.
+
+            struct TrackSegment *branch = TopologySegments + segment->branch;
+            if ((!temp[segment->branch].previous) &&
+                (branch->next != i) &&
+                (!strsame (temp[segment->branch].branch, segment->id))) {
+                temp[segment->branch].previous = segment->id;
+                branch->previous = i;
+            }
             switchcount += 1;
-        } else {
-            segment->common = -1;
+        }
+    }
+
+    // Final checks: reject isolated tracks or unbalanced links.
+    // This probably does not catch all possible mistakes, but troubleshooting
+    // incorrect links is tedious, so any error detection helps.
+
+    for (i = 0; i < TopologySegmentsCount; ++i) {
+
+        struct TrackSegment *segment = TopologySegments + i;
+
+        if ((segment->next < 0) && (segment->previous < 0)) {
+            DEBUG (__FILE__ ": isolated segment %s at index %d\n", segment->id, i);
+            return "isolated track segment";
+        }
+
+        // Reject loopbacks, except if this is a 2 parts 360 degrees loop, or
+        // if this is a loopback on a switch.
+
+        if (segment->next == segment->previous) {
+            struct TrackSegment *next = TopologySegments + segment->next;
+            if ((next->branch < 0) &&
+                ((next->next != i) || (next->previous != i))) {
+               DEBUG (__FILE__ ": segment %s loops on segment %s\n", segment->id, next->id);
+               return "invalid loopback";
+            }
+        }
+
+        if (segment->next >= 0) {
+            // The target must reference this segment one way or another
+            if ((TopologySegments[segment->next].next != i) &&
+                (TopologySegments[segment->next].previous != i) &&
+                (TopologySegments[segment->next].branch != i)) {
+                DEBUG (__FILE__ ": error on segment %s at index %d: unbalanced next link\n", segment->id, i);
+                return "unbalanced next link";
+            }
+        }
+        if (segment->previous >= 0) {
+            // The target must reference this segment one way or another
+            if ((TopologySegments[segment->previous].next != i) &&
+                (TopologySegments[segment->previous].previous != i) &&
+                (TopologySegments[segment->previous].branch != i)) {
+                DEBUG (__FILE__ ": error on segment %s at index %d: unbalanced previous link\n", segment->id, i);
+                return "unbalanced previous link";
+            }
+        }
+
+        if (segment->branch > 0) {
+            struct TrackSegment *branch = TopologySegments + segment->branch;
+
+            // The common target must match the switch's next or previous
+            if ((segment->common != segment->next) &&
+                (segment->common != segment->previous)) {
+                DEBUG (__FILE__ ": error on segment %s at index %d: common does not match next or previous\n", segment->id, i);
+                return "common does not match next or previous";
+            }
+
+            // The branch target must not be on the switch's main line.
+            if (strsame (branch->line, segment->line)) {
+                DEBUG (__FILE__ ": error on segment %s at index %d: branch refers to the main line\n", segment->id, i);
+                return "branch refers to the main line";
+            }
+
+            // The branch target must reference this segment one way or another
+            if ((branch->next != i) &&
+                (branch->previous != i) &&
+                (branch->branch != i)) {
+                DEBUG (__FILE__ ": error on segment %s at index %d: unbalanced branch link\n", segment->id, i);
+                return "unbalanced branch link";
+            }
         }
     }
     free (temp);
@@ -827,7 +931,7 @@ const char *houserail_topology_reload (void) {
             signal->index = i;
 
             signal->direction = 0; // Unknown.
-            const char *direction = houseconfig_string (element, ".protect");
+            const char *direction = houseconfig_string (element, ".dir");
             if (!direction) signal->direction = 1; // default is "up".
             else if (strsame (direction, "up")) signal->direction = 1;
             else if (strsame (direction, "down")) signal->direction = -1;
@@ -843,10 +947,6 @@ const char *houserail_topology_reload (void) {
                 continue;
             }
             struct TrackSegment *segment = TopologySegments + segmentindex;
-            DEBUG (__FILE__ ": signal %s is on segment %s at %s %d protecting direction %s\n",
-                   signal->id, segment->id,
-                   signal->location.line, signal->location.post,
-                   (signal->direction>0)?"up":((signal->direction<0)?"down":"unknown"));
             signal->location.segment = segment->id;
 
             int index = echttp_hash_insert (&TopologySignalsHash, signal->id);
@@ -860,6 +960,12 @@ const char *houserail_topology_reload (void) {
             } else if (signal->direction < 0) {
                 protected = TopologySegments[segmentindex].previous;
             }
+            DEBUG (__FILE__ ": signal %s is on segment %s at %s %d protecting %s direction %s\n",
+                   signal->id, segment->id,
+                   signal->location.line, signal->location.post,
+                   (protected >= 0)?TopologySegments[protected].id:"(nothing)",
+                   (signal->direction>0)?"up":((signal->direction<0)?"down":"unknown"));
+
             signal->protected = -1;
             if (protected >= 0) {
                 const struct TrackSegment *segment = TopologySegments + protected;
@@ -1195,6 +1301,27 @@ int houserail_topology_export (char *buffer, int size, const char *separator) {
         cursor += snprintf (buffer+cursor, size-cursor, "]");
         if (cursor >= size) goto overflow;
     }
+
+    // Populate the signals array.
+
+    prefix = (cursor > preamble)?",\"signals\":[":"\"signals\":[";
+    start = cursor;
+    for (i = 0; i < TopologySignalsCount; ++i) {
+        const struct TrackSignal *signal = TopologySignals + i;
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s{\"id\":\"%s\",\"line\":\"%s\","
+                                "\"post\":%d,\"dir\":\"%s\"}",
+                            prefix,
+                            signal->id,
+                            signal->location.line, signal->location.post,
+                            (signal->direction > 0)?"up":"down");
+        if (cursor >= size) goto overflow;
+        prefix = ",";
+    }
+    if (cursor > start) {
+        cursor += snprintf (buffer+cursor, size-cursor, "]");
+        if (cursor >= size) goto overflow;
+    }
     cursor += snprintf (buffer+cursor, size-cursor, "}");
 
     return cursor;
@@ -1247,38 +1374,47 @@ overflow:
 }
 
 int houserail_topology_model_count (void) {
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
     return TopologyModelsCount;
 }
 
 const struct TrackModel *houserail_topology_models (void) {
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
     return TopologyModels;
 }
 
 int houserail_topology_segment_count (void) {
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
     return TopologySegmentsCount;
 }
 
 const struct TrackSegment *houserail_topology_segments (void) {
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
     return TopologySegments;
 }
 
 int houserail_topology_detector_count (void) {
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
     return TopologyDetectorsCount;
 }
 
 const struct TrackDetector *houserail_topology_detectors (void) {
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
     return TopologyDetectors;
 }
 
 int houserail_topology_signal_count (void) {
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
     return TopologySignalsCount;
 }
 
 const struct TrackSignal *houserail_topology_signals (void) {
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
     return TopologySignals;
 }
 
 const struct TrackOptions *houserail_topology_options (void) {
+    if (!TopologyOptions.name) return 0; // No track layout was loaded.
     return &TopologyOptions;
 }
 

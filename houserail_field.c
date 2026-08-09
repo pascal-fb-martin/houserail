@@ -444,16 +444,39 @@ const char *houserail_field_switch_set (const char *id, const char *state) {
     */
 
     char controlid[64];
-    snprintf (controlid, sizeof(controlid), "%s:%s", id, state);
-    if (housecontrol_state (controlid)) {
-        // No pulse: the service is responsible for handling pulses
-        // in a safe manner if required.
-        housecontrol_set (controlid, "on",
-                          0, 1, "HOUSERAIL SWITCH CONTROL");
-        return 0;
+    char *end = controlid + sizeof(controlid);
+    char *c = stpecpy (controlid, end, id);
+
+    // The control logic here does not issue pulses: the control service
+    // is responsible for handling pulses is required.
+    // FIXME: there is here an attempt at issuing the "off" control before
+    // the "on" control. The problem is that the actual execution order is
+    // not guaranteed. This is not a problem for now because the controls
+    // supported so far are physically pulses and the "off" control does
+    // nothing..
+
+    if (strsame (state, "normal")) {
+        stpecpy (c, end, ":reverse");
+        if (housecontrol_state (controlid))
+            housecontrol_set (controlid, "off",
+                              0, 1, "HOUSERAIL SWITCH CONTROL");
+        stpecpy (c, end, ":normal");
+        if (housecontrol_state (controlid))
+            housecontrol_set (controlid, "on",
+                              0, 1, "HOUSERAIL SWITCH CONTROL");
+
+    } else if (strsame (state, "reverse")) {
+        stpecpy (c, end, ":normal");
+        if (housecontrol_state (controlid))
+            housecontrol_set (controlid, "off",
+                              0, 1, "HOUSERAIL SWITCH CONTROL");
+        stpecpy (c, end, ":reverse");
+        if (housecontrol_state (controlid))
+            housecontrol_set (controlid, "on",
+                              0, 1, "HOUSERAIL SWITCH CONTROL");
     }
 
-    return "No switch control method identified yet";
+    return 0;
 }
 
 const char *houserail_field_signal_set (const char *id, const char *state) {

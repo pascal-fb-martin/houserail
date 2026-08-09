@@ -12,7 +12,12 @@ The following classes of objects are considered:
 
 * Track detectors define the devices that detect the presence of cars. The technology employed (relay reeds, infrared detectors, current sensors, etc) does not really matter here, what counts at this level is the span of track where cars can be detected. Track detectors may not covers the whole length of the track: a coverage hole is handled as a dark territory.
 
-* Signals describe every individual signal on the layout. Note that signals have no links to switches at this time.
+* Signals describe every individual signal on the layout. Note that signals are linked to the next segment, according to their direction (a signal protects an area _before_ the train enters the area). This next segment is typically a switch, protected by 3 signals, but the software supports isolated or paired signals along standard segments.
+
+The software can controls switches and signals through control points (e.g. the [HouseRelays](https://github.com/pascal-fb-martin/houserelays) service):
+
+* a switch X is controlled through two control points, named "X:normal" and "X:reverse".
+* A signal X is controlled through two control points, named "X:go" and "X:stop".
 
 > [!NOTE]
 > Flex tracks, interlocking and crossing track types are planned, but not supported yet. Crossing can be implemented as two independent segments, but no special rule protects against collisions (yet). Special cases, such as double tracks, can be represented as two independent segments.
@@ -78,25 +83,25 @@ The segments are specific to a layout and are stored in the `rail.track.segments
 
 * `id`: an identifier for this segment, unique within the layout. The `id` string must not include any '~' characters.
 * `line`: a line identifier. All standard tracks connected to each other belong to the same line. In the case of a switch, this refers to the normal direction.
-* `previous`: the ID of the previous segment (increasing posts order). This field is optional: the missing link will be retrieved based on the `next` or `branch` links from other segments.
-* `next`: the ID of the subsequent segment (decreasing posts order).
+* `previous`: the ID of the previous segment (decreasing posts order). This field is optional: the missing link will be retrieved based on the `next` or `branch` links from other segments.
+* `next`: the ID of the next segment (increasing posts order). This field is optional if the subsequent segment (in the JSON data) is on the same line, in which case this subsequent segment will be used as the next segment.
 * `branch`: the ID of the subsequent segment attached to the reverse point (switch only). The presence of this field indicates a switch. When the `branch` field is present, the `common` field becomes mandatory.
 * `common`: the ID of the linked segment leading to the common point of the switch. This is the same as `previous` or `next`, depending on the orientation of the switch: if `common` is the same as `previous`, the switch is 'diverging', otherwise it is 'converging' (switch only).
 * `start`: this optional item provides the starting post value for that segment. This is typically used for a branch parallel to a main line, and connected to the main line through a single 'converging' switch. This can also be used if the line name changes. This start value is always a low post value: posts will increase from there.
 * `curve`: this element is only required if the model is a standard curved track. It represent the direction of the curve for this segment: `left` or `right`. The software also supports `curve` set to 1 (right) or -1 (left).
-* `origin`: this element is optional and should be present only once for each set of interconnected tracks. It indicates the position and direction of this segment start point on the display. This is an array with three elements: x, y and angle (degrees). The display position of all other segments connected to that segment will be inferred transitively by walking the tracks.
+* `display`: this element is optional and should be present only once for each set of interconnected tracks. It indicates the position and direction of this segment's origin point on the display. This is an array with three elements: x, y and angle (degrees). The display position of all other segments connected to that segment will be inferred transitively by walking the tracks.
 
-If is valid for a segment to have either no `previous` or no `next` segment, even after `previous` link inferrence, but not both can be missing at the same time. One missing link indicates an end to the line.
+If is valid for a segment to have either no `previous` or no `next` segment, even after `next` and `previous` link inferrences, but not both can be missing at the same time. One missing link indicates an end to the line.
 
 A layout is oriented: the previous/next linkage is considered ordered according to increasing posts; the `next` element links to increasing posts while `previous` links to decreasing posts. If a point of the track segment is a line terminal point, the corresponding linkage to the adjacent segment is missing.
 
 The name of the line on the reverse point of a switch is determined from the name of the normal branch of the adjacent segment. If multiple switches are connected to each other, that name is determined by transitively following the _normal_ linkages until a standard segment has been found. If two switches are connected through their reverse points, that portion of track has no name. This case should be considered an interlocking anyway as one cannot operate the two switches independently without risking a derail.
 
 > [!NOTE]
-> The `origin` segment does not need to be a `start` segment: the two concepts are independent. The `start` field defines the posts values along a line, while the `origin` element defines the location of the display.
+> The `display` segment does not need to be a `start` segment: the two concepts are independent. The `start` field defines the posts values along a line, while the `display` element defines the location on the display.
 
 > [!NOTE]
-> The `origin` x and y values are not critical. The software calculates the size of the viewbox so that the display will show the whole layout, centered.
+> The `display` x and y values are not critical. The software calculates the size of the viewbox so that the display will show the whole layout, centered.
 
 ## Track Detectors
 
@@ -117,7 +122,7 @@ Signals are specific to a layout and are stored in the `rail.track.signals` arra
 * `id`: an identifier for this signal, unique within the layout
 * `line`: name of the track line where this signal is located.
 * `post`: the post where this signal is located.
-* `protect`: the direction that this signal protects.
+* `dir`: the direction that this signal protects.
 
 ## Track Catalogs
 
