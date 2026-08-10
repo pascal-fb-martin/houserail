@@ -587,14 +587,32 @@ static void draw_signal_animation (const struct TrackSignal *signal,
     }
     int angle = rotate (reference.angle, (signal->direction > 0)?9000:-9000);
     int realign = 9000;
+
+    // The geometry of switches make the positioning of signals dicey,
+    // as a signal could bump into the near track. Some specific cases
+    // require flipping over the side of the signal.
+
     if (signal->protected < LayoutSegmentsCount) {
         const struct TrackSegment *protected = LayoutSegments + signal->protected;
-        if (!strsame (signal->location.line, protected->line)) {
-            // A signal on the reverse branch of a switch is shown on
-            // the other side of the track.
-            angle = rotate (reference.angle,
-                            (signal->direction > 0)?-9000:9000);
-            realign = -9000;
+        if (protected->branch == segmentidx) {
+
+            if (protected->shape.arc > 0) {
+                // The signal on the reverse branch of a switch bumps into
+                // the main track.
+                angle = rotate (reference.angle,
+                                (signal->direction > 0)?-9000:9000);
+                realign = -9000;
+            }
+
+        } else if (protected->common != segmentidx) {
+
+            if (protected->shape.arc < 0) {
+                // The signal on the normal branch of a switch bumps into
+                // the reverse track.
+                angle = rotate (reference.angle,
+                                (signal->direction > 0)?-9000:9000);
+                realign = -9000;
+            }
         }
     }
 

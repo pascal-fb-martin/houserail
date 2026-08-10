@@ -224,8 +224,7 @@ function setSignal () {
     var color = this.getAttribute ('fill');
     var cmd;
     if (color == SignalStop) cmd = 'go';
-    else if (color == SignalGo) cmd = 'stop';
-    else return;
+    else cmd = 'stop';
 
     var url = RootUrl+"/signal?id="+id[0]+"&cmd="+cmd;
     var command = new XMLHttpRequest();
@@ -252,6 +251,7 @@ var SegmentDirection = 'yellow';
 var SegmentDirectionStopped = 'white';
 var SignalStop = 'red';
 var SignalGo = 'lime';
+var SignalOld = 'white';
 
 function updateDisplay (response) {
 
@@ -302,6 +302,7 @@ function updateDisplay (response) {
             var fill = 'white';
             if (signal[1] == 'go') fill = SignalGo;
             else if (signal[1] == 'stop') fill = SignalStop;
+            else fill = SignalOld;
             element.setAttribute ('fill', fill);
             element.addEventListener ('mouseup', setSignal);
         }
