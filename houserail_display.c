@@ -105,6 +105,9 @@ static const struct TrackDetector *LayoutDetectors = 0;
 static int                         LayoutDetectorsCount = 0;
 */
 
+static const struct TrackSignal *LayoutSignals = 0;
+static int                       LayoutSignalsCount = 0;
+
 
 static int calculate_straight_length (const struct TrackSegment *segment) {
 
@@ -412,16 +415,20 @@ static void generate_svg_head (const struct TrackVertex *min,
 static void draw_path (const char *id, 
                        const char *d, const char *stroke, int length) {
 
+    char svgid[160];
+    svgid[0] = 0;
+    if (id) snprintf (svgid, sizeof(svgid), " id=\"%s\"", id);
+
     char buffer[1024];
     if (length > 0) {
          length = snprintf (buffer, sizeof(buffer),
-                            "<path id=\"%s\" d=\"%s\" stroke=\"%s\""
+                            "<path%s d=\"%s\" stroke=\"%s\""
                                 " pathlength=\"%d\"/>\n",
-                            id, d, stroke, length);
+                            svgid, d, stroke, length);
     } else {
          length = snprintf (buffer, sizeof(buffer),
-                            "<path id=\"%s\" d=\"%s\" stroke=\"%s\"/>\n",
-                            id, d, stroke);
+                            "<path%s d=\"%s\" stroke=\"%s\"/>\n",
+                            svgid, d, stroke);
     }
     display_append (buffer, length);
 }
@@ -455,6 +462,18 @@ static void draw_curve (const char *id,
              shape->radius, shape->radius, origin->angle, (shape->arc > 0)?1:0,
              end->x, end->y);
    draw_path (id, d, stroke, length);
+}
+
+static void draw_disc (const char *id,
+                       const struct TrackVertex *center,
+                       int radius, const char *fill) {
+
+    char buffer[160];
+    int length = snprintf (buffer, sizeof(buffer),
+                           "<circle id=\"%s\" cx=\"%d\" cy=\"%d\" r=\"%d\""
+                               " fill=\"%s\" stroke-width=\"0\"/>\n",
+                           id, center->x, center->y, radius, fill);
+    display_append (buffer, length);
 }
 
 static void draw_track_background
@@ -538,6 +557,69 @@ static void draw_train_animation (const struct TrackSegment *segment,
    }
 }
 
+static void move_ratio (const struct TrackVertex *v1,
+                        const struct TrackVertex *v2,
+                        struct TrackVertex *mid, int ratio) {
+
+    mid->x = houserail_math_interpolate (v1->x, v2->x, ratio);
+    mid->y = houserail_math_interpolate (v1->y, v2->y, ratio);
+    mid->angle = v1->angle;
+}
+
+static void draw_signal_animation (const struct TrackSignal *signal,
+                                   const char *classifier, int width) {
+
+    int segmentidx = houserail_topology_search_by_id (signal->location.segment);
+    if (segmentidx < 0) return;
+    const struct TrackSegment *segment = LayoutSegments + segmentidx;
+    const struct TrackSegmentDisplay *display = LayoutSegmentsDisplay + segmentidx;
+
+    int ratio = (100 * (signal->location.post - segment->low)) / (segment->high - segment->low);
+
+    // Find the location of the signal on the track.
+    struct TrackVertex reference;
+    if (segment->shape.arc == 0) {
+        move_ratio (&(display->origin), &(display->end), &reference, ratio);
+    } else {
+        int arc = (segment->shape.arc * ratio) / 100;
+        move_arc (&(display->origin), &reference,
+                  display->origin.angle, segment->shape.radius, arc);
+    }
+    int angle = rotate (reference.angle, (signal->direction > 0)?9000:-9000);
+    int realign = 9000;
+    if (signal->protected < LayoutSegmentsCount) {
+        const struct TrackSegment *protected = LayoutSegments + signal->protected;
+        if (!strsame (signal->location.line, protected->line)) {
+            // A signal on the reverse branch of a switch is shown on
+            // the other side of the track.
+            angle = rotate (reference.angle,
+                            (signal->direction > 0)?-9000:9000);
+            realign = -9000;
+        }
+    }
+
+    // Draw the signal ground.
+    struct TrackVertex a, b;
+    move_straight (&reference, &a, angle, (3 * width) / 4);
+    move_straight (&a, &b, angle, width);
+    draw_straight (0, &a, &b, "white", 0);
+
+    // Draw the signal pole
+    struct TrackVertex c, d;
+    move_ratio (&a, &b, &c, 50);
+    move_straight (&c, &d, rotate (angle, realign), width);
+    draw_straight (0, &c, &d, "white", 0);
+
+    // Draw the signal itself
+    char id[92];
+    char *idend = id + sizeof(id);
+    stpecpy (stpecpy (id, idend, signal->id), idend, classifier);
+
+    int radius = width / 2;
+    move_straight (&d, &c, rotate (angle, realign), radius);
+    draw_disc (id, &c, radius, "white");
+}
+
 static void generate_tracks (int width) {
 
     static const char groupend[] = "</g>\n";
@@ -586,18 +668,27 @@ static void generate_tracks (int width) {
     }
     display_append (groupend, sizeof(groupend) - 1);
 
-    width = width / 2;
-    if (width <= 1) width = 2; // Direction indicators must remain visible.
+    int iwidth = width / 2;
+    if (iwidth <= 1) iwidth = 2; // Direction indicators must remain visible.
 
     length = snprintf (group, sizeof(group),
                        "<g id=\"directions\" fill=\"none\""
-                           " stroke-width=\"%d\">\n", width);
+                           " stroke-width=\"%d\">\n", iwidth);
     display_append (group, length);
 
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         const struct TrackSegment *segment = LayoutSegments + i;
         if (!LayoutSegmentsDisplay[i].done) continue;
         draw_train_animation (segment, "~dir");
+    }
+    display_append (groupend, sizeof(groupend) - 1);
+
+    length = snprintf (group, sizeof(group),
+                       "<g id=\"signals\" stroke-width=\"%d\">\n", width / 10);
+    display_append (group, length);
+
+    for (i = 0; i < LayoutSignalsCount; ++i) {
+        draw_signal_animation (LayoutSignals + i, "~sig", width);
     }
     display_append (groupend, sizeof(groupend) - 1);
     display_append (groupend, sizeof(groupend) - 1);
@@ -683,6 +774,9 @@ const char *houserail_display_reload (void) {
     LayoutDetectorsCount = houserail_topology_detector_count ();
     LayoutDetectors = houserail_topology_detectors ();
 */
+
+    LayoutSignalsCount = houserail_topology_signal_count ();
+    LayoutSignals = houserail_topology_signals ();
 
     LayoutSegmentsDisplay =
         calloc (LayoutSegmentsCount, sizeof (struct TrackSegmentDisplay));

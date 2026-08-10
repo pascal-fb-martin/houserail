@@ -219,6 +219,29 @@ function setTurnout () {
     command.send(null);
 }
 
+function setSignal () {
+    var id = this.id.split ('~');
+    var color = this.getAttribute ('fill');
+    var cmd;
+    if (color == SignalStop) cmd = 'go';
+    else if (color == SignalGo) cmd = 'stop';
+    else return;
+
+    var url = RootUrl+"/signal?id="+id[0]+"&cmd="+cmd;
+    var command = new XMLHttpRequest();
+    command.open("GET", url);
+    command.onreadystatechange = function () {
+        if (command.readyState === 4) {
+            if (command.status === 200) {
+                updateDisplay (JSON.parse(command.responseText));
+            } else if ((command.status === 404) || (command.status === 500)) {
+                window.alert ('Error '+command.status+': '+command.statusText);
+            }
+        }
+    }
+    command.send(null);
+}
+
 // Track segments color conventions:
 //
 var SegmentOccupied = 'yellow';
@@ -227,6 +250,8 @@ var SegmentInactive = 'grey';
 var SegmentTrain = 'red';
 var SegmentDirection = 'yellow';
 var SegmentDirectionStopped = 'white';
+var SignalStop = 'red';
+var SignalGo = 'lime';
 
 function updateDisplay (response) {
 
@@ -258,13 +283,27 @@ function updateDisplay (response) {
                 if (status == SegmentInactive) continue; // No change.
 
                 inactive.setAttribute ('stroke', SegmentInactive);
-                active.removeEventListener ('click', setTurnout);
+                active.removeEventListener ('mouseup', setTurnout);
             }
             if (active) {
                 active.setAttribute ('stroke', status);
                 active.parentNode.appendChild (active);
-                active.addEventListener ('click', setTurnout);
+                active.addEventListener ('mouseup', setTurnout);
             }
+        }
+    }
+
+    // Signal status
+    //
+    if (response.rail.signal) {
+        for (var i = 0; i < response.rail.signal.length; ++i) {
+            var signal =  response.rail.signal[i];
+            var element = document.getElementById (signal[0] + '~sig');
+            var fill = 'white';
+            if (signal[1] == 'go') fill = SignalGo;
+            else if (signal[1] == 'stop') fill = SignalStop;
+            element.setAttribute ('fill', fill);
+            element.addEventListener ('mouseup', setSignal);
         }
     }
 

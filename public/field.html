@@ -136,7 +136,6 @@ function railStatus () {
     var url = "/rail/status";
     if (RailLastStatus) url += "?known=" + RailLastStatus;
     railCommand (url);
-    if ((!LayoutDetectors) || (LayoutDetectors.length == 0)) railGetDetectors();
 }
 
 window.onload = function() {
