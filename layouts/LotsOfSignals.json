@@ -92,7 +92,7 @@
              ],
              "signals":[
                  {"id":"NORTH@410W","line":"main","post":410,"dir":"up"},
-                 {"id":"NORTH@5W","line":"main","post":5,"dir":"down"},
+                 {"id":"NORTH@2W","line":"main","post":2,"dir":"down"},
                  {"id":"NORTH@39W","line":"main","post":39,"dir":"up"},
                  {"id":"NORTH@61E","line":"main","post":61,"dir":"down"},
                  {"id":"SIDE1@99W","line":"side1","post":99,"dir":"up"},
