@@ -3,14 +3,30 @@
 <link rel="stylesheet" href="/house.css">
 <link rel="stylesheet" href="/rail/tracklayout.css">
 <script>
+
+var LatestConfig = 0;
+
+function railRefresh (response) {
+
+    document.getElementsByTagName('title')[0].innerHTML =
+        response.host+' - '+response.rail.layout+' Tracks';
+
+    const iframe = document.getElementsByTagName('iframe');
+    for (var i = 0; i < iframe.length; ++i) {
+       iframe[i].contentWindow.location.reload(true);
+    }
+    LatestConfig = response.latest;
+}
+
 function railStatus () {
+    var url = "/rail/identify";
+    if (LatestConfig) url += '?known=' + LatestConfig;
+
     var command = new XMLHttpRequest();
-    command.open("GET", "/rail/identify");
+    command.open("GET", url);
     command.onreadystatechange = function () {
         if (command.readyState === 4 && command.status === 200) {
-            var response = JSON.parse(command.responseText);
-            document.getElementsByTagName('title')[0].innerHTML =
-                response.host+' - '+response.rail.layout+' Tracks';
+            railRefresh (JSON.parse(command.responseText));
         }
     }
     command.send(null);
@@ -18,6 +34,7 @@ function railStatus () {
 
 window.onload = function() {
    railStatus();
+   setInterval (railStatus, 5000);
 };
 </script>
 <title>Tracks</title>

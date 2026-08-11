@@ -150,10 +150,18 @@ This returns an updated status of the tracks.
 Return the current configuration, including the track topology.
 
 ```
-/rail/identify
+/rail/identify[?known=NUMBER]
 ```
 
-Provide the few items needed to update a web page's title: host and layout names.
+Provide the few items needed to update a web page's title and detect configuration changes:
+
+* host:          the name of the host replying.
+* timestamp:     the time when the response was built.
+* latest:        the current state of the server configuration (see the `known` parameter).
+* rail.layout:   the name of the layout managed by this server.
+
+> [!NOTE]
+> The `latest` field matches the configuration, not the live status. This means that its value changes only when a new configuration is loaded.
 
 ```
 /rail/track/display

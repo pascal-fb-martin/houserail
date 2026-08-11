@@ -3,7 +3,7 @@
     "timestamp": 0,
     "rail":{
          "layout":"LotsOfSignals",
-         "description":"A layout to test the positioning of signals",
+         "description":"Test the positioning of signals on track displays",
          "train":{
              "models":[
                  {"id":"ATLAS-GP-40","length":19,"spots":[4,15]},
@@ -91,6 +91,8 @@
                  {"id":"SIDE3@70","line":"side3","low":69,"high":71}
              ],
              "signals":[
+                 {"id":"WEST@307S","line":"main","post":307,"dir":"up"},
+                 {"id":"EAST@101N","line":"main","post":101,"dir":"up"},
                  {"id":"NORTH@410W","line":"main","post":410,"dir":"up"},
                  {"id":"NORTH@2W","line":"main","post":2,"dir":"down"},
                  {"id":"NORTH@39W","line":"main","post":39,"dir":"up"},

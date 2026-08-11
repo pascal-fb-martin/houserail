@@ -110,12 +110,14 @@ static const char *rail_save (const char *reason) {
 */
 
 // This is a very short answer, that returns enough information for a web
-// page's title.
+// page's title and to detect configuration changes.
 //
 static const char *rail_identify (const char *method, const char *uri,
                                   const char *data, int length) {
 
-    int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), LiveState);
+    if (housestate_same (ConfigState)) return "";
+
+    int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), ConfigState);
     snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
     echttp_content_type_json ();
     return JsonBuffer;
