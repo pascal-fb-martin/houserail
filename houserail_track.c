@@ -194,6 +194,7 @@ static int TestMode = 0;
 //
 struct TrackSegmentLive {
 
+    char *id;
     int needle;   // The adjacent segment connected to the needle's position.
 };
 
@@ -201,6 +202,7 @@ struct TrackSegmentLive {
 //
 struct TrackDetectorLive {
 
+    char *id;
     int occupied;
     long long timestamp;
 };
@@ -209,6 +211,7 @@ struct TrackDetectorLive {
 //
 struct TrackSignalLive {
 
+    char *id;
     int state;           // 0: off, 1 stop, 2 go.
     long long timestamp;
 };
@@ -287,18 +290,14 @@ void houserail_track_flush (void) {
 
 const char *houserail_track_reload (void) {
 
-    if (LayoutSegmentsLive) {
-       free (LayoutSegmentsLive);
-       LayoutSegmentsLive = 0;
-    }
-    if (LayoutDetectorsLive) {
-        free (LayoutDetectorsLive);
-        LayoutDetectorsLive= 0;
-    }
-    if (LayoutSignalsLive) {
-        free (LayoutSignalsLive);
-        LayoutSignalsLive= 0;
-    }
+    struct TrackSegmentLive *oldsegments = LayoutSegmentsLive;
+    int oldsegmentscount = LayoutSegmentsCount;
+
+    struct TrackDetectorLive *olddetectors = LayoutDetectorsLive;
+    int olddetectorscount = LayoutDetectorsCount;
+
+    struct TrackSignalLive *oldsignals = LayoutSignalsLive;
+    int oldsignalscount = LayoutSignalsCount;
 
     LayoutOptions = houserail_topology_options ();
 
@@ -324,7 +323,7 @@ const char *houserail_track_reload (void) {
         LayoutSignalsLive =
             calloc (LayoutSignalsCount, sizeof(struct TrackSignalLive));
 
-    // Update the segment status.
+    // Initialize the segment status.
     //
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
@@ -332,31 +331,68 @@ const char *houserail_track_reload (void) {
         const struct TrackSegment *segment = LayoutSegments + i;
         struct TrackSegmentLive *status = LayoutSegmentsLive + i;
 
+        status->id = strdup (segment->id);
         status->needle = -1;
         if (segment->common >= 0) {
-            // Default state of switch is 'normal'.
+            // Default state of a switch is 'normal'.
             status->needle =
                (segment->common == segment->next)? segment->previous : segment->next;
         }
     }
 
-    // Update the detectors status.
+    // Recover the (old) live status of segments, if applicable.
+
+    for (i = 0; i < oldsegmentscount; ++i) {
+        int index = houserail_topology_search_by_id (oldsegments[i].id);
+        if (index < 0) continue;
+        if (LayoutSegments[index].branch >= 0)
+            LayoutSegmentsLive[index].needle = oldsegments[i].needle;
+    }
+
+    // Initialize the detectors status.
 
     for (i = 0; i < LayoutDetectorsCount; ++i) {
 
         struct TrackDetectorLive *status = LayoutDetectorsLive + i;
+        status->id = strdup (LayoutDetectors[i].id);
         status->occupied = 0;
         status->timestamp = 0;
     }
 
-    // Update the signal status.
+    // Recover the (old) live status of detectors, if applicable.
+
+    for (i = 0; i < olddetectorscount; ++i) {
+        int index = houserail_topology_search_detector (olddetectors[i].id);
+        if (index < 0) continue;
+        LayoutDetectorsLive[index].occupied = olddetectors[i].occupied;
+        LayoutDetectorsLive[index].timestamp = olddetectors[i].timestamp;
+    }
+
+    // Initialize the signal status.
 
     for (i = 0; i < LayoutSignalsCount; ++i) {
 
         struct TrackSignalLive *status = LayoutSignalsLive + i;
+        status->id = strdup (LayoutSignals[i].id);
         status->state = 0;
         status->timestamp = 0;
     }
+
+    // Recover the (old) live status of signals, if applicable.
+
+    for (i = 0; i < oldsignalscount; ++i) {
+        int index = houserail_topology_search_signal (oldsignals[i].id);
+        if (index < 0) continue;
+        LayoutSignalsLive[index].state = oldsignals[i].state;
+        LayoutSignalsLive[index].timestamp = oldsignals[i].timestamp;
+    }
+
+    for (i = 0; i < oldsegmentscount; ++i) free (oldsegments[i].id);
+    for (i = 0; i < olddetectorscount; ++i) free (olddetectors[i].id);
+    for (i = 0; i < oldsignalscount; ++i) free (oldsignals[i].id);
+    if (oldsegments) free (oldsegments);
+    if (olddetectors) free (olddetectors);
+    if (oldsignals) free (oldsignals);
 
     houselog_event ("TRACK", "LAYOUT", "READY", "");
     return 0;
