@@ -65,6 +65,8 @@
 static int TestMode = 0;
 #define DEBUG if (TestMode) printf
 
+static int TrackSignalFootFirst = 1;
+
 // Local aliases.
 #define rotate        houserail_math_rotate
 #define uturn(x)      houserail_math_rotate ((x), 18000)
@@ -616,26 +618,26 @@ static void draw_signal_animation (const struct TrackSignal *signal,
         }
     }
 
+    if (TrackSignalFootFirst) realign = 0 - realign;
+
+    struct TrackVertex c, p, a, b;
+
     // Draw the signal ground.
-    struct TrackVertex a, b;
     move_straight (&reference, &a, angle, (3 * width) / 4);
     move_straight (&a, &b, angle, width);
     draw_straight (0, &a, &b, "white", 0);
 
-    // Draw the signal pole
-    struct TrackVertex c, d;
-    move_ratio (&a, &b, &c, 50);
-    move_straight (&c, &d, rotate (angle, realign), width);
-    draw_straight (0, &c, &d, "white", 0);
+    // Draw the signal pole, ends at the center of the signal.
+    move_ratio (&a, &b, &p, 50);
+    move_straight (&p, &c, rotate (angle, realign), width);
+    draw_straight (0, &c, &p, "white", 0);
 
-    // Draw the signal itself
+    // The signal circle must be drawn last, to be on top of the SVG
+    // stacking order.
     char id[92];
     char *idend = id + sizeof(id);
     stpecpy (stpecpy (id, idend, signal->id), idend, classifier);
-
-    int radius = width / 2;
-    move_straight (&d, &c, rotate (angle, realign), radius);
-    draw_disc (id, &c, radius, "white");
+    draw_disc (id, &c, width / 2, "white");
 }
 
 static void generate_tracks (int width) {
@@ -755,6 +757,10 @@ void houserail_display_default (const char *option) {
 
     if (echttp_option_present ("-trace", option)) {
         TestMode = 1;
+    } else if (echttp_option_present ("-signal-foot-first", option)) {
+        TrackSignalFootFirst = 1;
+    } else if (echttp_option_present ("-signal-light-first", option)) {
+        TrackSignalFootFirst = 0;
     }
 }
 
