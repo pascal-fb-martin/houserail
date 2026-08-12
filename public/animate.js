@@ -446,6 +446,6 @@ function animateStart (path) {
    railSegments();
    setInterval (railSegments, 5000);
    railStatus();
-   setInterval (railStatus, 50);
+   setInterval (railStatus, 100); // For smooth animation and raisonable load.
 }
 
