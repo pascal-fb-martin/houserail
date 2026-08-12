@@ -26,9 +26,8 @@ const char *houserail_train_initialize (int argc, const char **argv);
 
 void houserail_train_testmode (int enabled);
 
-void houserail_train_tracking (const struct TrackRange *area,
-                               int occupied,
-                               long long timestamp);
+int houserail_train_tracking (const struct TrackRange *area,
+                              int occupied, long long timestamp);
 
 const char *houserail_train_move (const char *id, const char *to, int slow);
 const char *houserail_train_stop (const char *id, int emergency);

@@ -28,9 +28,8 @@ const char *houserail_track_initialize (int argc, const char **argv);
 
 void houserail_track_testmode (int enabled);
 
-typedef void DetectionListener (const struct TrackRange *area,
-                                int occupied,
-                                long long timestamp);
+typedef int DetectionListener (const struct TrackRange *area,
+                               int occupied, long long timestamp);
 
 DetectionListener *houserail_track_subscribe (DetectionListener *listener);
 

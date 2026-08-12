@@ -28,9 +28,8 @@
  *
  * const char *houserail_track_initialize (int argc, const char **argv);
  *
- * typedef void DetectionListener (const struct TrackRange *area,
- *                                 int occupied,
- *                                 long long timestamp);
+ * typedef int DetectionListener (const struct TrackRange *area,
+ *                                int occupied, long long timestamp);
  *
  * DetectionListener *houserail_track_subscribe (DetectionListener *listener);
  *
@@ -38,7 +37,7 @@
  *    as a way to chain listeners. It is up to the caller to maintain that
  *    chain. That previous listener might be null, i.e. no previous listener.
  *
- *    NOTE: the exact location is (line, lowpost, highpost). The segment
+ *    NOTE: the exact location is (line, low post, high post). The segment
  *    parameter is a pre-calculated accelerator. The line parameter could
  *    be needed if the segment is part of an interlocking (more than one
  *    branch in that segment).
@@ -46,6 +45,11 @@
  *    This same listener is also called with a null area pointer as a way
  *    to signal the end of a burst and allow the client to perform some
  *    flush actions.
+ *
+ *    A listener returns 1 when it consumed the event (i.e. it changed
+ *    something) or 0 when it ignored the event. Events that are not
+ *    consumed will trigger a log entry, while those consumed will not
+ *    to limit the volume of log entries generated.
  *
  * void houserail_track_input (const char *name,
  *                             long long timestamp, const char *state);
@@ -275,13 +279,16 @@ void houserail_track_input (const char *name,
     status->occupied = occupied;
     status->timestamp = timestamp;
 
-    houselog_event ("DETECTOR", name, "CHANGED",
-                    "%s AT %lld (%s %d TO %d)",
-                    state, timestamp, detector->area.line,
-                    detector->area.low, detector->area.high);
+    int consumed = 0;
+    if (TrackNextListener)
+        consumed = TrackNextListener (&(detector->area), occupied, timestamp);
 
-    if (!TrackNextListener) return;
-    TrackNextListener (&(detector->area), occupied, timestamp);
+    if (!consumed) {
+        int timing = (int) (timestamp % 10000);
+        houselog_event ("DETECTOR", name, state, "AT %d.%03d (%s %d TO %d)",
+                        timing / 1000, timing % 1000, detector->area.line,
+                        detector->area.low, detector->area.high);
+    }
 }
 
 void houserail_track_flush (void) {

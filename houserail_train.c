@@ -33,9 +33,8 @@
  *
  *     Enable local traces. This is intended for unit test purpose only.
  *
- * void houserail_train_tracking (const struct TrackRange *area,
- *                                int occupied,
- *                                long long timestamp);
+ * int houserail_train_tracking (const struct TrackRange *area,
+ *                               int occupied, long long timestamp);
  *
  *     Update the location of trains based on track occupancy.
  *
@@ -385,6 +384,8 @@ static int houserail_train_distance (struct TrainConsist *train,
 
 static void houserail_train_pull (struct TrainConsist *train,
                                   int distance,
+                                  const struct TrackRange *area,
+                                  const char *state,
                                   long long timestamp) {
 
     // Move the head, tail and each car spot of the consist.
@@ -418,10 +419,11 @@ static void houserail_train_pull (struct TrainConsist *train,
     houserail_path_rollup (&(train->path), rear);
     train->updated = timestamp;
     houselog_event ("TRAIN", train->id, "MOVED",
-                    "%s BY %d TO HEAD %s %d AND TAIL %s %d",
-                    (direction >= 0)?"UP":"DOWN", distance,
+                    "%s HEAD %s %d TAIL %s %d (%s AT %s %d TO %d)",
+                    (direction >= 0)?"UP":"DOWN",
                     train->head.line, train->head.post,
-                    train->tail.line, train->tail.post);
+                    train->tail.line, train->tail.post,
+                    state, area->line, area->low, area->high);
 }
 
 static void houserail_train_pull_occupied (struct TrainConsist *train,
@@ -459,7 +461,7 @@ static void houserail_train_pull_occupied (struct TrainConsist *train,
     // still moved, even if not much. Make the smallest possible move.
     if (min == 0) min = 1;
 
-    houserail_train_pull (train, min, timestamp);
+    houserail_train_pull (train, min, area, "ON", timestamp);
 }
 
 static void houserail_train_pull_vacant (struct TrainConsist *train,
@@ -490,7 +492,7 @@ static void houserail_train_pull_vacant (struct TrainConsist *train,
                        (train, train->spots + last,
                         area, TRAINMAXDISTANCE, direction, 0);
     if (distance <= 0) return;
-    houserail_train_pull (train, distance, timestamp);
+    houserail_train_pull (train, distance, area, "OFF", timestamp);
 
     // Iterate using tail recursion.
     houserail_train_pull_vacant (train, area, timestamp);
@@ -643,14 +645,13 @@ static void houserail_train_flush (void) {
     }
 }
 
-void houserail_train_tracking (const struct TrackRange *area,
-                               int occupied,
-                               long long timestamp) {
+int houserail_train_tracking (const struct TrackRange *area,
+                              int occupied, long long timestamp) {
 
     if (!area) {
         houserail_train_flush ();
         TrainTrackingBurstActive = 0;
-        return;
+        return 0;
     }
     TrainTrackingBurstActive = 1;
 
@@ -676,7 +677,7 @@ void houserail_train_tracking (const struct TrackRange *area,
                    train->id, train->tail.line, train->tail.post,
                               train->head.line, train->head.post,
                               area->line, area->low, area->high);
-            if (train->awry) return; // Uncertain location.
+            if (train->awry) return 0; // Uncertain location.
             if (occupied)
                houserail_train_pull_occupied (train, area, timestamp);
             else
@@ -686,11 +687,11 @@ void houserail_train_tracking (const struct TrackRange *area,
             if (train->speed != 0)
                 houserail_train_adjust (train, (train->speed < 0), 0);
 
-            return; // Assume only one train within range.
+            return 1; // Assume only one train within range.
         }
     }
     if (!occupied)
-        return; // If no train was within range, why was it occupied??
+        return 0; // If no train was within range, why was it occupied??
 
     // Find the nearest train heading toward the designed location.
     // Limit the search to a maximum distance. Each time we found a train,
@@ -709,19 +710,20 @@ void houserail_train_tracking (const struct TrackRange *area,
            closest = i;
         }
     }
-    if (closest < 0) return; // FIXME: new train detected?
+    if (closest < 0) return 0; // FIXME: new train detected?
 
     // The closest train was identified. Its head must be moved to that
     // detector's location.
     DEBUG (__FILE__ ": train %s moving to %s %d to %d\n", train->id, area->line, area->low, area->high);
     train = LayoutTrains + closest;
 
-    houserail_train_pull (train, min, timestamp);
+    houserail_train_pull (train, min, area, occupied?"ON":"OFF", timestamp);
     train->awry = 0;
 
     // Adjust the train speed based on its new location.
     if (train->speed != 0)
         houserail_train_adjust (train, (train->speed < 0), 0);
+    return 1;
 }
 
 const char *houserail_train_initialize (int argc, const char **argv) {
