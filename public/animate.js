@@ -223,8 +223,8 @@ function setSignal () {
     var id = this.id.split ('~');
     var color = this.getAttribute ('fill');
     var cmd;
-    if (color == SignalStop) cmd = 'go';
-    else cmd = 'stop';
+    if (color == SignalGo) cmd = 'stop';
+    else cmd = 'go';
 
     var url = RootUrl+"/signal?id="+id[0]+"&cmd="+cmd;
     var command = new XMLHttpRequest();
