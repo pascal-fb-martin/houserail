@@ -36,6 +36,9 @@ struct TrackOptions {
 
     short scale;
     short postDistance;
+
+    int showSignalFoot;
+    int showSignalLightFirst;
 };
 
 struct TrackModel {

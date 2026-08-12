@@ -62,6 +62,8 @@ Global track parameters are configurable elements of the `rail.track` object tha
 * `distances.stop`: the safe stop distance. This is used when a train gets close to a danger point: end of line, unaligned switch or another train. This value is a combination of the train maximum speed and of the granularity of the train tracking. The later depends on the spacing between detectors, the type of the detectors and the spacing between train's detectable spots. A safe first estimate is a value greater than the spacing between two detectors.
 * `distances.slow`: the safe slow distance. This is used when a train approaches a danger point (see above). This distance is typically double the stop distance.
 * `distances.post`: the distance between two posts. This is used when converting a post length to a physical length for a display. If not present, default is 1000.
+* `display.signal.light`: a string, value `first` or `last`. If `first`, the signal symbols are oriented light-then-pole-then-foot in the direction of the signal. If set to `last`, the signal symbols are oriented foot-then-pole-then-light in the direction of the signal. This is optional, the default is `last`.
+* `display.signal.foot`: a string, value `show` or `hide`. The signal foots will not be shown on the track display if set to `hide` (the signal poles will still be shown). This is optional, the default is `show`.
 * `periods.poll`: the field poll period in milliseconds. The value must be within the range 10ms to 999ms. Default is 200ms.
 * `catalog`: a string that represents the name of the track catalog to load. See section Track Catalogs.
 

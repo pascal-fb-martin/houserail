@@ -65,8 +65,6 @@
 static int TestMode = 0;
 #define DEBUG if (TestMode) printf
 
-static int TrackSignalFootFirst = 1;
-
 // Local aliases.
 #define rotate        houserail_math_rotate
 #define uturn(x)      houserail_math_rotate ((x), 18000)
@@ -633,7 +631,7 @@ static void draw_signal_animation (const struct TrackSignal *signal,
                   display->origin.angle, segment->shape.radius, arc);
     }
     int angle = rotate (reference.angle, (signal->direction > 0)?9000:-9000);
-    int realign = 9000;
+    int realign = -9000;
 
     // The geometry of switches make the positioning of signals dicey,
     // as a signal could bump into the near track. Some specific cases
@@ -648,7 +646,7 @@ static void draw_signal_animation (const struct TrackSignal *signal,
                 // the main track.
                 angle = rotate (reference.angle,
                                 (signal->direction > 0)?-9000:9000);
-                realign = -9000;
+                realign = 9000;
             }
 
         } else if (protected->common != segmentidx) {
@@ -658,21 +656,21 @@ static void draw_signal_animation (const struct TrackSignal *signal,
                 // the reverse track.
                 angle = rotate (reference.angle,
                                 (signal->direction > 0)?-9000:9000);
-                realign = -9000;
+                realign = 9000;
             }
         }
     }
 
-    if (TrackSignalFootFirst) realign = 0 - realign;
+    if (LayoutOptions->showSignalLightFirst) realign = 0 - realign;
 
     struct TrackVertex c, p, a, b;
 
-    // Draw the signal ground.
+    // Draw the signal's foot.
     move_straight (&reference, &a, angle, (3 * width) / 4);
     move_straight (&a, &b, angle, width);
-    draw_straight (0, &a, &b, "white", 0);
+    if (LayoutOptions->showSignalFoot) draw_straight (0, &a, &b, "white", 0);
 
-    // Draw the signal pole, ends at the center of the signal.
+    // Draw the signal's pole, ends at the center of the signal.
     move_ratio (&a, &b, &p, 50);
     move_straight (&p, &c, rotate (angle, realign), width);
     draw_straight (0, &c, &p, "white", 0);
@@ -869,10 +867,6 @@ void houserail_display_default (const char *option) {
 
     if (echttp_option_present ("-trace", option)) {
         TestMode = 1;
-    } else if (echttp_option_present ("-signal-foot-first", option)) {
-        TrackSignalFootFirst = 1;
-    } else if (echttp_option_present ("-signal-light-first", option)) {
-        TrackSignalFootFirst = 0;
     }
 }
 

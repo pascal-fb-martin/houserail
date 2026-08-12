@@ -1034,6 +1034,16 @@ const char *houserail_topology_reload (void) {
     TopologyOptions.slowDistance = value;
     DEBUG (__FILE__ ": slow distance set to %d\n", TopologyOptions.slowDistance);
 
+    const char *option = houseconfig_string (track, ".display.signal.foot");
+    TopologyOptions.showSignalFoot = strsame (option, "hide")?0:1;
+    DEBUG (__FILE__ ": %sshow signal foot\n",
+           TopologyOptions.showSignalFoot?"":"do not ");
+
+    option = houseconfig_string (track, ".display.signal.light");
+    TopologyOptions.showSignalLightFirst = strsame (option, "first");
+    DEBUG (__FILE__ ": show signal light %s\n",
+           TopologyOptions.showSignalLightFirst?"first":"last ");
+
     // Preprocessing for end of track.
     // The goal here is to automatically slow trains when they approach,
     // and stop trains when they arrive at, a line's end.
@@ -1212,6 +1222,12 @@ int houserail_topology_export (char *buffer, int size, const char *separator) {
                         ",\"distances\":{\"stop\":%d,\"slow\":%d}",
                         TopologyOptions.stopDistance,
                         TopologyOptions.slowDistance);
+    if (cursor >= size) goto overflow;
+
+    cursor += snprintf (buffer+cursor, size-cursor,
+                        ",\"display\":{\"signal\":{\"foot\":\"%s\",\"light\":\"%s\"}}",
+                        TopologyOptions.showSignalFoot?"show":"hide",
+                        TopologyOptions.showSignalLightFirst?"first":"last");
     if (cursor >= size) goto overflow;
 
     // Populate the models array.

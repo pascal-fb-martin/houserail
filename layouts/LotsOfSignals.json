@@ -21,6 +21,7 @@
          "track": {
              "speeds":{"restricted": 10, "reverse": 20},
              "distances":{"stop": 20, "slow": 35},
+             "display":{"signal": {"foot":"show", "light": "last"}},
              "catalog":"AtlasCode80",
              "segments":[
                  {"id":"NORTH-2","model":"2547","line":"main","start":0},
