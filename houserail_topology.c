@@ -447,6 +447,7 @@ const char *houserail_topology_reload (void) {
                 }
             }
         }
+        model->feature = houseconfig_string (element, ".feature");
         model->usage = 0;
     }
 
@@ -497,6 +498,7 @@ const char *houserail_topology_reload (void) {
                     }
                 }
             }
+            model->feature = houserail_catalog_string (element, ".feature");
             model->usage = 0;
         }
     }
@@ -604,6 +606,7 @@ const char *houserail_topology_reload (void) {
             if (segment->display.angle == 0)
                 segment->display.angle = 36000; // Used as explicit origin flag.
         }
+        segment->feature = houseconfig_string (element, ".feature");
     }
 
     // Infer missing "next" links: could it be the subsequent segment?

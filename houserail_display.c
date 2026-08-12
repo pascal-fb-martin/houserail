@@ -73,6 +73,9 @@ static int TrackSignalFootFirst = 1;
 #define move_straight houserail_math_straight
 #define move_arc      houserail_math_arc
 
+static int TrackBridgesFirst = -1;
+static int TrackBridgesLast = -1;
+
 struct TrackSegmentDisplay {
 
     struct TrackShape shape;
@@ -81,6 +84,8 @@ struct TrackSegmentDisplay {
     struct TrackVertex origin; // Can be explicit in the layout, too
     struct TrackVertex end;
     struct TrackVertex reverse; // If a switch.
+
+    int nextbridge;
 };
 
 struct TrackDetectorDisplay {
@@ -478,6 +483,46 @@ static void draw_disc (const char *id,
     display_append (buffer, length);
 }
 
+static int is_bridge (int index) {
+
+    static const char bridgefeature [] = "bridge";
+
+    if (strsame (LayoutSegments[index].feature, bridgefeature)) return 1;
+    index = LayoutSegments[index].model;
+    if (strsame (LayoutModels[index].feature, bridgefeature)) return 1;
+    return 0;
+}
+
+static void draw_bridge_side (const struct TrackSegment *segment,
+                              const struct TrackSegmentDisplay *display,
+                              int width, int side) {
+
+    int angle = rotate (display->origin.angle, side);
+    int length = calculate_straight_length (segment);
+
+    struct TrackVertex ref, a, b, c, d;
+    move_straight (&(display->origin), &ref, angle, (3 * width) / 4);
+    move_straight (&ref, &a, display->origin.angle, length / 4);
+    move_straight (&a, &b, display->origin.angle, length / 2);
+    int edge = (side > 0)?6000:-6000;
+    move_straight (&a, &c, rotate (angle, edge), width);
+    move_straight (&b, &d, rotate (angle, 0 - edge), width);
+
+    char buffer[1024];
+    int size;
+    // Draw using the background color (#355b1eff) to erase everything below
+    size = snprintf (buffer, sizeof(buffer),
+                     "<path d=\"M %d %d L %d %d\""
+                         " stroke=\"#355b1eff\" stroke-width=\"%d\"/>\n",
+                     a.x, a.y, b.x, b.y, width / 2);
+    display_append (buffer, size);
+    size = snprintf (buffer, sizeof(buffer),
+                     "<path d=\"M %d %d L %d %d L %d %d L %d %d\""
+                         " stroke=\"white\" stroke-width=\"%d\"/>\n",
+                     c.x, c.y, a.x, a.y, b.x, b.y, d.x, d.y, width / 10);
+    display_append (buffer, size);
+}
+
 static void draw_track_background
                 (const struct TrackSegment *segment, int gap) {
 
@@ -640,12 +685,43 @@ static void draw_signal_animation (const struct TrackSignal *signal,
     draw_disc (id, &c, width / 2, "white");
 }
 
-static void generate_tracks (int width) {
-
-    static const char groupend[] = "</g>\n";
-
+static void generate_group_tracks (int width) {
     char group[256];
-    int length;
+    int length = snprintf (group, sizeof(group),
+                           "<g id=\"tracks\" fill=\"none\" stroke=\"#f0f0f0\""
+                               " stroke-width=\"%d\">\n", width);
+    display_append (group, length);
+}
+
+static void generate_group_trains (int width) {
+    char group[256];
+    int length = snprintf (group, sizeof(group),
+                           "<g id=\"trains\" fill=\"none\""
+                               " stroke-width=\"%d\">\n", width);
+    display_append (group, length);
+}
+
+static void generate_group_directions (int width) {
+    char group[256];
+    int length = snprintf (group, sizeof(group),
+                           "<g id=\"directions\" fill=\"none\""
+                               " stroke-width=\"%d\">\n", width);
+    display_append (group, length);
+}
+
+static void generate_group_signals (int width) {
+    char group[256];
+    int length = snprintf (group, sizeof(group),
+                           "<g id=\"signals\" stroke-width=\"%d\">\n", width);
+    display_append (group, length);
+}
+
+static void generate_group_end (void) {
+    static const char groupend[] = "</g>\n";
+    display_append (groupend, sizeof(groupend) - 1);
+}
+
+static void generate_tracks (int width) {
 
     // All the SVG elements are within a pan & zoom group. Both the pan
     // and zoom are defined by a matrix transform.
@@ -661,57 +737,93 @@ static void generate_tracks (int width) {
     // the order of the elements: the trains must be drawn over
     // the track backgrounds, and the indicators must be drawn over
     // the trains. They also use different stroke colors.
+    // Then it is done all over again for bridges (stacking order, again..
 
-    length = snprintf (group, sizeof(group),
-                       "<g id=\"tracks\" fill=\"none\" stroke=\"#f0f0f0\""
-                           " stroke-width=\"%d\">\n", width);
-    display_append (group, length);
+    generate_group_tracks (width);
 
     int gap = width / 7;
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         const struct TrackSegment *segment = LayoutSegments + i;
         if (!LayoutSegmentsDisplay[i].done) continue;
+        if (is_bridge (i)) {
+            if (TrackBridgesLast >= 0)
+                LayoutSegmentsDisplay[TrackBridgesLast].nextbridge = i;
+            else
+                TrackBridgesFirst = i;
+            TrackBridgesLast = i;
+            LayoutSegmentsDisplay[i].nextbridge = -1;
+            continue; // Do it later, in a bridge group.
+        }
         draw_track_background (segment, gap);
     }
-    display_append (groupend, sizeof(groupend) - 1);
+    generate_group_end(); // Tracks.
 
-    length = snprintf (group, sizeof(group),
-                       "<g id=\"trains\" fill=\"none\""
-                           " stroke-width=\"%d\">\n", width);
-    display_append (group, length);
+    generate_group_trains (width);
 
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         const struct TrackSegment *segment = LayoutSegments + i;
         if (!LayoutSegmentsDisplay[i].done) continue;
+        if (is_bridge (i)) continue; // Later.
         draw_train_animation (segment, "");
     }
-    display_append (groupend, sizeof(groupend) - 1);
+    generate_group_end(); // Trains
 
     int iwidth = width / 2;
     if (iwidth <= 1) iwidth = 2; // Direction indicators must remain visible.
 
-    length = snprintf (group, sizeof(group),
-                       "<g id=\"directions\" fill=\"none\""
-                           " stroke-width=\"%d\">\n", iwidth);
-    display_append (group, length);
+    generate_group_directions (iwidth);
 
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         const struct TrackSegment *segment = LayoutSegments + i;
         if (!LayoutSegmentsDisplay[i].done) continue;
+        if (is_bridge (i)) continue; // Later.
         draw_train_animation (segment, "~dir");
     }
-    display_append (groupend, sizeof(groupend) - 1);
+    generate_group_end(); // Directions
 
-    length = snprintf (group, sizeof(group),
-                       "<g id=\"signals\" stroke-width=\"%d\">\n", width / 10);
-    display_append (group, length);
+    if (TrackBridgesFirst >= 0) {
+        // Bridges are generated separately, after other tracks, to keep
+        // the stacking order intact.
+        // Limitation: no stacking of multiple bridges over each others.
+
+        static const char groupbridges[] = "<g id=\"bridges\">\n";
+        display_append (groupbridges, sizeof(groupbridges)-1);
+
+        generate_group_tracks (width);
+        for (i = TrackBridgesFirst;
+             i >= 0; i = LayoutSegmentsDisplay[i].nextbridge) {
+            const struct TrackSegment *segment = LayoutSegments + i;
+            const struct TrackSegmentDisplay *display = LayoutSegmentsDisplay + i;
+            draw_bridge_side (segment, display, width, 9000);
+            draw_bridge_side (segment, display, width, -9000);
+            draw_track_background (segment, gap);
+        }
+        generate_group_end(); // Tracks
+
+        generate_group_trains (width);
+        for (i = TrackBridgesFirst;
+             i >= 0; i = LayoutSegmentsDisplay[i].nextbridge) {
+            draw_train_animation (LayoutSegments + i, "");
+        }
+        generate_group_end(); // Trains
+
+        generate_group_directions (iwidth);
+        for (i = TrackBridgesFirst;
+             i >= 0; i = LayoutSegmentsDisplay[i].nextbridge) {
+             draw_train_animation (LayoutSegments + i, "~dir");
+        }
+        generate_group_end(); // Direction
+        generate_group_end(); // bridges
+    }
+
+    generate_group_signals (width / 10);
 
     for (i = 0; i < LayoutSignalsCount; ++i) {
         draw_signal_animation (LayoutSignals + i, "~sig", width);
     }
-    display_append (groupend, sizeof(groupend) - 1);
-    display_append (groupend, sizeof(groupend) - 1);
+    generate_group_end(); // Signals
+    generate_group_end(); // Pan & Zoom
 }
 
 static void generate_svg_tail (void) {

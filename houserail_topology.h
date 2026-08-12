@@ -50,6 +50,8 @@ struct TrackModel {
 
     struct TrackShape shape;
 
+    const char *feature;
+
     int usage; // Count how many segment reference this model.
 };
 
@@ -89,6 +91,8 @@ struct TrackSegment {
     int curve;
     struct TrackShape shape;    // The model's shape, adjusted.
     struct TrackVertex display; // Optional, {0,0,0} if not present.
+
+    const char *feature;
 };
 
 struct TrackDetector {

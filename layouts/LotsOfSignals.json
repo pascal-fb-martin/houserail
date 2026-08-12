@@ -23,7 +23,7 @@
              "distances":{"stop": 20, "slow": 35},
              "catalog":"AtlasCode80",
              "segments":[
-                 {"id":"NORTH-2","model":"2532","line":"main","start":0},
+                 {"id":"NORTH-2","model":"2547","line":"main","start":0},
                  {"id":"NORTH-3","model":"2513","line":"main"},
                  {"id":"NORTH-4","model":"2700","line":"main","common":"east-1","branch":"side1-5"},
                  {"id":"EAST-1","model":"2514","line":"main","curve":"right"},
