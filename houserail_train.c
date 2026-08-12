@@ -95,6 +95,7 @@
  */
 
 #include <time.h>
+#include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -186,6 +187,7 @@ struct TrainConsist {
     } queue;
     int pending;         // Count of DCC commands pending.
     time_t deadline;     // when to maintain the speed next
+    long long stopped;   // when the train was reported to have stopped (ms).
 };
 
 static struct VehicleModel *LayoutVehicleModels = 0;
@@ -267,6 +269,13 @@ static void houserail_train_turn (struct TrainConsist *train,
     }
 }
 
+static long long houserail_train_timestamp (void) {
+
+    struct timeval now;
+    gettimeofday (&now, 0);
+    return (1000LL * now.tv_sec) + now.tv_usec / 1000;
+}
+
 static void houserail_train_fleet (const char *id, int index) {
 
     int speed = houserail_field_fleet_speed (index);
@@ -296,6 +305,7 @@ static void houserail_train_fleet (const char *id, int index) {
                train->awry = 1; // Not really sure where this train stopped.
                train->direction = 0;
                train->deadline = 0;
+               train->stopped = houserail_train_timestamp();
            }
            houselog_event ("TRAIN", train->id, "SPEED", "CHANGED TO %d", speed);
            houserail_train_turn (train, "DCC report");
@@ -677,7 +687,14 @@ int houserail_train_tracking (const struct TrackRange *area,
                    train->id, train->tail.line, train->tail.post,
                               train->head.line, train->head.post,
                               area->line, area->low, area->high);
-            if (train->awry) return 0; // Uncertain location.
+            if (train->awry) {
+                // If the location of the train is unsure and this is not
+                // because the train was just stopped, we cannot rely on
+                // the knowledge of the location of each detector.
+
+                if ((timestamp - train->stopped) > 900)
+                    return 0; // Uncertain location.
+            }
             if (occupied)
                houserail_train_pull_occupied (train, area, timestamp);
             else
@@ -703,7 +720,8 @@ int houserail_train_tracking (const struct TrackRange *area,
     struct TrainConsist *train;
     for (i = 0; i < LayoutTrainsCount; ++i) {
         train = LayoutTrains + i;
-        if (train->speed == 0) continue;
+        if ((train->speed == 0) &&
+            ((timestamp - train->stopped) > 900)) continue;
         distance = houserail_train_distance (train, area, min, occupied);
         if ((distance > 0) && (distance < min)) {
            min = distance;
