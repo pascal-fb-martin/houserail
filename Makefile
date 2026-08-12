@@ -38,6 +38,8 @@ OBJS= houserail_scout.o \
       houserail_train.o
 LIBOJS=
 
+INCLUDES= $(OBJS:.o=.h)
+
 all: houserail layoutvalidate
 
 test: all
@@ -49,7 +51,7 @@ clean:
 
 rebuild: clean all
 
-%.o: %.c
+%.o: %.c $(INCLUDES)
 	gcc -c -Wall -g -O2 -o $@ $<
 
 houserail: houserail.o $(OBJS)
