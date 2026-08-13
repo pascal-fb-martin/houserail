@@ -295,7 +295,7 @@ static int houserail_train_stopping (void) {
                 train->deadline = train->stopping = 0;
                 houselog_event ("TRAIN", train->id,
                                 "STOPPED", "(DELAYED DCC REPORT)");
-                houserail_train_turn (train, "DELAYED DCC REPORT");
+                houserail_train_turn (train, "STOPPED");
                 changed = 1;
             }
         }
