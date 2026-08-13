@@ -173,10 +173,11 @@ struct TrainConsist {
     long long updated;
     short orientation;  // -1: decreasing, 1: increasing, 0: unknown.
     short length;       // Calculated from the consist.
-    short speed;        // As reported by HouseDCC.
     char parked;        // Not currently on this layout.
 
     // The fields below this point are live field not supposed to be saved.
+
+    short speed;         // As reported by HouseDCC.
     char awry;           // Location not confirmed yet.
     char active;         // 1 if reported by HouseDCC.
     char hasdcc;         // Learned from HouseDCC (DCC train consist)
@@ -276,7 +277,29 @@ static long long houserail_train_timestamp (void) {
     return (1000LL * now.tv_sec) + now.tv_usec / 1000;
 }
 
+static void houserail_train_stopping (void) {
+
+    long long deadline = 0;
+    int i;
+    for (i = 0; i < LayoutTrainsCount; ++i) {
+        struct TrainConsist *train = LayoutTrains + i;
+        if (train->stopping) {
+            if (!deadline) deadline = houserail_train_timestamp () - 900;
+            if (train->stopping <= deadline) {
+                // Finally declare this train stopped.
+                train->awry = 1; // Not sure where the train stopped.
+                train->speed = 0;
+                train->direction = 0;
+                train->deadline = train->stopping = 0;
+                houserail_train_turn (train, "DELAYED DCC REPORT");
+            }
+        }
+    }
+}
+
 static void houserail_train_fleet (const char *id, int index) {
+
+    houserail_train_stopping (); // Serves as an additional background.
 
     int speed = houserail_field_fleet_speed (index);
     DEBUG (__FILE__ ": received fleet update for %s, speed = %d\n", id, speed);
@@ -300,13 +323,19 @@ static void houserail_train_fleet (const char *id, int index) {
 
     if (train) {
        if (train->speed != speed) {
-           train->speed = speed;
            if (speed == 0) {
-               train->deadline = 0; // No speed to maintain anymore
-               train->stopping = houserail_train_timestamp();
-               houselog_event ("TRAIN", train->id, "STOPPING", "(DCC REPORT)");
+               // Do not change the speed yet: there is a lag due to processing
+               // time, DCC transmission delay and the locomotive physics.
+               if (!train->stopping) {
+                   train->deadline = 0; // No speed to maintain anymore
+                   train->stopping = houserail_train_timestamp();
+                   houselog_event ("TRAIN", train->id,
+                                   "STOPPING", "(DCC REPORT)");
+               }
            } else {
-               houselog_event ("TRAIN", train->id, "SPEED", "CHANGED TO %d", speed);
+               train->speed = speed;
+               houselog_event ("TRAIN", train->id,
+                               "SPEED", "CHANGED TO %d", speed);
            }
        }
        train->active = 1;
@@ -603,6 +632,7 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
 
     if (reverse) speed = 0 - speed;
     if (speed == train->speed) return 0; // No need to adjust.
+    if ((speed == 0) && (train->stopping)) return 0; // Working on it..
 
     if (train->pending || TrainTrackingBurstActive) {
         if ((!train->queue.has_speed) || (train->queue.speed != speed)) {
@@ -660,6 +690,7 @@ int houserail_train_tracking (const struct TrackRange *area,
     if (!area) {
         houserail_train_flush ();
         TrainTrackingBurstActive = 0;
+        houserail_train_stopping (); // Serves as an additional background.
         return 0;
     }
     TrainTrackingBurstActive = 1;
@@ -857,6 +888,7 @@ const char *houserail_train_enter (const char *id, const char *color,
     train->queue.has_speed = 0;
     train->deadline = 0;
     train->pending = 0;
+    train->stopping = 0;
 
     houselog_event ("TRAIN", train->id, "ENTER",
                     "COLOR %s FACING %s HEAD AT %s %d TAIL AT %s %d",
@@ -1252,25 +1284,9 @@ int houserail_train_locate (char *buffer, int size) {
 
 static void houserail_train_maintain_speed (time_t now) {
 
-    long long timestamp = 0;
-
     int i;
     for (i = 0; i < LayoutTrainsCount; ++i) {
         struct TrainConsist *train = LayoutTrains + i;
-        if (train->speed == 0) {
-            if (train->stopping > 0) {
-                if (!timestamp) timestamp = houserail_train_timestamp ();
-                if ((timestamp - train->stopping) >= 900) {
-                    // Finally declare this train stopped.
-                    train->awry = 1; // Not sure where the train stopped.
-                    train->direction = 0;
-                    train->deadline = 0;
-                    train->stopping = 0;
-                    houserail_train_turn (train, "DELAYED DCC REPORT");
-                }
-            }
-            continue;
-        }
         if (train->deadline == 0) continue;
         if (train->pending) continue;
         if (train->queue.has_speed) {
@@ -1283,6 +1299,7 @@ static void houserail_train_maintain_speed (time_t now) {
 }
 
 void houserail_train_background (time_t now) {
+    houserail_train_stopping ();
     houserail_train_maintain_speed (now);
 }
 
