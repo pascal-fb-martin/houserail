@@ -187,7 +187,7 @@ struct TrainConsist {
     } queue;
     int pending;         // Count of DCC commands pending.
     time_t deadline;     // when to maintain the speed next
-    long long stopped;   // when the train was reported to have stopped (ms).
+    long long stopping;  // when the train was reported to have stopped (ms).
 };
 
 static struct VehicleModel *LayoutVehicleModels = 0;
@@ -302,13 +302,12 @@ static void houserail_train_fleet (const char *id, int index) {
        if (train->speed != speed) {
            train->speed = speed;
            if (speed == 0) {
-               train->awry = 1; // Not really sure where this train stopped.
-               train->direction = 0;
-               train->deadline = 0;
-               train->stopped = houserail_train_timestamp();
+               train->deadline = 0; // No speed to maintain anymore
+               train->stopping = houserail_train_timestamp();
+               houselog_event ("TRAIN", train->id, "STOPPING", "(DCC REPORT)");
+           } else {
+               houselog_event ("TRAIN", train->id, "SPEED", "CHANGED TO %d", speed);
            }
-           houselog_event ("TRAIN", train->id, "SPEED", "CHANGED TO %d", speed);
-           houserail_train_turn (train, "DCC report");
        }
        train->active = 1;
        train->pending = 0;
@@ -404,7 +403,7 @@ static void houserail_train_pull (struct TrainConsist *train,
     DEBUG (__FILE__ ": train %s pull %s by %d posts\n",
            train->id, (direction >= 0)?"up":"down", distance);
 
-    houserail_train_turn (train, "tracking");
+    houserail_train_turn (train, "TRACKING");
 
     // Extend the path first, then move each train point along
     // the extended path, and then rollup the path. This way
@@ -687,14 +686,7 @@ int houserail_train_tracking (const struct TrackRange *area,
                    train->id, train->tail.line, train->tail.post,
                               train->head.line, train->head.post,
                               area->line, area->low, area->high);
-            if (train->awry) {
-                // If the location of the train is unsure and this is not
-                // because the train was just stopped, we cannot rely on
-                // the knowledge of the location of each detector.
-
-                if ((timestamp - train->stopped) > 900)
-                    return 0; // Uncertain location.
-            }
+            if (train->awry) return 0;
             if (occupied)
                houserail_train_pull_occupied (train, area, timestamp);
             else
@@ -720,8 +712,7 @@ int houserail_train_tracking (const struct TrackRange *area,
     struct TrainConsist *train;
     for (i = 0; i < LayoutTrainsCount; ++i) {
         train = LayoutTrains + i;
-        if ((train->speed == 0) &&
-            ((timestamp - train->stopped) > 900)) continue;
+        if ((train->speed == 0) && (!train->stopping)) continue;
         distance = houserail_train_distance (train, area, min, occupied);
         if ((distance > 0) && (distance < min)) {
            min = distance;
@@ -1261,11 +1252,26 @@ int houserail_train_locate (char *buffer, int size) {
 
 static void houserail_train_maintain_speed (time_t now) {
 
+    long long timestamp = 0;
+
     int i;
     for (i = 0; i < LayoutTrainsCount; ++i) {
         struct TrainConsist *train = LayoutTrains + i;
+        if (train->speed == 0) {
+            if (train->stopping > 0) {
+                if (!timestamp) timestamp = houserail_train_timestamp ();
+                if ((timestamp - train->stopping) >= 900) {
+                    // Finally declare this train stopped.
+                    train->awry = 1; // Not sure where the train stopped.
+                    train->direction = 0;
+                    train->deadline = 0;
+                    train->stopping = 0;
+                    houserail_train_turn (train, "DELAYED DCC REPORT");
+                }
+            }
+            continue;
+        }
         if (train->deadline == 0) continue;
-        if (train->speed == 0) continue;
         if (train->pending) continue;
         if (train->queue.has_speed) {
             houserail_train_drive (train, train->queue.speed, "queued");
