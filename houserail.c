@@ -396,7 +396,7 @@ static void rail_background (int fd, int mode) {
     housedepositor_periodic (now);
     housedepositor_state_background (now);
     houserail_field_background (now);
-    houserail_train_background (now);
+    if (houserail_train_background (now)) housestate_changed (LiveState);
 }
 
 static void rail_background_fast (int fd, int mode) {

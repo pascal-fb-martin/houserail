@@ -89,9 +89,10 @@
  *     That subset contains just the information needed to show each train
  *     at the right location on a track display.
  *
- * void houserail_train_background (time_t now);
+ * int houserail_train_background (time_t now);
  *
- *     Periodic update function.
+ *     Periodic update function.Return 1 when the internal state changed,
+ *     0 otherwise.
  */
 
 #include <time.h>
@@ -277,8 +278,9 @@ static long long houserail_train_timestamp (void) {
     return (1000LL * now.tv_sec) + now.tv_usec / 1000;
 }
 
-static void houserail_train_stopping (void) {
+static int houserail_train_stopping (void) {
 
+    int changed = 0;
     long long deadline = 0;
     int i;
     for (i = 0; i < LayoutTrainsCount; ++i) {
@@ -291,10 +293,14 @@ static void houserail_train_stopping (void) {
                 train->speed = 0;
                 train->direction = 0;
                 train->deadline = train->stopping = 0;
+                houselog_event ("TRAIN", train->id,
+                                "STOPPED", "(DELAYED DCC REPORT)");
                 houserail_train_turn (train, "DELAYED DCC REPORT");
+                changed = 1;
             }
         }
     }
+    return changed;
 }
 
 static void houserail_train_fleet (const char *id, int index) {
@@ -582,8 +588,6 @@ static const char *houserail_train_drive (struct TrainConsist *train,
                         "REQUESTED CHANGE FROM %d TO %d (%s)",
                         train->speed, speed, cause);
 
-    if (speed == 0) train->direction = 0;
-
     if (train->hasdcc) { // This is a DCC consist.
         train->pending += 1;
         train->deadline = (speed == 0)?0:time(0) + TrainSpeedRefreshPeriod;
@@ -608,8 +612,10 @@ static const char *houserail_train_drive (struct TrainConsist *train,
     return "Train is active but no DCC car was detected";
 }
 
-static const char *houserail_train_adjust (struct TrainConsist *train,
-                                           int reverse, int slow) {
+static const char *houserail_train_adjust_speed (struct TrainConsist *train,
+                                                 int reverse, int slow) {
+
+    if (train->stopping) return 0; // No adjustment until the dust settles.
 
     if (!train->active) return "No DCC locomotive detected for that consist";
     int restricted = houserail_track_restricted();
@@ -632,7 +638,6 @@ static const char *houserail_train_adjust (struct TrainConsist *train,
 
     if (reverse) speed = 0 - speed;
     if (speed == train->speed) return 0; // No need to adjust.
-    if ((speed == 0) && (train->stopping)) return 0; // Working on it..
 
     if (train->pending || TrainTrackingBurstActive) {
         if ((!train->queue.has_speed) || (train->queue.speed != speed)) {
@@ -718,14 +723,13 @@ int houserail_train_tracking (const struct TrackRange *area,
                               train->head.line, train->head.post,
                               area->line, area->low, area->high);
             if (train->awry) return 0;
+            if (train->speed == 0) return 0;
             if (occupied)
                houserail_train_pull_occupied (train, area, timestamp);
             else
                houserail_train_pull_vacant (train, area, timestamp);
 
-            // Adjust the train speed based on its new location.
-            if (train->speed != 0)
-                houserail_train_adjust (train, (train->speed < 0), 0);
+            houserail_train_adjust_speed (train, (train->speed < 0), 0);
 
             return 1; // Assume only one train within range.
         }
@@ -743,7 +747,7 @@ int houserail_train_tracking (const struct TrackRange *area,
     struct TrainConsist *train;
     for (i = 0; i < LayoutTrainsCount; ++i) {
         train = LayoutTrains + i;
-        if ((train->speed == 0) && (!train->stopping)) continue;
+        if (train->speed == 0) continue;
         distance = houserail_train_distance (train, area, min, occupied);
         if ((distance > 0) && (distance < min)) {
            min = distance;
@@ -760,9 +764,8 @@ int houserail_train_tracking (const struct TrackRange *area,
     houserail_train_pull (train, min, area, occupied?"ON":"OFF", timestamp);
     train->awry = 0;
 
-    // Adjust the train speed based on its new location.
     if (train->speed != 0)
-        houserail_train_adjust (train, (train->speed < 0), 0);
+        houserail_train_adjust_speed (train, (train->speed < 0), 0);
     return 1;
 }
 
@@ -785,7 +788,7 @@ const char *houserail_train_move (const char *id, const char *dir, int slow) {
     else if (strsame (dir, "backward")) reverse = 1;
     else return "Invalid direction";
 
-    return houserail_train_adjust (train, reverse, slow);
+    return houserail_train_adjust_speed (train, reverse, slow);
 }
 
 const char *houserail_train_stop (const char *id, int emergency) {
@@ -1298,8 +1301,9 @@ static void houserail_train_maintain_speed (time_t now) {
     }
 }
 
-void houserail_train_background (time_t now) {
-    houserail_train_stopping ();
+int houserail_train_background (time_t now) {
+    int changed = houserail_train_stopping ();
     houserail_train_maintain_speed (now);
+    return changed;
 }
 
