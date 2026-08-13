@@ -461,7 +461,7 @@ static int houserail_track_status_switches (char *buffer, int size) {
             const char *state = "invalid";
             if (status->needle == segment->branch)
                 state = "reverse";
-            if (status->needle == segment->next)
+            else if (status->needle == segment->next)
                 state = "normal";
             else if (status->needle == segment->previous)
                 state = "normal";
@@ -664,6 +664,26 @@ int houserail_track_vicinity (struct TrackLocation *point,
     return 1;
 }
 
+// Make one step to the next segment. This handles switches.
+//
+static int houserail_track_step (const struct TrackSegment *segment,
+                                 int direction) {
+
+    struct TrackSegmentLive *status = LayoutSegmentsLive + segment->index;
+
+    // The default is to follow the 'normal' direction
+    //
+    int next = (direction > 0) ? segment->next : segment->previous;
+    if (segment->branch < 0) return next; // No ambiguity.
+
+    // The segment is a switch. What is it geometry compare to the direction?
+    //
+    if (next < 0) return next; // Switches to nowhere don't exist.
+    if (next != segment->common)
+        return status->needle; // Follow the needle on a divergent switch
+    return next;
+}
+
 int houserail_track_civil (const struct TrackLocation *point,
                            int direction, const char **cause) {
 
@@ -718,7 +738,7 @@ int houserail_track_civil (const struct TrackLocation *point,
     int d = abs (point->post - goal);
     DEBUG (__FILE__ ": distance from segment after %s is %d\n", segment->id, d);
     if (d < LayoutOptions->stopDistance) {
-        int index2 = (direction > 0) ? segment->next : segment->previous;
+        int index2 = houserail_track_step (segment, direction);
         if (index2 < 0) return speed;
 
         segment = LayoutSegments + index2;
@@ -748,28 +768,6 @@ int houserail_track_civil (const struct TrackLocation *point,
         }
     }
     return speed;
-}
-
-// Make one step to the next segment. This handles switches.
-//
-static int houserail_track_step (const struct TrackSegment *segment,
-                                 int direction) {
-
-    struct TrackSegmentLive *status = LayoutSegmentsLive + segment->index;
-
-    // The default is to follow the 'normal' direction
-    //
-    int next = (direction > 0) ? segment->next : segment->previous;
-    if (segment->branch < 0) return next; // No ambiguity.
-
-    // The segment is a switch. What is it geometry compare to the direction?
-    //
-    if (next < 0) return next; // Switches to nowhere don't exist.
-    int geometry = (segment->common == segment->previous)?1:-1;
-    if (geometry == direction) { // Follow the needle on a divergent switch
-        return status->needle;
-    }
-    return next;
 }
 
 int houserail_track_walk (struct TrackRange *path, int size,
