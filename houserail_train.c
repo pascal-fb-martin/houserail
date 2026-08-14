@@ -646,14 +646,15 @@ static const char *houserail_train_adjust_speed (struct TrainConsist *train,
         const char *signal = houserail_signal_slow (&(train->path));
         if (signal != 0) {
             speed = restricted;
+            train->wait = signal;
             cause = "near stop signal";
             signal = houserail_signal_stop (&(train->path));
             if (signal) {
                 speed = 0;
                 train->wait = signal;
-                train->waitdirection = direction;
                 cause = "at stop signal";
             }
+            train->waitdirection = direction;
         }
     }
 
@@ -975,6 +976,7 @@ const char *houserail_train_consist (const char *id,
     train->direction = 0;
     train->active = 0;
     train->queue.has_speed = 0;
+    train->wait = 0;
 
     int length = 0;
     for (v = 0; v < count; ++v) {
@@ -1330,6 +1332,7 @@ static int houserail_train_waiting (void) {
     int i;
     for (i = 0; i < LayoutTrainsCount; ++i) {
         struct TrainConsist *train = LayoutTrains + i;
+        if (train->parked) continue;
         if (!train->wait) continue;
         if (train->stopping) continue;
         if (!houserail_signal_cleared (train->wait)) continue;
