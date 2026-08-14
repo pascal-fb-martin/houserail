@@ -1007,6 +1007,7 @@ const char *houserail_topology_reload (void) {
             signal->protected = -1;
             if (protected >= 0) {
                 const struct TrackSegment *segment = TopologySegments + protected;
+                const struct TrackModel *model = TopologyModels + segment->model;
 
                 // In front of a switch, the signal is part of a group that
                 // protects a route.
@@ -1014,8 +1015,13 @@ const char *houserail_topology_reload (void) {
                     signal->protected = protected; // Protects a switch segment.
                     continue;
                 }
+                if (strsame (segment->feature, "bridge") ||
+                    strsame (model->feature, "bridge")) {
+                    signal->protected = protected; // Protects a bridge.
+                    continue;
+                }
 
-                // If not in front of a switch, a signal protects
+                // If not in front of a switch or a bridge, a signal protects
                 // the transition between two segments.
                 if (protected > segmentindex)
                     signal->protected =
@@ -1024,7 +1030,7 @@ const char *houserail_topology_reload (void) {
                     signal->protected =
                         (segmentindex * TRACK_SEGMENTS_MAX) + protected;
 
-                // Set a flag to differentiate switch protection from
+                // Set a flag to differentiate switch & bridge protection from
                 // transition protection (zero is a valid segment index).
                 signal->protected |=
                     (4 * TRACK_SEGMENTS_MAX * TRACK_SEGMENTS_MAX);

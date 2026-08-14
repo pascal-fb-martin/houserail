@@ -27,6 +27,7 @@ TRACKDEPENDENCIES=../houserail_path.o \
                   ../houserail_math.o \
                   ../houserail_scout.o \
                   ../houserail_track.o \
+                  ../houserail_signal.o \
                   ../houserail_catalog.o
 
 HAPP=houserail

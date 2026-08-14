@@ -32,6 +32,7 @@ OBJS= houserail_scout.o \
       houserail_display.o \
       houserail_field.o \
       houserail_track.o \
+      houserail_signal.o \
       houserail_path.o \
       houserail_math.o \
       houserail_catalog.o \

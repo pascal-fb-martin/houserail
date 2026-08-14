@@ -37,6 +37,7 @@
 #include "houserail_catalog.h"
 #include "houserail_topology.h"
 #include "houserail_track.h"
+#include "houserail_signal.h"
 #include "houserail_display.h"
 #include "houserail_train.h"
 
@@ -56,6 +57,12 @@ static const char *validate_update (void) {
         return error;
     }
     if (BillMode) return 0;
+
+    error = houserail_signal_reload ();
+    if (error) {
+        printf ("** Cannot load signal topology: %s\n", error);
+        return error;
+    }
 
     if (DisplayMode) {
         error = houserail_display_reload ();
@@ -80,6 +87,7 @@ int main (int argc, const char **argv) {
     // Test mode is the default.
     houserail_topology_testmode (1);
     houserail_track_testmode (1);
+    houserail_signal_testmode (1);
     houserail_train_testmode (1);
 
     if (argc <= 1) {
@@ -95,6 +103,7 @@ int main (int argc, const char **argv) {
             houserail_topology_billmode (1);
             houserail_topology_testmode (0);
             houserail_track_testmode (0);
+            houserail_signal_testmode (0);
             houserail_train_testmode (0);
             BillMode = 1;
             DisplayMode = 0;
@@ -103,6 +112,7 @@ int main (int argc, const char **argv) {
             houserail_topology_billmode (0);
             houserail_topology_testmode (0);
             houserail_track_testmode (0);
+            houserail_signal_testmode (0);
             houserail_train_testmode (0);
             BillMode = 0;
             DisplayMode = 1;
@@ -121,6 +131,8 @@ int main (int argc, const char **argv) {
         error = houserail_topology_initialize (argc, argv);
     if (!error)
         error = houserail_track_initialize (argc, argv);
+    if (!error)
+        error = houserail_signal_initialize (argc, argv);
     if ((!error) && DisplayMode)
         error = houserail_display_initialize (argc, argv);
     if (!error)

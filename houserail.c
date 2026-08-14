@@ -58,6 +58,7 @@
 #include "houserail_topology.h"
 #include "houserail_field.h"
 #include "houserail_track.h"
+#include "houserail_signal.h"
 #include "houserail_display.h"
 #include "houserail_train.h"
 
@@ -366,7 +367,7 @@ static const char *rail_signal (const char *method, const char *uri,
     const char *id = echttp_parameter_get("id");
     const char *cmd = echttp_parameter_get("cmd");
 
-    const char *error = houserail_track_signal (id, cmd);
+    const char *error = houserail_signal_set (id, cmd);
     if (error) {
         echttp_error (500, error);
         return "";
@@ -410,6 +411,8 @@ static const char *rail_update (void) {
     error = houserail_topology_reload ();
     if (error) return error;
     error = houserail_track_reload ();
+    if (error) return error;
+    error = houserail_signal_reload ();
     if (error) return error;
     error = houserail_display_reload ();
     if (error) return error;
@@ -476,6 +479,8 @@ int main (int argc, const char **argv) {
     error = houserail_topology_initialize (argc, argv);
     if (error) goto fatal;
     error = houserail_track_initialize (argc, argv);
+    if (error) goto fatal;
+    error = houserail_signal_initialize (argc, argv);
     if (error) goto fatal;
     error = houserail_train_initialize (argc, argv);
     if (error) goto fatal;

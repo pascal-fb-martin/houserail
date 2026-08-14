@@ -94,8 +94,8 @@
              "signals":[
                  {"id":"WEST@307S","line":"main","post":307,"dir":"up"},
                  {"id":"EAST@101N","line":"main","post":101,"dir":"up"},
-                 {"id":"NORTH@410W","line":"main","post":410,"dir":"up"},
-                 {"id":"NORTH@2W","line":"main","post":2,"dir":"down"},
+                 {"id":"NORTH@410W","segment":"north-1","post":18,"dir":"up"},
+                 {"id":"NORTH@22E","segment":"north-3","post":2,"dir":"down"},
                  {"id":"NORTH@39W","line":"main","post":39,"dir":"up"},
                  {"id":"NORTH@61E","line":"main","post":61,"dir":"down"},
                  {"id":"SIDE1@99W","line":"side1","post":99,"dir":"up"},
@@ -104,7 +104,9 @@
                  {"id":"SIDE2@21W","line":"side2","post":21,"dir":"down"},
                  {"id":"SOUTH@225E","line":"main","post":225,"dir":"up"},
                  {"id":"SOUTH@247W","line":"main","post":247,"dir":"down"},
-                 {"id":"SIDE3@79E","line":"side3","post":79,"dir":"up"}
+                 {"id":"SIDE3@79E","line":"side3","post":79,"dir":"up"},
+                 {"id":"SIDE1@38W","line":"side1","post":38,"dir":"up"},
+                 {"id":"SIDE1@42E","line":"side1","post":42,"dir":"down"}
              ]
         }
     }

@@ -162,16 +162,13 @@
  *
  *     The valid states are "normal" and "reverse".
  *
- * const char *houserail_track_signal (const char *name, const char *state);
+ * const char *houserail_track_safe (const char *from, const char *to);
  *
- *     Set a signal to the specified state, locally and in the field (if any).
- *     This is designed to be used as a listener or through a web request.
- *     This function handles null pointers. Return 0 on success, an error
- *     message on failure.
+ *     If the two names refer to valid segments, and a movement between
+ *     the two segment is deemed safe, return a null pointer. Otherwise
+ *     return a description of the safety violation.
  *
- *     The valid states are "stop" and "go". Any other state causes the signal
- *     to turn off. If the state is "go", other signals protecting the same
- *     feature are forced to "stop".
+ *     This function is meant to be called from module houserail_signal.c.
  */
 
 #include <time.h>
@@ -190,6 +187,7 @@
 #include "houserail_scout.h"
 #include "houserail_field.h"
 #include "houserail_track.h"
+#include "houserail_signal.h"
 
 static int TestMode = 0;
 #define DEBUG if (TestMode || echttp_isdebug()) printf
@@ -234,11 +232,6 @@ static int                        LayoutSegmentsCount = 0;
 static const struct TrackDetector *LayoutDetectors = 0;
 static struct TrackDetectorLive   *LayoutDetectorsLive = 0;
 static int                         LayoutDetectorsCount = 0;
-
-static const struct TrackSignal *LayoutSignals = 0;
-static struct TrackSignalLive   *LayoutSignalsLive = 0;
-static int                       LayoutSignalsCount = 0;
-
 
 void houserail_track_testmode (int enabled) {
     TestMode = enabled;
@@ -303,9 +296,6 @@ const char *houserail_track_reload (void) {
     struct TrackDetectorLive *olddetectors = LayoutDetectorsLive;
     int olddetectorscount = LayoutDetectorsCount;
 
-    struct TrackSignalLive *oldsignals = LayoutSignalsLive;
-    int oldsignalscount = LayoutSignalsCount;
-
     LayoutOptions = houserail_topology_options ();
 
     LayoutModels      = houserail_topology_models ();
@@ -322,13 +312,6 @@ const char *houserail_track_reload (void) {
 
     LayoutDetectorsLive =
         calloc (LayoutDetectorsCount, sizeof(struct TrackDetectorLive));
-
-    LayoutSignals      = houserail_topology_signals ();
-    LayoutSignalsCount = houserail_topology_signal_count ();
-
-    if (LayoutSignalsCount > 0)
-        LayoutSignalsLive =
-            calloc (LayoutSignalsCount, sizeof(struct TrackSignalLive));
 
     // Initialize the segment status.
     //
@@ -375,33 +358,12 @@ const char *houserail_track_reload (void) {
         LayoutDetectorsLive[index].timestamp = olddetectors[i].timestamp;
     }
 
-    // Initialize the signal status.
-
-    for (i = 0; i < LayoutSignalsCount; ++i) {
-
-        struct TrackSignalLive *status = LayoutSignalsLive + i;
-        status->id = strdup (LayoutSignals[i].id);
-        status->state = 0;
-        status->timestamp = 0;
-    }
-
-    // Recover the (old) live status of signals, if applicable.
-
-    for (i = 0; i < oldsignalscount; ++i) {
-        int index = houserail_topology_search_signal (oldsignals[i].id);
-        if (index < 0) continue;
-        LayoutSignalsLive[index].state = oldsignals[i].state;
-        LayoutSignalsLive[index].timestamp = oldsignals[i].timestamp;
-    }
-
     for (i = 0; i < oldsegmentscount; ++i) free (oldsegments[i].id);
     for (i = 0; i < olddetectorscount; ++i) free (olddetectors[i].id);
-    for (i = 0; i < oldsignalscount; ++i) free (oldsignals[i].id);
     if (oldsegments) free (oldsegments);
     if (olddetectors) free (olddetectors);
-    if (oldsignals) free (oldsignals);
 
-    houselog_event ("TRACK", "LAYOUT", "READY", "");
+    houselog_event ("LAYOUT", "TRACK", "READY", "");
     return 0;
 }
 
@@ -475,32 +437,12 @@ static int houserail_track_status_switches (char *buffer, int size) {
     return cursor;
 }
 
-int houserail_track_status_signals (char *buffer, int size) {
-
-    static const char *namedstate[] = {"off", "stop", "go"};
-
-    int cursor = 0;
-    const char *prefix = ",\"signal\":[";
-
-    int i;
-    for (i = 0; i < LayoutSignalsCount; ++i) {
-        const struct TrackSignal *signal = LayoutSignals + i;
-        struct TrackSignalLive *status = LayoutSignalsLive + i;
-        const char *state = namedstate[status->state];
-        cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s[\"%s\",\"%s\"]", prefix, signal->id, state);
-        prefix = ",";
-    }
-    if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
-    return cursor;
-}
-
 int houserail_track_status (char *buffer, int size) {
 
     int cursor = houserail_track_status_segments (buffer, size);
     cursor += houserail_track_status_switches (buffer+cursor, size-cursor);
-    cursor += houserail_track_status_signals (buffer+cursor, size-cursor);
     cursor += houserail_track_detectors (buffer+cursor, size-cursor);
+    cursor += houserail_signal_status (buffer+cursor, size-cursor);
     return cursor;
 }
 
@@ -889,23 +831,6 @@ int houserail_track_distance (const struct TrackLocation *point1,
    return distance;
 }
 
-static void houserail_track_cancel (int protected, int operated) {
-
-    if (protected >= 0) {
-        int i;
-        for (i = 0; i < LayoutSignalsCount; ++i) {
-            // Skip the signal being operated and signals not in its group
-            if (i == operated) continue;
-            if (LayoutSignals[i].protected != protected) continue;
-
-            // Force this signal to stop, even if it was already marked
-            // as stopped to allow manual retries.
-            LayoutSignalsLive[i].state = 1;
-            houserail_field_signal_set (LayoutSignals[i].id, "stop");
-        }
-    }
-}
-
 const char *houserail_track_switch (const char *name, const char *state) {
 
     int index = houserail_topology_search_by_id (name);
@@ -915,66 +840,25 @@ const char *houserail_track_switch (const char *name, const char *state) {
     if (segment->branch < 0) return "Not a switch";
 
     struct TrackSegmentLive *status = LayoutSegmentsLive + index;
-    int oldstate = status->needle;
+    int oldposition = status->needle;
 
     if (strsame (state, "normal")) {
 
         status->needle =
             (segment->common == segment->next) ? segment->previous : segment->next;
-        houserail_field_switch_set (name, state);
 
     } else if (strsame (state, "reverse")) {
 
         status->needle = segment->branch;
-        houserail_field_switch_set (name, state);
 
     } else {
         status->needle = -1;
         return "Invalid switch command";
     }
 
-    // If the switch moved, cancel an existing route.
-    if (status->needle != oldstate) houserail_track_cancel (index, -1);
-    return 0;
-}
-
-const char *houserail_track_signal (const char *name, const char *state) {
-
-    int index = houserail_topology_search_signal (name);
-    if (index < 0) return "Invalid signal";
-
-    LayoutSignalsLive[index].timestamp = time(0);
-
-    // To set an individual signal to stop does not impact other signals
-    // since this is a safe operation.
-    if (strsame (state, "stop")) {
-        LayoutSignalsLive[index].state = 1;
-        houserail_field_signal_set (name, state);
-        return 0;
-    }
-
-    // If the signal to set to "go" protects a switch, then this switch must
-    // be aligned with the signal's segment, otherwise a derail is certain.
-    // To set an individual signal to go also requires cancelling the other
-    // signals protecting the same feature, to avoid train collisions.
-    if (strsame (state, "go")) {
-        int protected = LayoutSignals[index].protected;
-        if ((protected >= 0) && (protected < LayoutSegmentsCount)) {
-           int segment = houserail_topology_search_by_id
-                             (LayoutSignals[index].location.segment);
-           if ((LayoutSegments[protected].common != segment) &&
-               (LayoutSegmentsLive[protected].needle != segment)) {
-               return "Cannot allow movement on an unaligned switch";
-           }
-        }
-        houserail_track_cancel (protected, index);
-        LayoutSignalsLive[index].state = 2;
-        houserail_field_signal_set (name, state);
-        return 0;
-    }
-
-    LayoutSignalsLive[index].state = 0;
-    houserail_field_signal_set (name, "off");
+    // If the switch is going to move, cancel any existing route.
+    if (status->needle != oldposition) houserail_signal_protect (segment->id);
+    houserail_field_switch_set (name, state);
     return 0;
 }
 
@@ -985,5 +869,19 @@ int houserail_track_restricted (void) {
 int houserail_track_poll (void) {
     if (!LayoutOptions) return 200; // Reasonable value until we get a config.
     return LayoutOptions->fieldPollPeriod;
+}
+
+const char *houserail_track_safe (const char *from, const char *to) {
+
+    int origin = houserail_topology_search_by_id (from);
+    int destination = houserail_topology_search_by_id (to);
+    if ((origin < 0) || (destination < 0)) return "Invalid track";
+
+    if (LayoutSegments[destination].branch >= 0) {
+        if ((origin != LayoutSegments[destination].common) &&
+            (origin != LayoutSegmentsLive[destination].needle))
+            return "Cannot allow a movement to an unaligned switch";
+    }
+    return 0;
 }
 
