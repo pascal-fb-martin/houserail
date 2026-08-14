@@ -34,10 +34,12 @@
 #include "echttp.h"
 #include "houseconfig.h"
 
+#include "../houserail_types.h"
 #include "../houserail_catalog.h"
 #include "../houserail_topology.h"
 #include "../houserail_field.h"
 #include "../houserail_track.h"
+#include "../houserail_signal.h"
 #include "../houserail_train.h"
 
 #include "testlib.h"
@@ -51,6 +53,11 @@ static const char *test_update (void) {
     error = houserail_track_reload ();
     if (error) {
         printf ("** Cannot load track topology: %s\n", error);
+        return error;
+    }
+    error = houserail_signal_reload ();
+    if (error) {
+        printf ("** Cannot load signal topology: %s\n", error);
         return error;
     }
     printf ("== Track topology loaded.\n");
