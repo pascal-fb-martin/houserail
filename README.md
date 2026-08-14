@@ -136,7 +136,7 @@ Set the specified switch to the specified state.
 This returns an updated status of the tracks.
 
 ```
-/rail/signal?id=STRING&cmd=go|stop|off
+/rail/signal?id=STRING&cmd=clear|stop|off
 ```
 
 Set the specified signal to the specified state.
