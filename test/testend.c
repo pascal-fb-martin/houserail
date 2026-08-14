@@ -157,6 +157,8 @@ int main (int argc, const char **argv) {
     }
     if (TestListener) TestListener ("PFM4001", 1);
 
+    houserail_signal_set ("MAIN@60", "clear");
+
     // Create a new train and set it moving upward.
 
     const char *cars[] = {"PFM4001", "PFM1001"};

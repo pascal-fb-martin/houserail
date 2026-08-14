@@ -20,10 +20,10 @@
              "periods":{"poll": 50},
              "catalog":"KatoUnitrackN",
              "segments":[
-                 {"id":"main-1","model":"20-010","line":"main","next":"main-2"},
-                 {"id":"main-2","model":"20-010","line":"main","next":"main-3"},
-                 {"id":"main-3","model":"20-010","line":"main","next":"main-4"},
-                 {"id":"main-4","model":"20-010","line":"main","next":"main-5"},
+                 {"id":"main-1","model":"20-010","line":"main"},
+                 {"id":"main-2","model":"20-010","line":"main"},
+                 {"id":"main-3","model":"20-010","line":"main"},
+                 {"id":"main-4","model":"20-010","line":"main"},
                  {"id":"main-5","model":"20-041","line":"main"}
              ],
              "detectors":[
@@ -35,6 +35,9 @@
                  {"id":"main.6","line":"main","low":83,"high":85},
                  {"id":"main.7","line":"main","low":94,"high":95},
                  {"id":"main.8","line":"main","low":113,"high":114}
+             ],
+             "signals":[
+                 {"id":"main@60","line":"main","post":60,"dir":"down"}
              ]
         }
     }
