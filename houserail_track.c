@@ -363,7 +363,7 @@ const char *houserail_track_reload (void) {
     if (oldsegments) free (oldsegments);
     if (olddetectors) free (olddetectors);
 
-    houselog_event ("LAYOUT", "TRACK", "READY", "");
+    houselog_event ("LAYOUT", "TRACK", "LOADED", "");
     return 0;
 }
 

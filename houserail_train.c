@@ -1114,7 +1114,7 @@ const char *houserail_train_reload (void) {
       free (crossref);
    }
 
-   houselog_event ("TRAIN", "CONFIG", "LOADED",
+   houselog_event ("LAYOUT", "TRAIN", "LOADED",
                    "%d models %d vehicles (%d trains)",
                    LayoutVehicleModelsCount, LayoutVehiclesCount, LayoutTrainsCount);
 

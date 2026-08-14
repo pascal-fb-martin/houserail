@@ -1217,7 +1217,7 @@ const char *houserail_topology_reload (void) {
         printf (  "-----------------------------\n");
     }
 
-    houselog_event ("TOPOLOGY", "CONFIG", "LOADED",
+    houselog_event ("LAYOUT", "TOPOLOGY", "LOADED",
                     "%d models %d tracks %d detectors %d signals",
                     TopologyModelsCount,
                     TopologySegmentsCount,
