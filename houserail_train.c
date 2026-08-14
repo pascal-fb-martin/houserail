@@ -108,9 +108,11 @@
 #include "houselog.h"
 #include "houseconfig.h"
 
+#include "houserail_types.h"
+#include "houserail_path.h"
 #include "houserail_field.h"
 #include "houserail_track.h"
-#include "houserail_path.h"
+#include "houserail_signal.h"
 #include "houserail_train.h"
 
 static int TestMode = 0;
@@ -190,6 +192,8 @@ struct TrainConsist {
     int pending;         // Count of DCC commands pending.
     time_t deadline;     // when to maintain the speed next
     long long stopping;  // when the train was reported to have stopped (ms).
+
+    const char *wait;    // Name of the signal that the train is waiting on.
 };
 
 static struct VehicleModel *LayoutVehicleModels = 0;
@@ -616,6 +620,7 @@ static const char *houserail_train_adjust_speed (struct TrainConsist *train,
                                                  int reverse, int slow) {
 
     if (train->stopping) return 0; // No adjustment until the dust settles.
+    if (train->wait) return 0;     // The signal status will be checked later.
 
     if (!train->active) return "No DCC locomotive detected for that consist";
     int restricted = houserail_track_restricted();
@@ -634,6 +639,20 @@ static const char *houserail_train_adjust_speed (struct TrainConsist *train,
     if (slow && (speed > restricted)) {
         speed = restricted;
         cause = "slow order";
+    }
+
+    if (speed > 0) {
+        const char *signal = houserail_signal_slow (&(train->path));
+        if (signal != 0) {
+            speed = restricted;
+            cause = "near stop signal";
+            signal = houserail_signal_stop (&(train->path));
+            if (signal) {
+                speed = 0;
+                train->wait = signal;
+                cause = "at stop signal";
+            }
+        }
     }
 
     if (reverse) speed = 0 - speed;
@@ -892,6 +911,7 @@ const char *houserail_train_enter (const char *id, const char *color,
     train->deadline = 0;
     train->pending = 0;
     train->stopping = 0;
+    train->wait = 0;
 
     houselog_event ("TRAIN", train->id, "ENTER",
                     "COLOR %s FACING %s HEAD AT %s %d TAIL AT %s %d",
@@ -1301,8 +1321,28 @@ static void houserail_train_maintain_speed (time_t now) {
     }
 }
 
+static int houserail_train_waiting (void) {
+
+    int changed = 0;
+    int i;
+    for (i = 0; i < LayoutTrainsCount; ++i) {
+        struct TrainConsist *train = LayoutTrains + i;
+        if (!train->wait) continue;
+        if (train->stopping) continue;
+        if (!houserail_signal_cleared (train->wait)) continue;
+
+        int direction = houserail_signal_direction (train->wait);
+        int reverse = (direction != train->orientation);
+        houserail_train_adjust_speed (train, reverse, 0);
+        train->wait = 0;
+        changed = 1;
+    }
+    return changed;
+}
+
 int houserail_train_background (time_t now) {
     int changed = houserail_train_stopping ();
+    changed |= houserail_train_waiting ();
     houserail_train_maintain_speed (now);
     return changed;
 }

@@ -19,6 +19,8 @@
  *
  * houserail_signal.h - Signal logic and rules.
  */
+#include "houserail_path.h"
+
 void houserail_signal_testmode (int enabled);
 const char *houserail_signal_initialize (int argc, const char **argv);
 const char *houserail_signal_reload (void);
@@ -27,5 +29,10 @@ int houserail_signal_status (char *buffer, int size);
 
 void houserail_signal_protect (const char *name);
 const char *houserail_signal_set (const char *name, const char *state);
+
+const char *houserail_signal_slow (const struct TrackPath *path);
+const char *houserail_signal_stop (const struct TrackPath *path);
+int houserail_signal_cleared (const char *name);
+int houserail_signal_direction (const char *name);
 
 void houserail_signal_background (time_t now);

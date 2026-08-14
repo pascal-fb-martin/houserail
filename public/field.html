@@ -48,8 +48,8 @@ function railSignalStop () {
     railCommand ("/rail/signal?id="+ this.id + "&cmd=stop");
 }
 
-function railSignalGo () {
-    railCommand ("/rail/signal?id="+ this.id + "&cmd=go");
+function railSignalClear () {
+    railCommand ("/rail/signal?id="+ this.id + "&cmd=clear");
 }
 
 function railStopAll () {
@@ -120,7 +120,7 @@ function railShowSignals (response) {
         row.appendChild(column);
 
         column = document.createElement("td");
-        column.appendChild (newAction (id, "Go", railSignalGo));
+        column.appendChild (newAction (id, "Clear", railSignalClear));
         column.appendChild (newAction (id, "Stop", railSignalStop));
         row.appendChild(column);
     }

@@ -28,6 +28,24 @@
  *
  * const char *houserail_signal_initialize (int argc, const char **argv);
  *
+ * const char *houserail_signal_slow (const struct TrackPath *path);
+ *
+ *     Return the name of an upcoming stop signal, if within approach distance,
+ *     or a null pointer otherwise.
+ *
+ * const char *houserail_signal_stop (const struct TrackPath *path);
+ *
+ *     Return the name of an upcoming stop signal, if within stop distance,
+ *     or a null pointer otherwise.
+ *
+ * int houserail_signal_cleared (const char *name);
+ *
+ *     Return 1 if the named signal is in the cleared state, 0 otherwise.
+ *
+ * int houserail_signal_direction (const char *name);
+ *
+ *     Return the direction of the named signal.
+ *
  * int houserail_signal_status (char *buffer, int size);
  *
  *     Return the live status of signals in JSON format.
@@ -53,9 +71,9 @@
  *     This function handles null pointers. Return 0 on success, an error
  *     message on failure.
  *
- *     The valid states are "stop" and "go". Any other state causes the signal
- *     to turn off. If the state is "go", other signals protecting the same
- *     feature are forced to "stop".
+ *     The valid states are "stop" and "clear". Any other state causes the
+ *     signal to turn off. If the state is "clear", other signals protecting
+ *     the same feature are forced to "stop".
  */
 
 #include <time.h>
@@ -71,6 +89,7 @@
 #include <houseconfig.h>
 
 #include "houserail_topology.h"
+#include "houserail_path.h"
 #include "houserail_scout.h"
 #include "houserail_field.h"
 #include "houserail_track.h"
@@ -81,10 +100,14 @@ static int TestMode = 0;
 
 // This data structure "augments" the TrackSignal table with current status.
 //
+#define SIGNAL_OFF    0
+#define SIGNAL_STOP   1
+#define SIGNAL_CLEAR  2
+
 struct TrackSignalLive {
 
     char *id;
-    int state;           // 0: off, 1 stop, 2 go.
+    int state;           // See SIGNAL_OFF, SIGNAL_STOP, SIGNAL_CLEAR
     long long timestamp;
 };
 
@@ -130,7 +153,7 @@ const char *houserail_signal_reload (void) {
 
         struct TrackSignalLive *status = LayoutSignalsLive + i;
         status->id = strdup (LayoutSignals[i].id);
-        status->state = 0;
+        status->state = SIGNAL_OFF;
         status->timestamp = 0;
     }
 
@@ -152,7 +175,7 @@ const char *houserail_signal_reload (void) {
 
 int houserail_signal_status (char *buffer, int size) {
 
-    static const char *namedstate[] = {"off", "stop", "go"};
+    static const char *namedstate[] = {"off", "stop", "clear"};
 
     int cursor = 0;
     const char *prefix = ",\"signal\":[";
@@ -186,7 +209,7 @@ static void houserail_signal_cancel (int protected, int operated) {
 
             // Force this signal to stop, even if it was already marked
             // as stopped to allow manual retries.
-            LayoutSignalsLive[i].state = 1;
+            LayoutSignalsLive[i].state = SIGNAL_STOP;
             houserail_field_signal_set (LayoutSignals[i].id, "stop");
         }
     }
@@ -207,17 +230,17 @@ const char *houserail_signal_set (const char *name, const char *state) {
     // To set an individual signal to stop does not impact other signals
     // since this is a safe operation.
     if (strsame (state, "stop")) {
-        LayoutSignalsLive[index].state = 1;
+        LayoutSignalsLive[index].state = SIGNAL_STOP;
         houserail_field_signal_set (name, state);
         return 0;
     }
 
-    // If the signal to set to "go" protects a switch, then this switch must
+    // If the signal to set to "clear" protects a switch, this switch must
     // be aligned with the signal's segment, otherwise a derail is certain.
-    // To set an individual signal to go also requires cancelling the other
-    // signals protecting the same feature, to avoid train collisions.
+    // To set an individual signal to "clear" also requires cancelling the
+    // other signals protecting the same feature, to avoid train collisions.
 
-    if (strsame (state, "go")) {
+    if (strsame (state, "clear")) {
         int protected = LayoutSignals[index].protected;
         if ((protected >= 0) && (protected < LayoutSegmentsCount)) {
            const char *error =
@@ -226,7 +249,7 @@ const char *houserail_signal_set (const char *name, const char *state) {
            if (error) return error;
         }
         houserail_signal_cancel (protected, index);
-        LayoutSignalsLive[index].state = 2;
+        LayoutSignalsLive[index].state = SIGNAL_CLEAR;
         houserail_field_signal_set (name, state);
         return 0;
     }
@@ -234,5 +257,57 @@ const char *houserail_signal_set (const char *name, const char *state) {
     LayoutSignalsLive[index].state = 0;
     houserail_field_signal_set (name, "off");
     return 0;
+}
+
+const char *houserail_signal_near (const struct TrackPath *path, int max) {
+
+    if (path->count <= 0) return 0; // Should never happen.
+    const struct TrackRange *section = path->sections + path->count - 1;
+    int i = houserail_topology_search_by_location (section->line,
+                                                   section->high);
+    if (i < 0) return 0; // Should never happen.
+
+    // Search this segment and the next segments along the tracks.
+    const struct TrackSegment *segment = LayoutSegments + i;
+    int j;
+    int start = section->high;
+    for (;;) {
+        for (j = segment->signals; j >= 0; j = LayoutSignals[j].nextonsegment) {
+            if (LayoutSignals[j].direction != path->direction) continue;
+            if (LayoutSignalsLive[j].state == SIGNAL_CLEAR) continue;
+            if (abs(start - LayoutSignals[j].location.post) > max) continue;
+        }
+        int end = (path->direction > 0)? segment->high : segment->low;
+        max -= abs (end - start);
+        if (max <= 0) return 0;
+
+        // This is a very crude "next" segment, but who has signals placed
+        // within a switch anyway?
+        i = (path->direction > 0)? segment->next : segment->previous;
+        if (i < 0) return 0;
+        segment = LayoutSegments + i;
+        start = (path->direction > 0)? segment->low : segment->high;
+    }
+    return 0;
+}
+
+const char *houserail_signal_slow (const struct TrackPath *path) {
+    return houserail_signal_near (path, LayoutOptions->slowDistance);
+}
+
+const char *houserail_signal_stop (const struct TrackPath *path) {
+    return houserail_signal_near (path, LayoutOptions->stopDistance);
+}
+
+int houserail_signal_cleared (const char *name) {
+    int i = houserail_topology_search_signal (name);
+    if (i < 0) return 0;
+    return (LayoutSignalsLive[i].state == SIGNAL_CLEAR);
+}
+
+int houserail_signal_direction (const char *name) {
+    int i = houserail_topology_search_signal (name);
+    if (i < 0) return 0;
+    return LayoutSignals[i].direction;
 }
 

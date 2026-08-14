@@ -223,8 +223,8 @@ function setSignal () {
     var id = this.id.split ('~');
     var color = this.getAttribute ('fill');
     var cmd;
-    if (color == SignalGo) cmd = 'stop';
-    else cmd = 'go';
+    if (color == SignalClear) cmd = 'stop';
+    else cmd = 'clear';
 
     var url = RootUrl+"/signal?id="+id[0]+"&cmd="+cmd;
     var command = new XMLHttpRequest();
@@ -250,7 +250,7 @@ var SegmentTrain = 'red';
 var SegmentDirection = 'yellow';
 var SegmentDirectionStopped = 'white';
 var SignalStop = 'red';
-var SignalGo = 'lime';
+var SignalClear = 'lime';
 var SignalOld = 'white';
 
 function updateDisplay (response) {
@@ -300,7 +300,7 @@ function updateDisplay (response) {
             var signal =  response.rail.signal[i];
             var element = document.getElementById (signal[0] + '~sig');
             var fill = 'white';
-            if (signal[1] == 'go') fill = SignalGo;
+            if (signal[1] == 'clear') fill = SignalClear;
             else if (signal[1] == 'stop') fill = SignalStop;
             else fill = SignalOld;
             element.setAttribute ('fill', fill);
