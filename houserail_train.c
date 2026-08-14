@@ -646,15 +646,14 @@ static const char *houserail_train_adjust_speed (struct TrainConsist *train,
         const char *signal = houserail_signal_slow (&(train->path));
         if (signal != 0) {
             speed = restricted;
-            train->wait = signal;
             cause = "near stop signal";
             signal = houserail_signal_stop (&(train->path));
             if (signal) {
                 speed = 0;
-                train->wait = signal;
+                train->wait = signal; // Stopped on that signal.
+                train->waitdirection = direction;
                 cause = "at stop signal";
             }
-            train->waitdirection = direction;
         }
     }
 
