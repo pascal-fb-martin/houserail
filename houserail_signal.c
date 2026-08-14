@@ -276,6 +276,7 @@ const char *houserail_signal_near (const struct TrackPath *path, int max) {
             if (LayoutSignals[j].direction != path->direction) continue;
             if (LayoutSignalsLive[j].state == SIGNAL_CLEAR) continue;
             if (abs(start - LayoutSignals[j].location.post) > max) continue;
+            return LayoutSignals[j].id;
         }
         int end = (path->direction > 0)? segment->high : segment->low;
         max -= abs (end - start);

@@ -1333,8 +1333,8 @@ static int houserail_train_waiting (void) {
 
         int direction = houserail_signal_direction (train->wait);
         int reverse = (direction != train->orientation);
-        houserail_train_adjust_speed (train, reverse, 0);
         train->wait = 0;
+        houserail_train_adjust_speed (train, reverse, 0);
         changed = 1;
     }
     return changed;
