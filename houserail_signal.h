@@ -33,6 +33,5 @@ const char *houserail_signal_set (const char *name, const char *state);
 const char *houserail_signal_slow (const struct TrackPath *path);
 const char *houserail_signal_stop (const struct TrackPath *path);
 int houserail_signal_cleared (const char *name);
-int houserail_signal_direction (const char *name);
 
 void houserail_signal_background (time_t now);

@@ -42,10 +42,6 @@
  *
  *     Return 1 if the named signal is in the cleared state, 0 otherwise.
  *
- * int houserail_signal_direction (const char *name);
- *
- *     Return the direction of the named signal.
- *
  * int houserail_signal_status (char *buffer, int size);
  *
  *     Return the live status of signals in JSON format.
@@ -302,13 +298,7 @@ const char *houserail_signal_stop (const struct TrackPath *path) {
 
 int houserail_signal_cleared (const char *name) {
     int i = houserail_topology_search_signal (name);
-    if (i < 0) return 0;
+    if (i < 0) return 1; // If a signal was removed, that clears traffic.
     return (LayoutSignalsLive[i].state == SIGNAL_CLEAR);
-}
-
-int houserail_signal_direction (const char *name) {
-    int i = houserail_topology_search_signal (name);
-    if (i < 0) return 0;
-    return LayoutSignals[i].direction;
 }
 

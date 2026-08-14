@@ -194,6 +194,7 @@ struct TrainConsist {
     long long stopping;  // when the train was reported to have stopped (ms).
 
     const char *wait;    // Name of the signal that the train is waiting on.
+    int         waitdirection;
 };
 
 static struct VehicleModel *LayoutVehicleModels = 0;
@@ -650,6 +651,7 @@ static const char *houserail_train_adjust_speed (struct TrainConsist *train,
             if (signal) {
                 speed = 0;
                 train->wait = signal;
+                train->waitdirection = direction;
                 cause = "at stop signal";
             }
         }
@@ -912,6 +914,7 @@ const char *houserail_train_enter (const char *id, const char *color,
     train->pending = 0;
     train->stopping = 0;
     train->wait = 0;
+    train->waitdirection = 0;
 
     houselog_event ("TRAIN", train->id, "ENTER",
                     "COLOR %s FACING %s HEAD AT %s %d TAIL AT %s %d",
@@ -1331,9 +1334,9 @@ static int houserail_train_waiting (void) {
         if (train->stopping) continue;
         if (!houserail_signal_cleared (train->wait)) continue;
 
-        int direction = houserail_signal_direction (train->wait);
-        int reverse = (direction != train->orientation);
+        int reverse = (train->waitdirection != train->orientation);
         train->wait = 0;
+        train->waitdirection = 0;
         houserail_train_adjust_speed (train, reverse, 0);
         changed = 1;
     }
