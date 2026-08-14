@@ -834,6 +834,7 @@ const char *houserail_train_park (const char *id) {
     train->direction = 0;
     train->deadline = 0;
     train->pending = 0;
+    train->wait = 0;
 
     return 0; // Regardless of the stop command status.
 }
