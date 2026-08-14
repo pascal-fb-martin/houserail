@@ -557,6 +557,8 @@ const char *houserail_topology_reload (void) {
 
         // All these links will be resolved later.
         segment->next = segment->previous = segment->common = segment->branch = -1;
+        segment->signals = -1;
+
         int index = echttp_hash_insert (&TopologySegmentsHash, segment->id);
         if ((index > 0) && (index <= TopologySegmentsCount))
             TopologySegmentsMap[index] = i;
@@ -892,13 +894,29 @@ const char *houserail_topology_reload (void) {
         detector->signature = echttp_hash_signature (detector->id);
         detector->index = i;
 
-        detector->area.line = houseconfig_string (element, ".line");
+        detector->segment = -1;
         detector->area.segment = 0;
         detector->area.low = houseconfig_integer (element, ".low");
         detector->area.high = houseconfig_integer (element, ".high");
 
-        detector->segment =
-            houserail_topology_search_by_location (detector->area.line, detector->area.low);
+        detector->area.line = houseconfig_string (element, ".line");
+        if (detector->area.line) {
+            detector->segment =
+                houserail_topology_search_by_location (detector->area.line,
+                                                       detector->area.low);
+        } else {
+            const char *id = houseconfig_string (element, ".segment");
+            if (id) {
+                detector->segment = houserail_topology_search_by_id (id);
+                if (detector->segment < 0) {
+                    DEBUG (__FILE__ ": invalid segment %s for detector %s\n", id, detector->id);
+                    continue;
+                }
+                detector->area.low += TopologySegments[detector->segment].low;
+                detector->area.high += TopologySegments[detector->segment].low;
+                detector->area.line = TopologySegments[detector->segment].line;
+            }
+        }
         if (detector->segment < 0) {
             DEBUG (__FILE__ ": invalid location for detector %s\n", detector->id);
             continue;
@@ -928,6 +946,7 @@ const char *houserail_topology_reload (void) {
 
         for (i = 0; i < TopologySignalsCount; ++i) {
             int element = list[i];
+            int segmentindex;
             struct TrackSignal *signal = TopologySignals + i;
             signal->id = houseconfig_string (element, ".id");
             signal->signature = echttp_hash_signature (signal->id);
@@ -940,17 +959,33 @@ const char *houserail_topology_reload (void) {
             else if (strsame (direction, "down")) signal->direction = -1;
             else DEBUG (__FILE__ ": invalid direction %s for signal %s\n", direction, signal->id);
 
-            signal->location.line = houseconfig_string (element, ".line");
             signal->location.post = houseconfig_integer (element, ".post");
+            signal->location.line = houseconfig_string (element, ".line");
+            if (signal->location.line) {
+                segmentindex =
+                    houserail_topology_search_by_location (signal->location.line, signal->location.post);
+            } else {
+                const char *id = houseconfig_string (element, ".segment");
+                if (!id) {
+                    DEBUG (__FILE__ ": no location for signal %s\n", signal->id);
+                    continue;
+                }
+                segmentindex = houserail_topology_search_by_id (id);
+                if (segmentindex >= 0) {
+                    signal->location.post += TopologySegments[segmentindex].low;
+                    signal->location.line = TopologySegments[segmentindex].line;
+                }
+            }
 
-            int segmentindex =
-                houserail_topology_search_by_location (signal->location.line, signal->location.post);
             if (segmentindex < 0) {
                 DEBUG (__FILE__ ": invalid location for signal %s\n", signal->id);
                 continue;
             }
             struct TrackSegment *segment = TopologySegments + segmentindex;
             signal->location.segment = segment->id;
+
+            signal->nextonsegment = segment->signals;
+            segment->signals = i;
 
             int index = echttp_hash_insert (&TopologySignalsHash, signal->id);
             if ((index > 0) && (index <= TopologySignalsCount))
@@ -975,7 +1010,6 @@ const char *houserail_topology_reload (void) {
 
                 // In front of a switch, the signal is part of a group that
                 // protects a route.
-
                 if (segment->branch >= 0) {
                     signal->protected = protected; // Protects a switch segment.
                     continue;
@@ -983,7 +1017,6 @@ const char *houserail_topology_reload (void) {
 
                 // If not in front of a switch, a signal protects
                 // the transition between two segments.
-
                 if (protected > segmentindex)
                     signal->protected =
                         (protected * TRACK_SEGMENTS_MAX) + segmentindex;

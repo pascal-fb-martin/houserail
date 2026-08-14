@@ -46,6 +46,15 @@ If the physical length of an element is not specified, it is derived from its po
 
 An explicit scale value can be specified for a layout, using the `rail.scale` element (a positive number). If not present, the default is typically 160 (N scale), or the default scale of the track catalog, if any. Use with caution.
 
+## Locations
+
+There are two equivalent methods for identifying a specific track location on the layout:
+
+* Use `line` and `post` (absolute post value), or
+* Use `segments` and `post` (post value relative to the segment low post)..
+
+The benefit of the second method is that a change in the list of segments does ot impact those locations on segments that were untouched. Otherwise, any change to segments might change how posts are calculated, and thus impact many locations in the layout.
+
 ## Layout Identification
 
 The track topology data includes two fields that are intended for documentation purposes:
@@ -111,8 +120,12 @@ Detectors are specific to a layout and are stored in the `rail.track.detectors` 
 
 * `id`: an identifier for this detector, unique within the layout
 * `line`: name of the track line where this detector resides.
+* `segment`: name of the segment where this detector resides.
 * `low`: the low post limit for vehicle detection.
 * `high`: the high post limit for vehicle detection.
+
+> [!NOTE]
+> The fields `line` and `segment` are mutually exclusives. If `line` is present, `low` and `high` represent absolute post values. If `segment` is present, `low` and `high` represent values relatives to the segment low post.
 
 > [!WARNING]
 > In this design a detector can cover at most one full segment.
@@ -123,8 +136,12 @@ Signals are specific to a layout and are stored in the `rail.track.signals` arra
 
 * `id`: an identifier for this signal, unique within the layout
 * `line`: name of the track line where this signal is located.
+* `segment`: name of the segment where this signal is located.
 * `post`: the post where this signal is located.
 * `dir`: the direction that this signal protects.
+
+> [!NOTE]
+> The fields `line` and `segment` are mutually exclusives. If `line` is present, `post` represents an absolute post value. If `segment` is present, `post` represents a value relative to the segment low post.
 
 ## Track Catalogs
 

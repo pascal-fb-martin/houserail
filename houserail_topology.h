@@ -73,6 +73,8 @@ struct TrackSegment {
     short next;     // Link from exit point to the next segment. -1 if none.
     short previous; // Link from entry point to the previous segment. -1 if none.
 
+    short signals;  // Reference to a list of signals located on this segment.
+
     // The following items are for switches only, valid if branch >= 0.
     short common;   // The adjacent segment connected to the common switch end
     short branch;   // The adjacent segment connected to the reverse point.
@@ -119,6 +121,8 @@ struct TrackSignal {
     int protected;          // A unique signature of what is protected.
 
     struct TrackLocation location;
+
+    short nextonsegment;
 };
 
 void houserail_topology_testmode (int enabled);
