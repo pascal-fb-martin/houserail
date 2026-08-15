@@ -19,7 +19,7 @@ The software is optimized for smaller layouts that use fixed track sections. It 
 
 The software integrates with the House suite of services:
 
-- Configuration data centrally managed by the [HouseDepot](https://github.com/pascal-fb-martin/houseservice).
+- Configuration data centrally managed by the [HouseDepot](https://github.com/pascal-fb-martin/housedepot).
 - Save train events to permanent storage through the [HouseSaga](https://github.com/pascal-fb-martin/housesaga) service.
 - Control external devices (such as lights) based on HouseRail events using the [HouseMech](https://github.com/pascal-fb-martin/housemech) service.
 
