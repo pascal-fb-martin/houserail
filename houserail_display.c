@@ -114,6 +114,16 @@ static const struct TrackSignal *LayoutSignals = 0;
 static int                       LayoutSignalsCount = 0;
 
 
+static const char *display_background_color (void) {
+    if (LayoutOptions->backgroundColor) return LayoutOptions->backgroundColor;
+    return "#355b1eff";
+}
+
+static const char *display_foreground_color (void) {
+    if (LayoutOptions->foregroundColor) return LayoutOptions->foregroundColor;
+    return "white";
+}
+
 static int calculate_straight_length (const struct TrackSegment *segment) {
 
     // Explicit length.
@@ -385,7 +395,7 @@ static void display_append (const char *text, int length) {
 }
 
 static void generate_html_head (void) {
-    static const char head[] =
+    static const char headformat[] =
         "<html>\n"
         "<head>\n"
         "<link rel=\"stylesheet\" href=\"/rail/animate.css\">\n"
@@ -395,8 +405,11 @@ static void generate_html_head (void) {
         "</script>\n"
         "</head>\n"
         "<body style=\"margin: 0;\">\n"
-        "<div style=\"background-color: #355b1eff;\" width=\"100%%\">\n";
-    display_append (head, sizeof(head) - 1);
+        "<div style=\"background-color: %s;\" width=\"100%%\">\n";
+    char buffer[1024];
+    int length = snprintf (buffer, sizeof(buffer),
+                           headformat, display_background_color());
+    display_append (buffer, length);
 }
 
 static void generate_svg_head (const struct TrackVertex *min,
@@ -508,16 +521,18 @@ static void draw_bridge_side (const struct TrackSegment *segment,
 
     char buffer[1024];
     int size;
-    // Draw using the background color (#355b1eff) to erase everything below
+    // Draw using the background color to erase everything below
     size = snprintf (buffer, sizeof(buffer),
                      "<path d=\"M %d %d L %d %d\""
-                         " stroke=\"#355b1eff\" stroke-width=\"%d\"/>\n",
-                     a.x, a.y, b.x, b.y, width / 2);
+                         " stroke=\"%s\" stroke-width=\"%d\"/>\n",
+                     a.x, a.y, b.x, b.y,
+                     display_background_color(), width / 2);
     display_append (buffer, size);
     size = snprintf (buffer, sizeof(buffer),
                      "<path d=\"M %d %d L %d %d L %d %d L %d %d\""
-                         " stroke=\"white\" stroke-width=\"%d\"/>\n",
-                     c.x, c.y, a.x, a.y, b.x, b.y, d.x, d.y, width / 10);
+                         " stroke=\"%s\" stroke-width=\"%d\"/>\n",
+                     c.x, c.y, a.x, a.y, b.x, b.y, d.x, d.y,
+                     display_foreground_color(), width / 10);
     display_append (buffer, size);
 }
 
@@ -668,26 +683,28 @@ static void draw_signal_animation (const struct TrackSignal *signal,
     // Draw the signal's foot.
     move_straight (&reference, &a, angle, (3 * width) / 4);
     move_straight (&a, &b, angle, width);
-    if (LayoutOptions->showSignalFoot) draw_straight (0, &a, &b, "white", 0);
+    if (LayoutOptions->showSignalFoot)
+        draw_straight (0, &a, &b, display_foreground_color(), 0);
 
     // Draw the signal's pole, ends at the center of the signal.
     move_ratio (&a, &b, &p, 50);
     move_straight (&p, &c, rotate (angle, realign), width);
-    draw_straight (0, &c, &p, "white", 0);
+    draw_straight (0, &c, &p, display_foreground_color(), 0);
 
     // The signal circle must be drawn last, to be on top of the SVG
     // stacking order.
     char id[92];
     char *idend = id + sizeof(id);
     stpecpy (stpecpy (id, idend, signal->id), idend, classifier);
-    draw_disc (id, &c, width / 2, "white");
+    draw_disc (id, &c, width / 2, display_foreground_color());
 }
 
 static void generate_group_tracks (int width) {
     char group[256];
     int length = snprintf (group, sizeof(group),
-                           "<g id=\"tracks\" fill=\"none\" stroke=\"#f0f0f0\""
-                               " stroke-width=\"%d\">\n", width);
+                           "<g id=\"tracks\" fill=\"none\" stroke=\"%s\""
+                               " stroke-width=\"%d\">\n",
+                               display_foreground_color(), width);
     display_append (group, length);
 }
 

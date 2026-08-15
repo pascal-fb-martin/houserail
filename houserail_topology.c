@@ -1083,6 +1083,14 @@ const char *houserail_topology_reload (void) {
     DEBUG (__FILE__ ": show signal light %s\n",
            TopologyOptions.showSignalLightFirst?"first":"last ");
 
+    TopologyOptions.backgroundColor =
+        houseconfig_string (track, ".display.colors.background");
+    TopologyOptions.foregroundColor =
+        houseconfig_string (track, ".display.colors.foreground");
+    DEBUG (__FILE__ ": display background %s, foreground %s\n",
+           TopologyOptions.backgroundColor?TopologyOptions.backgroundColor:"default",
+           TopologyOptions.foregroundColor?TopologyOptions.foregroundColor:"default");
+
     // Preprocessing for end of track.
     // The goal here is to automatically slow trains when they approach,
     // and stop trains when they arrive at, a line's end.

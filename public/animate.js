@@ -251,7 +251,7 @@ var SegmentDirection = 'yellow';
 var SegmentDirectionStopped = 'white';
 var SignalStop = 'red';
 var SignalClear = 'lime';
-var SignalOld = 'white';
+var SignalOld = null;
 
 function updateDisplay (response) {
 
@@ -299,7 +299,8 @@ function updateDisplay (response) {
         for (var i = 0; i < response.rail.signal.length; ++i) {
             var signal =  response.rail.signal[i];
             var element = document.getElementById (signal[0] + '~sig');
-            var fill = 'white';
+            if (!SignalOld) SignalOld = element.getAttribute ('fill');
+            var fill;
             if (signal[1] == 'clear') fill = SignalClear;
             else if (signal[1] == 'stop') fill = SignalStop;
             else fill = SignalOld;

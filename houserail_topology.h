@@ -39,6 +39,9 @@ struct TrackOptions {
 
     int showSignalFoot;
     int showSignalLightFirst;
+
+    const char *backgroundColor;
+    const char *foregroundColor;
 };
 
 struct TrackModel {
