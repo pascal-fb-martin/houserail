@@ -8,10 +8,11 @@ This service provides a web user interface to control train traffic:
 
 - Build train consists.
 - Control movements of multiple trains simultaneously.
-- Operate signal and switches according to the train's destination.
+- Operate signal and turnouts.
+- Support basic interlocking logic: enforce signaling rules and coordinate the state of related turnouts and signals.
 - Enforce basic safety rules: comply with track speed limits, stop train at the ends of lines, at misaligned turnouts and at red signals.
-- Show live position of trains on a graphic track layout display.
-- Show live status of signals and turnouts, with one-click controls. Identify trains using colors.
+- Show live position of trains on a graphic track layout display. Identify trains using colors.
+- Show live status of signals and turnouts, with one-click controls.
 - Record train movements and speed changes as events.
 
 The software is optimized for smaller layouts that use fixed track sections. It supports turnouts and bridges. It is simple to configure: the JSON configuration data required is minimal and the software automatically generates the track display.
@@ -56,6 +57,9 @@ Other House services are optional:
 The [HouseDCC](https://github.com/pascal-fb-martin/housedcc) and [PiDCC](https://github.com/pascal-fb-martin/pidcc) applications must have been install on a Raspberry Pi computer accessible on the local network. (This HouseRail service may, but does not need to, run on a Raspberry Pi board.)
 
 One or more [HouseRelays](https://github.com/pascal-fb-martin/houserelays) services must have been installed on Raspberry Pi boards.
+
+> [!NOTE]
+> In this document, as in the entire project, the terms "turnout" and "switch" are synonymous. Model railroaders tend to use the term "turnout", while contemporary (real) railroads tend to use the term "switch".
 
 ## Web API
 
