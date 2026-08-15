@@ -83,6 +83,11 @@
  *
  *     Return the live status of trains in JSON format.
  *
+ * int houserail_train_colors (char *buffer, int size);
+ *
+ *     Return the user-defined list of train colors to use for this layout,
+ *     in JSON format.
+ *
  * int houserail_train_locate (char *buffer, int size);
  *
  *     Return a subset of the live status of trains in JSON format.
@@ -206,6 +211,9 @@ static int             LayoutVehiclesCount = 0;
 static struct TrainConsist *LayoutTrains = 0;
 static int                  LayoutTrainsCount = 0;
 static int                  LayoutTrainsSize = 0;
+
+static const char **LayoutColors = 0;
+static int          LayoutColorsCount = 0;
 
 static int TrainTrackingBurstActive = 0;
 
@@ -1040,6 +1048,12 @@ const char *houserail_train_reload (void) {
    }
    LayoutVehicleModelsCount = 0;
 
+   if (LayoutColors) {
+       free (LayoutColors);
+       LayoutColors = 0;
+   }
+   LayoutColorsCount = 0;
+
    int train = houseconfig_object (0, ".rail.train");
    if (train < 0) return "No train data";
 
@@ -1059,12 +1073,16 @@ const char *houserail_train_reload (void) {
    LayoutVehiclesCount = houseconfig_array_length (vehicles);
    if (LayoutVehiclesCount <= 0) return "Empty vehicles list";
 
+   int colors = houseconfig_array (train, ".colors");
+   if (colors >= 0) LayoutColorsCount = houseconfig_array_length (colors);
+
    int max = LayoutVehicleModelsCount;
    if (LayoutVehiclesCount > max) max = LayoutVehiclesCount;
+   if (LayoutColorsCount > max) max = LayoutColorsCount;
    int *list = calloc (max, sizeof(int));
 
-   DEBUG (__FILE__ ": %d models, %d vehicles\n",
-          LayoutVehicleModelsCount, LayoutVehiclesCount);
+   DEBUG (__FILE__ ": %d models, %d vehicles, %d colors\n",
+          LayoutVehicleModelsCount, LayoutVehiclesCount, LayoutColorsCount);
 
    LayoutVehicleModels = calloc (LayoutVehicleModelsCount,
                                  sizeof(struct VehicleModel));
@@ -1108,6 +1126,14 @@ const char *houserail_train_reload (void) {
       vehicle->consist = -1;
       DEBUG (__FILE__ ": Vehicle %s model %s\n",
              vehicle->id, LayoutVehicleModels[vehicle->model].id);
+   }
+
+   LayoutColors = calloc (LayoutColorsCount, sizeof(const char *));
+   houseconfig_enumerate (colors, list, LayoutColorsCount);
+
+   for (i = 0; i < LayoutColorsCount; ++i) {
+      int element = list[i];
+      LayoutColors[i] = houseconfig_string (element, 0);
    }
 
    if ((LayoutTrainsCount > 0) && oldvehicles) {
@@ -1184,6 +1210,25 @@ static const char *houserail_train_dccformat (struct TrainConsist *train) {
         }
     }
     return dcc; // Must be static!
+}
+
+int houserail_train_colors (char *buffer, int size) {
+
+    if (LayoutColorsCount <= 0)
+        return 0; // Let's wait for the configuration to be loaded.
+
+    int cursor = 0;
+    const char *prefix = ",\"colors\":[";
+
+    int i;
+    for (i = 0; i < LayoutColorsCount; ++i) {
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s\"%s\"", prefix, LayoutColors[i]);
+        if (cursor >= size) return 0;
+        prefix = ",";
+    }
+    if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
+    return cursor;
 }
 
 int houserail_train_status (char *buffer, int size) {

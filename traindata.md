@@ -12,13 +12,18 @@ The following classes of objects are considered:
 
 * Train consists define the list and order of vehicles that make a train.
 
-
 The lengths and post values int this database represent the [TO BE DECIDED STILL] protype scale values, typically the full scale size, not the actual size of the parts. Which unit is considered (meter, inch, mile) is purely a convention, which should be consistent within the same layout. It is not critical that the prototype scale be consistent with the model railroad scale (N, HO, O, etc). It is probably reasonable to match the milepost signs visible on the layout, if these are physically consistent with each others (i.e. the distance between two adjacent mileposts matches the marking on these two posts).
 
 > [!NOTE]
 > It is important that the prototype scale used in this track topology matches the speed scale used when controlling the trains. See HouseDCC for more information.
 
+## Train Colors
+
+The `rail.train.colors` element is an array of strings, each string representing an HTML color.
+
 ## Car Models
+
+The `rail.train.models` element is an array, where each item is an object:
 
 * `id`: vendor's product ID of the part.
 * `length`: length of the car.
@@ -26,10 +31,14 @@ The lengths and post values int this database represent the [TO BE DECIDED STILL
 
 ## Vehicles
 
+The `rail.train.vehicles` element is an array, where each item is an object:
+
 * `id`: user's ID of the vehicle.
 * `model`: the vendor's ID of the model that this vehicle belongs to.
 
 ## Train Consists
+
+(TBD)
 
 * `id`: user's ID of the train. If there is only one locomotive in this consist, this can be the same ID as the locomotive.
 * `parked`: when true this optional field indicates that this train consist is not currently operated on the layout. Default is false.

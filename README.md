@@ -6,19 +6,42 @@ A web service to control train traffic on a model railroad layout.
 
 This service provides a web user interface to control train traffic:
 
-- Direct train to move to a specific location.
-- Operate switches according to the train's destination.
+- Build train consists.
+- Control movements of multiple trains simultaneously.
+- Operate signal and switches according to the train's destination.
+- Enforce basic safety rules: comply with track speed limits, stop train at the ends of lines, at misaligned turnouts and at red signals.
+- Show live position of trains on a graphic track layout display.
+- Show live status of signals and turnouts, with one-click controls. Identify trains using colors.
+- Record train movements and speed changes as events.
 
-This service typically control trains and switches using the DCC protocol, but the DCC protocol itself is implemented as a separate service: [HouseDCC](https://github.com/pascal-fb-martin/housedcc).
+The software is optimized for smaller layouts that use fixed track sections. It supports turnouts and bridges. It is simple to configure: the JSON configuration data required is minimal and the software automatically generates the track display.
 
-> This is a work in progress that is one piece of a larger project.
+The software integrates with the House suite of services:
+
+- Configuration data centrally managed by the [HouseDepot](https://github.com/pascal-fb-martin/houseservice).
+- Save train events to permanent storage through the [HouseSaga](https://github.com/pascal-fb-martin/housesaga) service.
+- Control external devices (such as lights) based on HouseRail events using the [HouseMech](https://github.com/pascal-fb-martin/housemech) service.
+
+This service controls trains using the DCC protocol. The DCC protocol itself is implemented as a separate service: [HouseDCC](https://github.com/pascal-fb-martin/housedcc). That implementation uses a Raspberry Pi to generate the DCC signal, and a generic motor controller board as booster. HouseRail could work with a commercial DCC controller by implementing an alternative to the HouseDCC service.
+
+Switches and signals are controlled directly through GPIO, using a generic relay board when required.
+
+# Architecture
 
 A typical train traffic control system runs the following services:
 
 - This HouseRail service issue train and signaling commands (move, lights) according to the location of trains on the layout or user actions. These command are submitted using a generic train web API, with no explicit DCC dependencies.
-- HouseDCC accepts these generic web commands, translates them into specific DCC messages and submits these messages to PiDCC (through a local pipe).
-- PiDCC generates the PWM wave form conform to the DCC standard and uses it to control the GPIO pins attached to a power booster.
-- One or more HouseRelays services to access train detectors on the tracks.
+- [HouseDCC](https://github.com/pascal-fb-martin/housedcc) accepts these generic web commands, translates them into specific DCC messages and submits these messages to PiDCC (through a local pipe).
+- [PiDCC](https://github.com/pascal-fb-martin/pidcc) generates the PWM wave form conform to the DCC standard and uses it to control the GPIO pins attached to a power booster.
+- One or more [HouseRelays](https://github.com/pascal-fb-martin/houserelays) service instances to access train detectors on the tracks and control signals and turnouts.
+- The [HouseDepot](https://github.com/pascal-fb-martin/housedepot) service is strongly recommended for handling configuration data. It offers a centralized configuration repository with automatic detection and activation of configuration changes. Configuration rollback is supported as well.
+- The [HousePortal](https://github.com/pascal-fb-martin/houseportal) service, running on every computers of the system, allows the application services to discovers, and communicate with, each other. Using HousePortal eliminate much need for manual configuration.
+
+Other House services are optional:
+
+- [HouseSaga](https://github.com/pascal-fb-martin/housesaga) to save events to permanent storage.
+- [Housemech](https://github.com/pascal-fb-martin/housemech) to trigger controls based on train events. (HouseMech requires HouseSaga.)
+- [HouseLights}(https://github.com/pascal-fb-martin/houselights) to control light or other electrical devices from HouseMech. The actual interface to the devices is implemented by services like [HouseKasa](https://github.com/pascal-fb-martin/housekasa), [HouseTuya](https://github.com/pascal-fb-martin/housetuya) or [HouseWiz](https://github.com/pascal-fb-martin/housewiz).
 
 ## Installation
 
@@ -35,6 +58,20 @@ The [HouseDCC](https://github.com/pascal-fb-martin/housedcc) and [PiDCC](https:/
 One or more [HouseRelays](https://github.com/pascal-fb-martin/houserelays) services must have been installed on Raspberry Pi boards.
 
 ## Web API
+
+```
+/rail/train/colors[?known=NUMBER]
+```
+
+Return the list of train colors used on this layout.
+
+This returns JSON data with the following format:
+
+* host:          the name of the host replying.
+* timestamp:     the time when the response was built.
+* latest:        the current state of the server (see the `known` parameter).
+* rail.layout:   the name of the layout managed by this server.
+* rail.colors:   an array that lists the train colors (strings).
 
 ```
 /rail/train/status[?known=NUMBER]

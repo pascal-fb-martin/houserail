@@ -76,7 +76,8 @@ function railSortTrains (a, b) {
     return a.id > b.id;
 }
 
-const TrainColors = ['Red', 'Salmon', 'Orange', 'DarkKhaki', 'Magenta', 'SlateBlue', 'Lime', 'SpringGreen', 'DarkTurquoise', 'RoyalBlue'];
+// Default colors.
+var TrainColors = ['Red', 'Salmon', 'Orange', 'DarkKhaki', 'Magenta', 'SlateBlue', 'Lime', 'SpringGreen', 'DarkTurquoise', 'RoyalBlue'];
 
 function railShowTrains (response) {
 
@@ -201,6 +202,13 @@ function railLoadDetectors (response) {
    RailLastStatus = 0; // Force a table refresh.
 }
 
+function railLoadColors (response) {
+
+   if (!response.rail.colors) return;
+   TrainColors = response.rail.colors;
+   RailLastStatus = 0; // Force a table refresh.
+}
+
 function railGetDetectors () {
 
     var command = new XMLHttpRequest();
@@ -209,6 +217,20 @@ function railGetDetectors () {
         if (command.readyState === 4) {
             if (command.status === 200) {
                 railLoadDetectors (JSON.parse(command.responseText));
+            }
+        }
+    }
+    command.send(null);
+}
+
+function railGetColors () {
+
+    var command = new XMLHttpRequest();
+    command.open("GET", "/rail/train/colors");
+    command.onreadystatechange = function () {
+        if (command.readyState === 4) {
+            if (command.status === 200) {
+                railLoadColors (JSON.parse(command.responseText));
             }
         }
     }
@@ -224,6 +246,7 @@ function railStatus () {
 
 window.onload = function() {
    railGetDetectors();
+   railGetColors();
    railStatus();
    setInterval (railStatus, 333);
 };

@@ -5,6 +5,7 @@
          "layout":"LotsOfSignals",
          "description":"Test the positioning of signals on track displays",
          "train":{
+             "colors":["Red","Orange","SlateBlue","Lime"],
              "models":[
                  {"id":"ATLAS-GP-40","length":19,"spots":[4,15]},
                  {"id":"CONCOR-N70T","length":12,"spots":[5,7]}

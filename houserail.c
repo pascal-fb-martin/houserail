@@ -199,6 +199,19 @@ static const char *rail_status_train (const char *method, const char *uri,
     return JsonBuffer;
 }
 
+static const char *rail_status_colors (const char *method, const char *uri,
+                                       const char *data, int length) {
+
+    if (housestate_same (ConfigState)) return "";
+
+    int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), ConfigState);
+
+    cursor += houserail_train_colors (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
+    cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
+    echttp_content_type_json ();
+    return JsonBuffer;
+}
+
 // Create or modify a train consist.
 //
 static const char *rail_consist (const char *method, const char *uri,
@@ -495,6 +508,7 @@ int main (int argc, const char **argv) {
     echttp_protect (0, rail_protect);
 
     echttp_route_uri ("/rail/train/status",   rail_status_train);
+    echttp_route_uri ("/rail/train/colors",   rail_status_colors);
     echttp_route_uri ("/rail/track/detector", rail_detector);
     echttp_route_uri ("/rail/train/consist",  rail_consist);
     echttp_route_uri ("/rail/train/delete",   rail_delete_train);
