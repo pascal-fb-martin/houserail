@@ -486,11 +486,18 @@ static void draw_disc (const char *id,
                        const struct TrackVertex *center,
                        int radius, const char *fill) {
 
-    char buffer[160];
+    char idparm[120];
+    if (id) snprintf (idparm, sizeof(idparm), " id=\"%s\"", id);
+    else idparm[0] = 0;
+
+    char fillparm[32];
+    if (fill) snprintf (fillparm, sizeof(fillparm), " fill=\"%s\"", fill);
+    else fillparm[0] = 0;
+
+    char buffer[180];
     int length = snprintf (buffer, sizeof(buffer),
-                           "<circle id=\"%s\" cx=\"%d\" cy=\"%d\" r=\"%d\""
-                               " fill=\"%s\" stroke-width=\"0\"/>\n",
-                           id, center->x, center->y, radius, fill);
+                           "<circle%s cx=\"%d\" cy=\"%d\" r=\"%d\"%s/>\n",
+                           idparm, center->x, center->y, radius, fillparm);
     display_append (buffer, length);
 }
 
@@ -617,6 +624,11 @@ static void draw_train_animation (const struct TrackSegment *segment,
    }
 }
 
+static void generate_group_end (void) {
+    static const char groupend[] = "</g>\n";
+    display_append (groupend, sizeof(groupend) - 1);
+}
+
 static void move_ratio (const struct TrackVertex *v1,
                         const struct TrackVertex *v2,
                         struct TrackVertex *mid, int ratio) {
@@ -624,6 +636,16 @@ static void move_ratio (const struct TrackVertex *v1,
     mid->x = houserail_math_interpolate (v1->x, v2->x, ratio);
     mid->y = houserail_math_interpolate (v1->y, v2->y, ratio);
     mid->angle = v1->angle;
+}
+
+static void draw_arrow (const struct TrackVertex *a,
+                        const struct TrackVertex *b,
+                        const struct TrackVertex *c) {
+    char buffer[180];
+    int length = snprintf (buffer, sizeof(buffer),
+                            "<path d=\"M %d %d L %d %d L %d %d\"/>\n",
+                            a->x, a->y, b->x, b->y, c->x, c->y);
+    display_append (buffer, length);
 }
 
 static void draw_signal_animation (const struct TrackSignal *signal,
@@ -676,27 +698,59 @@ static void draw_signal_animation (const struct TrackSignal *signal,
         }
     }
 
-    if (LayoutOptions->showSignalLightFirst) realign = 0 - realign;
-
     struct TrackVertex c, p, a, b;
 
-    // Draw the signal's foot.
-    move_straight (&reference, &a, angle, (3 * width) / 4);
-    move_straight (&a, &b, angle, width);
-    if (LayoutOptions->showSignalFoot)
-        draw_straight (0, &a, &b, display_foreground_color(), 0);
-
-    // Draw the signal's pole, ends at the center of the signal.
-    move_ratio (&a, &b, &p, 50);
-    move_straight (&p, &c, rotate (angle, realign), width);
-    draw_straight (0, &c, &p, display_foreground_color(), 0);
-
-    // The signal circle must be drawn last, to be on top of the SVG
-    // stacking order.
     char id[92];
     char *idend = id + sizeof(id);
     stpecpy (stpecpy (id, idend, signal->id), idend, classifier);
-    draw_disc (id, &c, width / 2, display_foreground_color());
+
+    switch (LayoutOptions->showSignalLightStyle) {
+
+    case SIGNAL_CLASSIC:
+
+        if (LayoutOptions->showSignalLightFirst) realign = 0 - realign;
+
+        // Draw the signal's foot.
+        move_straight (&reference, &a, angle, (3 * width) / 4);
+        move_straight (&a, &b, angle, width);
+        if (LayoutOptions->showSignalFoot)
+            draw_straight (0, &a, &b, display_foreground_color(), 0);
+
+        // Draw the signal's pole, ends at the center of the signal.
+        move_ratio (&a, &b, &p, 50);
+        move_straight (&p, &c, rotate (angle, realign), width);
+        draw_straight (0, &c, &p, display_foreground_color(), 0);
+
+        // The signal circle must be drawn last, to be on top of the SVG
+        // stacking order.
+        draw_disc (id, &c, width / 2, display_foreground_color());
+        break;
+
+     case SIGNAL_ARROW:
+        char group[80];
+        int length = snprintf (group, sizeof(group),
+                               "<g id=\"%s\" fill=\"%s\">\n",
+                               id, display_foreground_color());
+        display_append (group, length);
+
+        // Draw the signal's circle.
+        move_straight (&reference, &c, angle, (5 * width) / 4);
+        draw_disc (0, &c, width / 2, 0);
+
+        // Draw the arrow
+        angle = rotate (angle, realign);
+        move_straight (&c, &p, angle, width);
+        move_straight (&p, &a, rotate (angle, 13000), width / 2);
+        move_straight (&p, &b, rotate (angle, -13000), width / 2);
+        draw_arrow (&a, &p, &b);
+
+        generate_group_end ();
+        break;
+
+     default:
+        return;
+    }
+
 }
 
 static void generate_group_tracks (int width) {
@@ -729,11 +783,6 @@ static void generate_group_signals (int width) {
     int length = snprintf (group, sizeof(group),
                            "<g id=\"signals\" stroke-width=\"%d\">\n", width);
     display_append (group, length);
-}
-
-static void generate_group_end (void) {
-    static const char groupend[] = "</g>\n";
-    display_append (groupend, sizeof(groupend) - 1);
 }
 
 static void generate_tracks (int width) {

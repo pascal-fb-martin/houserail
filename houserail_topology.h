@@ -23,6 +23,10 @@
 
 #include "houserail_types.h"
 
+// List of supported signal styles
+#define SIGNAL_CLASSIC 0
+#define SIGNAL_ARROW   1
+
 struct TrackOptions {
 
     const char *name;
@@ -37,8 +41,9 @@ struct TrackOptions {
     short scale;
     short postDistance;
 
-    int showSignalFoot;
-    int showSignalLightFirst;
+    char showSignalFoot;
+    char showSignalLightFirst;
+    char showSignalLightStyle;
 
     const char *backgroundColor;
     const char *foregroundColor;

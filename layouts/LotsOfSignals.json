@@ -23,7 +23,7 @@
              "speeds":{"restricted": 10, "reverse": 20},
              "distances":{"stop": 20, "slow": 35},
              "display":{
-                 "signal": {"foot":"show", "light": "last"},
+                 "signal": {"light": "arrow"},
                  "colors":{"background":"#355b1eff","foreground":"white"}
              },
              "catalog":"AtlasCode80",

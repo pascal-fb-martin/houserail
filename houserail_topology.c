@@ -1079,9 +1079,15 @@ const char *houserail_topology_reload (void) {
            TopologyOptions.showSignalFoot?"":"do not ");
 
     option = houseconfig_string (track, ".display.signal.light");
-    TopologyOptions.showSignalLightFirst = strsame (option, "first");
-    DEBUG (__FILE__ ": show signal light %s\n",
-           TopologyOptions.showSignalLightFirst?"first":"last ");
+    if (strsame (option, "arrow")) {
+        TopologyOptions.showSignalLightStyle = SIGNAL_ARROW;
+        DEBUG (__FILE__ ": show signal light with arrow\n");
+    } else {
+        TopologyOptions.showSignalLightStyle = SIGNAL_CLASSIC;
+        TopologyOptions.showSignalLightFirst = strsame (option, "first");
+        DEBUG (__FILE__ ": show signal light %s\n",
+               TopologyOptions.showSignalLightFirst?"first":"last ");
+    }
 
     TopologyOptions.backgroundColor =
         houseconfig_string (track, ".display.colors.background");
