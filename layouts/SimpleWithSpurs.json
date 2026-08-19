@@ -22,6 +22,10 @@
              "speeds":{"restricted": 10, "reverse": 20},
              "distances":{"stop": 20, "slow": 35},
              "catalog":"AtlasCode80",
+             "display":{
+                 "signal": {"light": "arrow"},
+                 "colors":{"background":"#355b1eff","foreground":"white"}
+             },
              "segments":[
                  {"id":"NORTH-2","model":"2532","line":"main","start":0},
                  {"id":"NORTH-3","model":"2513","line":"main"},
