@@ -18,6 +18,10 @@
              "speeds":{"restricted": 10, "reverse": 20},
              "distances":{"stop": 20, "slow": 35},
              "periods":{"poll": 50},
+             "display":{
+                 "signal": {"light": "arrow"},
+                 "colors":{"background":"#355b1eff","foreground":"white"}
+             },
              "catalog":"KatoUnitrackN",
              "segments":[
                  {"id":"main-1","model":"20-010","line":"main"},
