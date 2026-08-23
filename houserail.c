@@ -420,6 +420,7 @@ static void rail_background_fast (int fd, int mode) {
 static const char *rail_update (void) {
 
     housestate_changed (ConfigState);
+    houserail_catalog_clear ();
     const char *error = 0;
     error = houserail_topology_reload ();
     if (error) return error;

@@ -188,7 +188,7 @@ int houserail_field_fleet_speed (int index) {
     return FleetDb[index].speed;
 }
 
-int houserail_field_fleet_find (const char *id, int update) {
+static int houserail_field_fleet_find (const char *id, int update) {
 
     int i;
     int empty = -1;
