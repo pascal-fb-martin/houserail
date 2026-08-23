@@ -179,7 +179,7 @@ int main (int argc, const char **argv) {
     int done = houserail_path_span (&testpath, &start, 10, 1);
     int passed =
     assert (((done == 1) &&
-             (testpath.count == 1) && (testpath.count < testpath.size) &&
+             (testpath.count == 1) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post + 10)),
@@ -189,7 +189,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_lengthen (&testpath, 100);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 2) && (testpath.count < testpath.size) &&
+             (testpath.count == 2) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post + 20) &&
@@ -202,7 +202,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_lengthen (&testpath, 110);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 3) && (testpath.count < testpath.size) &&
+             (testpath.count == 3) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post + 20) &&
@@ -219,7 +219,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_lengthen (&testpath, 200);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 3) && (testpath.count < testpath.size) &&
+             (testpath.count == 3) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post + 20) &&
@@ -235,7 +235,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_span (&testpath, &start, 10, -1);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 1) && (testpath.count < testpath.size) &&
+             (testpath.count == 1) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post - 10)),
@@ -246,7 +246,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_lengthen (&testpath, 100);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 2) && (testpath.count < testpath.size) &&
+             (testpath.count == 2) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == 0) &&
@@ -259,7 +259,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_span (&testpath, &start, 100, 1);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 2) && (testpath.count < testpath.size) &&
+             (testpath.count == 2) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post + 10) &&
@@ -272,7 +272,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_span (&testpath, &start, 100, -1);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 2) && (testpath.count < testpath.size) &&
+             (testpath.count == 2) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post - 10) &&
@@ -315,7 +315,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_set (&testpath, &start, &end, 1);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 3) && (testpath.count < testpath.size) &&
+             (testpath.count == 3) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post + 10) &&
@@ -336,7 +336,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_set (&testpath, &rollup, &truncate, 1);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 3) && (testpath.count < testpath.size) &&
+             (testpath.count == 3) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post+5) &&
              (testpath.sections[0].high == start.post + 10) &&
@@ -356,7 +356,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_set (&testpath, &rollup, &extend, 1);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 3) && (testpath.count < testpath.size) &&
+             (testpath.count == 3) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == rollup.line) &&
              (testpath.sections[0].low == rollup.post) &&
              (testpath.sections[0].high == rollup.post + 5) &&
@@ -372,7 +372,7 @@ int main (int argc, const char **argv) {
     starting ("houserail_path_turn()");
     houserail_path_turn (&testpath, -1);
     passed =
-    assert (((testpath.count == 3) && (testpath.count < testpath.size) &&
+    assert (((testpath.count == 3) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == extend.line) &&
              (testpath.sections[0].low == extend.post) &&
              (testpath.sections[0].high == 200) &&
@@ -391,7 +391,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_rollup (&testpath, &rollup);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 3) && (testpath.count < testpath.size) &&
+             (testpath.count == 3) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == rollup.line) &&
              (testpath.sections[0].low == rollup.post) &&
              (testpath.sections[0].high == rollup.post + 5) &&
@@ -413,7 +413,7 @@ int main (int argc, const char **argv) {
     passed =
     assert (done == 1, "houserail_path_rollup(complete segment) status") &&
     assert (testpath.count == 2, "houserail_path_rollup(complete segment) count") &&
-    assert (testpath.count < testpath.size, "houserail_path_rollup(complete segment) size") &&
+    assert (testpath.count < PATH_MAXSIZE, "houserail_path_rollup(complete segment) size") &&
     assert(strsame (testpath.sections[0].line, "bbb"), "houserail_path_rollup(complete segment) section 0 line") &&
     assert (testpath.sections[0].low == 120, "houserail_path_rollup(complete segment) section 0 low") &&
     assert (testpath.sections[0].high == 130, "houserail_path_rollup(complete segment) section 0 high") &&
@@ -429,7 +429,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_truncate (&testpath, &truncate);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 3) && (testpath.count < testpath.size) &&
+             (testpath.count == 3) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post + 10) &&
@@ -448,7 +448,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_extend (&testpath, &extend);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 3) && (testpath.count < testpath.size) &&
+             (testpath.count == 3) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post + 10) &&
@@ -467,7 +467,7 @@ int main (int argc, const char **argv) {
     done = houserail_path_extend (&testpath, &extend);
     passed =
     assert (((done == 1) &&
-             (testpath.count == 4) && (testpath.count < testpath.size) &&
+             (testpath.count == 4) && (testpath.count < PATH_MAXSIZE) &&
              (testpath.sections[0].line == start.line) &&
              (testpath.sections[0].low == start.post) &&
              (testpath.sections[0].high == start.post + 10) &&
@@ -560,14 +560,10 @@ int main (int argc, const char **argv) {
 
     // Test overlap with made up paths.
 
-    struct TrackRange sections1[3];
     struct TrackPath path1;
-    struct TrackRange sections2[3];
+    struct TrackRange *sections1 = path1.sections; // Shorter alias.
     struct TrackPath path2;
-
-    path1.size = path2.size = 3;
-    path1.sections = sections1;
-    path2.sections = sections2;
+    struct TrackRange *sections2 = path2.sections; // Shorter alias.
 
     path1.count = path2.count = 1;
     sections1[0].line = sections2[0].line = "line1";

@@ -26,14 +26,15 @@
 
 #include "houserail_types.h"
 
+#define PATH_MAXSIZE  16
+
 struct TrackPath {
-   int count;
-   int size;
-   int direction;
-   struct TrackRange *sections;
+   short count;
+   short direction;
+   struct TrackRange sections[PATH_MAXSIZE];
 };
 
-static const struct TrackPath TrackPathNew = {0, 0, 0, 0};
+static const struct TrackPath TrackPathNew = {0};
 
 int houserail_path_covers (const struct TrackPath *path,
                            const struct TrackRange *area);

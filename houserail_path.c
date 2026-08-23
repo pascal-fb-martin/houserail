@@ -32,7 +32,12 @@
  * A path is oriented according to the train's direction of travel. The path
  * for a stopped train must be in the tail-to-head direction.
  *
- * The namig  convention in this module is that the name "direction"
+ * A newly created path should be initialized using constant TrackPathNew,
+ * as in:
+ *
+ *    struct TrackPath path = TrackPathNew;
+ *
+ * The naming convention in this module is that the name "direction"
  * denotes the train's (and path's) direction, while the name "orientation"
  * denotes an orientation relative to the path's direction.
  *
@@ -112,11 +117,14 @@
  *
  * void houserail_path_erase (struct TrackPath *path);
  *
- *    Empty the specified path.
+ *    Empty the specified path. The path must have been initialized
+ *    at some point in its history. This does not free any memory.
  *
  * void houserail_path_release (struct TrackPath *path);
  *
- *    Deallocate every resources for this path.
+ *    Deallocate every resources for this path. The path must have been
+ *    initialized at some point in its history.
+ *    This may free memory if any was allocated dynamically.
  */
 
 #include <unistd.h>
@@ -174,7 +182,7 @@ int houserail_path_covers (const struct TrackPath *path,
         high = area->low;
     }
 
-    struct TrackRange *sections = path->sections;
+    const struct TrackRange *sections = path->sections;
     int i;
     for (i = 0; i < path->count; ++i) {
         const struct TrackRange *section = sections + i;
@@ -192,14 +200,14 @@ int houserail_path_covers (const struct TrackPath *path,
 int houserail_path_overlap (const struct TrackPath *path1,
                             const struct TrackPath *path2) {
 
-    struct TrackRange *sections1 = path1->sections;
-    struct TrackRange *sections2 = path2->sections;
+    const struct TrackRange *sections1 = path1->sections;
+    const struct TrackRange *sections2 = path2->sections;
 
     int count1 = path1->count;
     int count2 = path2->count;
     int i;
     for (i = 0; i < count1; ++i) {
-         struct TrackRange *section1 = sections1 + i;
+         const struct TrackRange *section1 = sections1 + i;
          int low, high;
          if (section1->low <= section1->high) {
              low = section1->low;
@@ -210,7 +218,7 @@ int houserail_path_overlap (const struct TrackPath *path1,
          }
          int j;
          for (j = 0; j < count2; ++j) {
-              struct TrackRange *section2 = sections2 + j;
+              const struct TrackRange *section2 = sections2 + j;
               if (!strsame (section1->line, section2->line)) continue;
               if ((low > section2->high) && (low > section2->low)) continue;
               if ((high < section2->high) && (high < section2->low)) continue;
@@ -229,11 +237,7 @@ int houserail_path_span (struct TrackPath *path,
     if (path->count > 0) houserail_path_erase (path);
 
     path->direction = direction;
-    if (path->size <= 0) {
-        path->size = 16; // FIXME: arbitrary.
-        path->sections = calloc (path->size, sizeof(struct TrackRange));
-    }
-    int count = houserail_track_walk (path->sections, path->size,
+    int count = houserail_track_walk (path->sections, PATH_MAXSIZE,
                                       limit1, 0, direction, length);
     if (count > 0) {
         path->count = count;
@@ -260,11 +264,7 @@ int houserail_path_set (struct TrackPath *path,
 
     // Recalculate a path from scratch.
     path->direction = direction;
-    if (path->size <= 0) {
-        path->size = 16; // FIXME: arbitrary.
-        path->sections = calloc (path->size, sizeof(struct TrackRange));
-    }
-    int count = houserail_track_walk (path->sections, path->size,
+    int count = houserail_track_walk (path->sections, PATH_MAXSIZE,
                                       limit1, limit2, direction, 0);
     if (count > 0) {
         path->count = count;
@@ -298,7 +298,7 @@ int houserail_path_lengthen (struct TrackPath *path, int distance) {
     start.segment = last->segment;
     start.post = last->high;
 
-    int count = houserail_track_walk (last+1, path->size - path->count,
+    int count = houserail_track_walk (last+1, PATH_MAXSIZE - path->count,
                                        &start, 0, direction, distance);
     if (count > 0) {
         houserail_path_merge (path, count);
@@ -327,7 +327,7 @@ int houserail_path_extend (struct TrackPath *path,
     start.segment = 0;
     start.post = last->high;
 
-    int count = houserail_track_walk (last+1, path->size - path->count,
+    int count = houserail_track_walk (last+1, PATH_MAXSIZE - path->count,
                                       &start, point, direction, 0);
     if (count > 0) {
         houserail_path_merge (path, count);
@@ -370,7 +370,7 @@ int houserail_path_move (const struct TrackPath *path,
                          struct TrackLocation *point,
                          int distance, int orientation) {
 
-    struct TrackRange *sections = path->sections;
+    const struct TrackRange *sections = path->sections;
     struct TrackLocation original = *point;
 
     int i;
@@ -386,7 +386,7 @@ int houserail_path_move (const struct TrackPath *path,
     int direction = path->direction * orientation;
     point->segment = 0; // This point may be moving out of the known segment.
     for (;;) {
-        struct TrackRange *section = sections + i;
+        const struct TrackRange *section = sections + i;
         point->line = section->line;
         point->post = (direction >= 0) ? post + distance : post - distance;
         if (houserail_path_within (section, point)) return 1;
@@ -445,14 +445,10 @@ void houserail_path_turn (struct TrackPath *path, int direction) {
 }
 
 void houserail_path_erase (struct TrackPath *path) {
-    path->count = 0;
-    path->direction = 0;
+    *path = TrackPathNew; // No dynamic initialization to keep trace of.
 }
 
 void houserail_path_release (struct TrackPath *path) {
-    if (path->size > 0) {
-       free (path->sections);
-    }
-    *path = TrackPathNew;
+    houserail_path_erase (path); // Same for now: nothing to release.
 }
 

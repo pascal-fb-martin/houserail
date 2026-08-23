@@ -844,6 +844,8 @@ const char *houserail_train_park (const char *id) {
     train->pending = 0;
     train->wait = 0;
 
+    houserail_path_erase (&(train->path));
+
     return 0; // Regardless of the stop command status.
 }
 
@@ -872,8 +874,7 @@ const char *houserail_train_enter (const char *id, const char *color,
     if (! houserail_track_vicinity (&(train->head), facing, orientation))
         return "Invalid track location";
 
-    train->path.size = train->path.count = 0;
-    train->path.sections = 0;
+    houserail_path_erase (&(train->path)); // Better safe than sorry.
 
     // Calculate the train's head and tail location, and its path.
     // Apply a small jolt to avoid the train to cover the device.
@@ -965,7 +966,10 @@ const char *houserail_train_consist (const char *id,
            if (vehicle->consist != train->index) continue; // Impossible?
            vehicle->consist = -1;
         }
-    } else {
+        houserail_path_erase (&(train->path)); // Better safe than sorry.
+
+    } else { // New train.
+
         if (LayoutTrainsCount >= LayoutTrainsSize) {
             LayoutTrainsSize += 16;
             LayoutTrains = (struct TrainConsist *)
@@ -973,9 +977,9 @@ const char *houserail_train_consist (const char *id,
                          sizeof(struct TrainConsist) * LayoutTrainsSize);
         }
         train = LayoutTrains + LayoutTrainsCount;
+        train->index = LayoutTrainsCount++;
         strtcpy (train->id, id, sizeof(train->id));
         train->signature = echttp_hash_signature (id);
-        train->index = LayoutTrainsCount++;
         train->path = TrackPathNew;
         train->color[0] = 0;
         isnew = 1;
