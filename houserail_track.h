@@ -74,6 +74,7 @@ const char *houserail_track_signal (const char *name, const char *state);
 
 int houserail_track_poll (void);
 
-const char *houserail_track_safe (const char *from, const char *to);
+const char *houserail_track_safe (const char *from,
+                                  const char *to, const char **exit);
 #endif
 

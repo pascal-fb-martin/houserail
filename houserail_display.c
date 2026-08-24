@@ -501,15 +501,15 @@ static void draw_disc (const char *id,
     display_append (buffer, length);
 }
 
-static int is_bridge (int index) {
+static int is_feature (int index, const char *feature) {
 
-    static const char bridgefeature [] = "bridge";
-
-    if (strsame (LayoutSegments[index].feature, bridgefeature)) return 1;
+    if (strsame (LayoutSegments[index].feature, feature)) return 1;
     index = LayoutSegments[index].model;
-    if (strsame (LayoutModels[index].feature, bridgefeature)) return 1;
+    if (strsame (LayoutModels[index].feature, feature)) return 1;
     return 0;
 }
+static int is_bridge (int index) {return is_feature (index, "bridge");}
+static int is_rerail (int index) {return is_feature (index, "rerailer");}
 
 static void draw_bridge_side (const struct TrackSegment *segment,
                               const struct TrackSegmentDisplay *display,
@@ -540,6 +540,31 @@ static void draw_bridge_side (const struct TrackSegment *segment,
                          " stroke=\"%s\" stroke-width=\"%d\"/>\n",
                      c.x, c.y, a.x, a.y, b.x, b.y, d.x, d.y,
                      display_foreground_color(), width / 10);
+    display_append (buffer, size);
+}
+
+static void draw_rerail_side (const struct TrackSegment *segment,
+                              const struct TrackSegmentDisplay *display,
+                              int width, int side) {
+
+    int angle = rotate (display->origin.angle, side);
+    int length = calculate_straight_length (segment);
+
+    struct TrackVertex ref, a, b, c, d;
+    move_straight (&(display->origin), &ref, angle, (3 * width) / 4);
+    move_straight (&ref, &a, display->origin.angle, length / 3);
+    move_straight (&a, &b, display->origin.angle, length / 3);
+    int edge = (side > 0)?8500:-8500;
+    move_straight (&a, &c, rotate (angle, edge), length / 3);
+    move_straight (&b, &d, rotate (angle, 0 - edge), length / 3);
+
+    char buffer[1024];
+    int size;
+    size = snprintf (buffer, sizeof(buffer),
+                     "<path d=\"M %d %d L %d %d L %d %d L %d %d\""
+                         " stroke-width=\"0\" fill=\"%s\"/>\n",
+                     a.x, a.y, b.x, b.y, d.x, d.y, c.x, c.y,
+                     display_foreground_color());
     display_append (buffer, size);
 }
 
@@ -674,11 +699,11 @@ static void draw_signal_animation (const struct TrackSignal *signal,
     // as a signal could bump into the near track. Some specific cases
     // require flipping over the side of the signal.
 
-    if (signal->protected < LayoutSegmentsCount) {
-        const struct TrackSegment *protected = LayoutSegments + signal->protected;
-        if (protected->branch == segmentidx) {
+    if (signal->entry >= 0 && signal->entry < LayoutSegmentsCount) {
+        const struct TrackSegment *entry = LayoutSegments + signal->entry;
+        if (entry->branch == segmentidx) {
 
-            if (protected->shape.arc > 0) {
+            if (entry->shape.arc > 0) {
                 // The signal on the reverse branch of a switch bumps into
                 // the main track.
                 angle = rotate (reference.angle,
@@ -686,9 +711,9 @@ static void draw_signal_animation (const struct TrackSignal *signal,
                 realign = 9000;
             }
 
-        } else if (protected->common != segmentidx) {
+        } else if (entry->common != segmentidx) {
 
-            if (protected->shape.arc < 0) {
+            if (entry->shape.arc < 0) {
                 // The signal on the normal branch of a switch bumps into
                 // the reverse track.
                 angle = rotate (reference.angle,
@@ -809,15 +834,19 @@ static void generate_tracks (int width) {
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
         const struct TrackSegment *segment = LayoutSegments + i;
-        if (!LayoutSegmentsDisplay[i].done) continue;
+        struct TrackSegmentDisplay *display = LayoutSegmentsDisplay + i;
+        if (!display->done) continue;
         if (is_bridge (i)) {
             if (TrackBridgesLast >= 0)
-                LayoutSegmentsDisplay[TrackBridgesLast].nextbridge = i;
+                display->nextbridge = i;
             else
                 TrackBridgesFirst = i;
             TrackBridgesLast = i;
-            LayoutSegmentsDisplay[i].nextbridge = -1;
+            display->nextbridge = -1;
             continue; // Do it later, in a bridge group.
+        } else if (is_rerail (i)) {
+            draw_rerail_side (segment, display, width, 9000);
+            draw_rerail_side (segment, display, width, -9000);
         }
         draw_track_background (segment, gap);
     }

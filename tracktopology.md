@@ -12,9 +12,9 @@ The following classes of objects are considered:
 
 * Track detectors define the devices that detect the presence of cars. The technology employed (relay reeds, infrared detectors, current sensors, etc) does not really matter here, what counts at this level is the span of track where cars can be detected. Track detectors may not covers the whole length of the track: a coverage hole is handled as a dark territory.
 
-* Signals describe every individual signal on the layout. Note that signals are linked to the next segment, according to their direction (a signal protects an area _before_ the train enters the area). This next segment is typically a switch, protected by 3 signals, but the software supports isolated or paired signals along standard segments.
+* Signals describe every individual signal on the layout. Note that signals are linked by default to the next segment, according to their direction (a signal protects an area _before_ the train enters the area). This next segment is typically a switch, protected by 3 signals, but the software supports isolated or paired signals along standard segments. If the geometry is more complex, like two switches that work together, it is possible to explicitely declare a link with an arbitrary track segment.
 
-The software can controls switches and signals through control points (e.g. the [HouseRelays](https://github.com/pascal-fb-martin/houserelays) service):
+The software can controls switches and signals through control points (e.g. the [HouseRelays](https://github.com/pascal-fb-martin/houserelays) service) based on a naming convention:
 
 * a switch X is controlled through two control points, named "X:normal" and "X:reverse".
 * A signal X is controlled through two control points, named "X:go" and "X:stop".
@@ -54,6 +54,23 @@ There are two equivalent methods for identifying a specific track location on th
 * Use `segments` and `post` (post value relative to the segment low post)..
 
 The benefit of the second method is that a change in the list of segments does ot impact those locations on segments that were untouched. Otherwise, any change to segments might change how posts are calculated, and thus impact many locations in the layout.
+
+## Signal Logic
+
+A signal protects a portion of track, often in combination with other signals. This typically protects a switch, an interlocking or a bridge. If there is a group of adjacent such segments, the signal protects the whole group of segments by referencing the most upstream segment.
+
+An interlocking is a special case, as some switches are connected through their branches, and the concept of most upstream segment becomes ambiguous (on which line?). In that case all signals and switch devices should refer (implicitely or explicitely) to the same switch, typically one on the main line.
+
+Signals that protect a bridge, or a sequence of adjacent bridges, follow a logic similar to switches.
+
+Signals can also protect a simple section of track. By default such signals protect the transition between their own segment and the next segment in each signal's direction. If an explicit link to a regular segment is provided, the signal protects the portion of tracks between its own segment and the linked segment. In that case, two signals protect the same portion of track if their links refer to each other's segment.
+
+As a general rule, the software automatically detects the common cases by walking the track starting from the signal. If the topology is too complex, an explicit `defend` field should be provided, both for switches and signals.
+
+> [!NOTE]
+> Even if a `defend` field is provided, and refers to a switch or bridge, the software will still apply a transitive upstream logic, starting from the segment referred to in `defend`.
+
+When multiple signals are linked to the same segment, clearing one signal in the group cancels the other signals in that group that conflict with the new cleared signal (i.e. those that authorized access to the same tracks in opposite directions). If a switch that belongs to the same group (the linked segment or an adjacent one) changes state, all signals in that group are cancelled.
 
 ## Layout Identification
 
@@ -103,6 +120,7 @@ The segments are specific to a layout and are stored in the `rail.track.segments
 * `start`: this optional field provides the starting post value for that segment. This is typically used for a branch parallel to a main line, and connected to the main line through a single 'converging' switch. This can also be used if the line name changes. This start value is always a low post value: posts will increase from there.
 * `curve`: this element is only required if the model is a standard curved track. It represent the direction of the curve for this segment: `left` or `right`. The software also supports `curve` set to 1 (right) or -1 (left).
 * `display`: this field is optional and should be present only once for each set of interconnected tracks. It indicates the position and direction of this segment's origin point on the display. This is an array with three elements: x, y and angle (degrees). The display position of all other segments connected to that segment will be inferred transitively by walking the tracks.
+* `defend`: an optional reference to another segment. This is used for switches that depend on each others. See the Signal Logic section for more details.
 
 If is valid for a segment to have either no `previous` or no `next` segment, even after `next` and `previous` link inferrences, but not both can be missing at the same time. One missing link indicates an end to the line.
 
@@ -141,9 +159,13 @@ Signals are specific to a layout and are stored in the `rail.track.signals` arra
 * `segment`: name of the segment where this signal is located.
 * `post`: the post where this signal is located.
 * `dir`: the direction that this signal protects.
+* `defend`: this optional field refer to a track segment that the signal protects. The default is the next segment in the signal's direction. See the Signal Logic section above for more details.
 
 > [!NOTE]
 > The fields `line` and `segment` are mutually exclusives. If `line` is present, `post` represents an absolute post value. If `segment` is present, `post` represents a value relative to the segment low post.
+
+> [!NOTE}
+>  When switches are linked through branches (e.g. an interlocking), the `defend` field must be provided explicitely. All signals in the group must be linked to the same protected segment.
 
 ## Track Catalogs
 

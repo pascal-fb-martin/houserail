@@ -93,6 +93,7 @@ struct TrackSegment {
     // the terminal point marked as the origin.
     int low;
     int high;
+    int protected; // Drive signal logic.
 
     // The following attributes drive the end-of-line protection mechanism.
     // These are precalculated during loading. They can also be used to
@@ -126,6 +127,7 @@ struct TrackSignal {
     int index;              // Self reference.
 
     int direction;          // The protected direction, 1: up, -1: down
+    int entry;              // The first segment protected after that signal.
     int protected;          // A unique signature of what is protected.
 
     struct TrackLocation location;

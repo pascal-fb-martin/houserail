@@ -149,6 +149,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <alloca.h>
 
 #include <echttp.h>
 #include <echttp_libc.h>
@@ -198,6 +199,7 @@ struct TrackLinkage {
     const char *next;
     const char *common;
     const char *branch;
+    const char *defend;
 };
 
 
@@ -390,11 +392,12 @@ const char *houserail_topology_reload (void) {
     int signals = houseconfig_array (track, ".signals");
     TopologySignalsCount = (signals>=0)?houseconfig_array_length (signals):0;
 
-    int max = TopologyModelsCount;
+    int max = 2; // Minimum.
+    if (TopologyModelsCount > max) max = TopologyModelsCount;
     if (TopologySegmentsCount > max) max = TopologySegmentsCount;
     if (TopologyDetectorsCount > max) max = TopologyDetectorsCount;
     if (TopologySignalsCount > max) max = TopologySignalsCount;
-    int *list = calloc (max, sizeof(int));
+    int *list = alloca (max * sizeof(int));
 
     DEBUG (__FILE__ ": %d models, %d segments, %d detectors, %d signals\n",
            TopologyModelsCount,
@@ -554,9 +557,10 @@ const char *houserail_topology_reload (void) {
         temp[i].next = houseconfig_string (element, ".next");
         temp[i].common = houseconfig_string (element, ".common");
         temp[i].branch = houseconfig_string (element, ".branch");
+        temp[i].defend = houseconfig_string (element, ".defend");
 
         // All these links will be resolved later.
-        segment->next = segment->previous = segment->common = segment->branch = -1;
+        segment->next = segment->previous = segment->common = segment->branch = segment->protected = -1;
         segment->signals = -1;
 
         int index = echttp_hash_insert (&TopologySegmentsHash, segment->id);
@@ -700,6 +704,24 @@ const char *houserail_topology_reload (void) {
                 branch->previous = i;
             }
             switchcount += 1;
+
+            // Create the linkage used by the signal logic.
+
+            segment->protected = segment->index; // Default: protect thyself.
+            if (temp[i].defend) {
+                segment->protected = houserail_topology_search_by_id (temp[i].defend);
+                if (segment->protected < 0) {
+                    DEBUG (__FILE__ ": invalid defend link %s for segment %s\n", temp[i].defend, segment->id);
+                    return "invalid defend link";
+                }
+            }
+            int upstream = TopologySegments[segment->protected].previous;
+            while (upstream >= 0) {
+                if (TopologySegments[upstream].branch < 0) break;
+                segment->protected = upstream;
+                upstream = TopologySegments[upstream].previous;
+            }
+            DEBUG (__FILE__ ": switch %s is part of group protected by %s\n", TopologySegments[i].id, TopologySegments[segment->protected].id);
         }
     }
 
@@ -934,7 +956,7 @@ const char *houserail_topology_reload (void) {
             TopologyDetectorsMap[index] = i;
     }
 
-    // Populate the signal array (optional).
+    // Populate the signal array (optional: a layout might not have any).
 
     if (TopologySignalsCount > 0) {
 
@@ -992,48 +1014,82 @@ const char *houserail_topology_reload (void) {
                 TopologySignalsMap[index] = i;
 
             // What is that signal protecting?
-            int protected = -1;
+            signal->entry = -1;
             if (signal->direction > 0) {
-                protected = TopologySegments[segmentindex].next;
+                signal->entry = TopologySegments[segmentindex].next;
             } else if (signal->direction < 0) {
-                protected = TopologySegments[segmentindex].previous;
+                signal->entry = TopologySegments[segmentindex].previous;
             }
-            DEBUG (__FILE__ ": signal %s is on segment %s at %s %d protecting %s direction %s\n",
-                   signal->id, segment->id,
-                   signal->location.line, signal->location.post,
-                   (protected >= 0)?TopologySegments[protected].id:"(nothing)",
-                   (signal->direction>0)?"up":((signal->direction<0)?"down":"unknown"));
+            int protected = -1;
+            const char *defend = houseconfig_string (element, ".defend");
+            if (defend) {
+                protected = houserail_topology_search_by_id (defend);
+                if (protected < 0) {
+                    DEBUG (__FILE__ ": invalid link segment %s for signal %s\n", defend, signal->id);
+                    continue;
+                }
+            } else {
+                protected = signal->entry;
+            }
 
             signal->protected = -1;
             if (protected >= 0) {
                 const struct TrackSegment *segment = TopologySegments + protected;
                 const struct TrackModel *model = TopologyModels + segment->model;
 
-                // In front of a switch, the signal is part of a group that
-                // protects a route.
                 if (segment->branch >= 0) {
+
+                    // In front of a switch, the signal is part of a group
+                    // that protects a route.
+                    // When there is a group of adjacent switches, the signal
+                    // links to most upstream switch.
+                    int upstream = segment->previous;
+                    while (upstream >= 0) {
+                        segment = TopologySegments + upstream;
+                        if (segment->branch < 0) break;
+                        protected = upstream;
+                        upstream = segment->previous;
+                    }
                     signal->protected = protected; // Protects a switch segment.
-                    continue;
-                }
-                if (strsame (segment->feature, "bridge") ||
-                    strsame (model->feature, "bridge")) {
+
+                } else if (strsame (segment->feature, "bridge") ||
+                           strsame (model->feature, "bridge")) {
+
+                    // Protect a sequence of bridges.
+
+                    int upstream = TopologySegments[protected].previous;
+                    while (upstream >= 0) {
+                        segment = TopologySegments + upstream;
+                        model = TopologyModels + segment->model;
+                        if ((!strsame (segment->feature, "bridge")) &&
+                            (!strsame (model->feature, "bridge"))) break;
+                        protected = upstream;
+                        upstream = segment->previous;
+                    }
                     signal->protected = protected; // Protects a bridge.
-                    continue;
+
+                } else {
+
+                    // If not in front of a switch or a bridge, a signal
+                    // protects the area between two segments.
+                    if (protected > segmentindex)
+                        signal->protected =
+                            (protected * TRACK_SEGMENTS_MAX) + segmentindex;
+                    else
+                        signal->protected =
+                            (segmentindex * TRACK_SEGMENTS_MAX) + protected;
+
+                    // Set a flag to differentiate switch & bridge protection from
+                    // transition protection (zero is a valid segment index).
+                    signal->protected |=
+                        (4 * TRACK_SEGMENTS_MAX * TRACK_SEGMENTS_MAX);
                 }
-
-                // If not in front of a switch or a bridge, a signal protects
-                // the transition between two segments.
-                if (protected > segmentindex)
-                    signal->protected =
-                        (protected * TRACK_SEGMENTS_MAX) + segmentindex;
-                else
-                    signal->protected =
-                        (segmentindex * TRACK_SEGMENTS_MAX) + protected;
-
-                // Set a flag to differentiate switch & bridge protection from
-                // transition protection (zero is a valid segment index).
-                signal->protected |=
-                    (4 * TRACK_SEGMENTS_MAX * TRACK_SEGMENTS_MAX);
+                DEBUG (__FILE__ ": signal %s is on segment %s at %s %d protecting %s to %s direction %s\n",
+                       signal->id, segment->id,
+                       signal->location.line, signal->location.post,
+                       (signal->entry >= 0)?TopologySegments[signal->entry].id:"(nothing)",
+                       (protected >= 0)?TopologySegments[protected].id:"(nothing)",
+                       (signal->direction>0)?"up":((signal->direction<0)?"down":"unknown"));
             }
         }
     }

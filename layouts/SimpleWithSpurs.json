@@ -5,6 +5,7 @@
          "layout":"SimpleWithSpurs",
          "description":"Inspired by the 2x4 layout 16 from Kraft Trains",
          "train":{
+             "colors":["Red","Orange","SlateBlue","Lime"],
              "models":[
                  {"id":"ATLAS-GP-40","length":19,"spots":[4,15]},
                  {"id":"CONCOR-N70T","length":12,"spots":[5,7]}
@@ -21,11 +22,11 @@
          "track": {
              "speeds":{"restricted": 10, "reverse": 20},
              "distances":{"stop": 20, "slow": 35},
-             "catalog":"AtlasCode80",
              "display":{
                  "signal": {"light": "arrow"},
                  "colors":{"background":"#355b1eff","foreground":"white"}
              },
+             "catalog":"AtlasCode80",
              "segments":[
                  {"id":"NORTH-2","model":"2532","line":"main","start":0},
                  {"id":"NORTH-3","model":"2513","line":"main"},
@@ -36,8 +37,8 @@
                  {"id":"EAST-4","model":"2514","line":"main","curve":"right"},
                  {"id":"EAST-5","model":"2514","line":"main","curve":"right"},
                  {"id":"EAST-6","model":"2514","line":"main","curve":"right"},
-                 {"id":"SOUTH-1","model":"2701","line":"main","common":"east-6","branch":"side2-1"},
-                 {"id":"SOUTH-2","model":"2513","line":"main"},
+                 {"id":"SOUTH-1","model":"2513","line":"main"},
+                 {"id":"SOUTH-2","model":"2701","line":"main","common":"south-1","branch":"side2-1"},
                  {"id":"SOUTH-3","model":"2701","line":"main","common":"south-4","branch":"side3-4"},
                  {"id":"SOUTH-4","model":"2513","line":"main"},
                  {"id":"WEST-1","model":"2514","line":"main","curve":"right"},
@@ -50,14 +51,14 @@
                  {"id":"SIDE1-1","model":"2513","line":"side1"},
                  {"id":"SIDE1-2","model":"2513","line":"side1"},
                  {"id":"SIDE1-3","model":"2513","line":"side1"},
-                 {"id":"SIDE1-4","model":"2513","line":"side1"},
+                 {"id":"SIDE1-4","model":"2532","line":"side1"},
                  {"id":"SIDE1-5","model":"2516","line":"side1","next":"north-4","curve":"right"},
                  {"id":"SIDE2-1","model":"2513","line":"side2"},
                  {"id":"SIDE2-2","model":"2513","line":"side2"},
                  {"id":"SIDE2-3","model":"2513","line":"side2"},
                  {"id":"SIDE3-1","model":"2513","line":"side3","origin":[200000,0,180]},
                  {"id":"SIDE3-2","model":"2513","line":"side3"},
-                 {"id":"SIDE3-3","model":"2513","line":"side3"},
+                 {"id":"SIDE3-3","model":"2532","line":"side3"},
                  {"id":"SIDE3-4","model":"2516","line":"side3","next":"south-3","curve":"right"}
              ],
              "detectors":[
@@ -95,7 +96,11 @@
                  {"id":"SIDE3@70","line":"side3","low":69,"high":71}
              ],
              "signals":[
-                 {"id":"SOUTH@225E","line":"main","post":225,"dir":"up"},
+                 {"id":"NORTH@39W","line":"main","post":39,"dir":"up"},
+                 {"id":"NORTH@61E","line":"main","post":61,"dir":"down"},
+                 {"id":"SIDE1@99W","line":"side1","post":99,"dir":"up"},
+                 {"id":"SOUTH@205E","line":"main","post":205,"dir":"up"},
+                 {"id":"SIDE2@21W","line":"side2","post":21,"dir":"down"},
                  {"id":"SOUTH@247W","line":"main","post":247,"dir":"down"},
                  {"id":"SIDE3@79E","line":"side3","post":79,"dir":"up"}
              ]

@@ -193,27 +193,39 @@ void houserail_signal_background (time_t now) {
     // TBD: background work needed?
 }
 
+static void houserail_signal_cancel (int protected,
+                                     int operated, const char *exit) {
 
-static void houserail_signal_cancel (int protected, int operated) {
+    if (protected < 0) return;
 
-    if (protected >= 0) {
-        int i;
-        for (i = 0; i < LayoutSignalsCount; ++i) {
-            // Skip the signal being operated and signals not in its group
-            if (i == operated) continue;
-            if (LayoutSignals[i].protected != protected) continue;
+    int i;
+    for (i = 0; i < LayoutSignalsCount; ++i) {
+        const struct TrackSignal *signal = LayoutSignals + i;
+        struct TrackSignalLive *status = LayoutSignalsLive + i;
 
-            // Force this signal to stop, even if it was already marked
-            // as stopped to allow manual retries.
-            LayoutSignalsLive[i].state = SIGNAL_STOP;
-            houserail_field_signal_set (LayoutSignals[i].id, "stop");
-        }
+        // Skip the signal being operated and signals not in its group
+        if (i == operated) continue;
+        if (signal->protected != protected) continue;
+
+        // A signal in that group that is not cleared can be stopped
+        // regardless of being at the exit or not. If the signal state
+        // is stop, there is no harm in confirming it. If the signal
+        // is off (i.e. unknown) it must be set to stop now for safety.
+        if (exit &&
+            (status->state == SIGNAL_CLEAR) &&
+            (!strsame (signal->location.segment, exit))) continue;
+
+        // Force this signal to stop, even if it was already marked
+        // as stopped to allow manual retries.
+        status->state = SIGNAL_STOP;
+        houserail_field_signal_set (signal->id, "stop");
     }
 }
 
 void houserail_signal_protect (const char *name) {
-    int index = houserail_topology_search_by_id (name);
-    houserail_signal_cancel (index, -1);
+
+    int protected = houserail_topology_search_by_id (name);
+    houserail_signal_cancel (protected, -1, 0);
 }
 
 const char *houserail_signal_set (const char *name, const char *state) {
@@ -221,12 +233,15 @@ const char *houserail_signal_set (const char *name, const char *state) {
     int index = houserail_topology_search_signal (name);
     if (index < 0) return "Invalid signal";
 
-    LayoutSignalsLive[index].timestamp = time(0);
+    const struct TrackSignal *signal = LayoutSignals + index;
+    struct TrackSignalLive *status = LayoutSignalsLive + index;
+
+    status->timestamp = time(0);
 
     // To set an individual signal to stop does not impact other signals
     // since this is a safe operation.
     if (strsame (state, "stop")) {
-        LayoutSignalsLive[index].state = SIGNAL_STOP;
+        status->state = SIGNAL_STOP;
         houserail_field_signal_set (name, state);
         return 0;
     }
@@ -234,28 +249,43 @@ const char *houserail_signal_set (const char *name, const char *state) {
     // If the signal to set to "clear" protects a switch, this switch must
     // be aligned with the signal's segment, otherwise a derail is certain.
     // To set an individual signal to "clear" also requires cancelling the
-    // other signals protecting the same feature, to avoid train collisions.
+    // other signal protecting the same route on the opposite side, to avoid
+    // train collisions.
+    // The logic here handles a group of subsequent switches: a signal
+    // refers both to the upstream switch ("protected") and to the first
+    // switch it front of it ("entry"). The houserail_track_safe() function
+    // starts with the entry switch and then follows the switch to the next.
+    // The reason why there is a special case for switches is that they
+    // may be grouped into an interlocking where multiple routes might be
+    // set concurrently, while there is only one possible route when
+    // no switch is involved.
 
     if (strsame (state, "clear")) {
-        int protected = LayoutSignals[index].protected;
-        if ((protected >= 0) && (protected < LayoutSegmentsCount)) {
-           const char *error =
-               houserail_track_safe (LayoutSignals[index].location.segment,
-                                     LayoutSegments[protected].id);
-           if (error) return error;
+        if ((signal->entry >= 0) && (signal->entry < LayoutSegmentsCount)) {
+            const struct TrackSegment *entry = LayoutSegments + signal->entry;
+            if (entry->branch >= 0) {
+                const char *exit;
+                const char *error =
+                    houserail_track_safe (signal->location.segment,
+                                          entry->id, &exit);
+                if (error) return error;
+                houserail_signal_cancel (signal->protected, index, exit);
+            } else {
+                houserail_signal_cancel (signal->protected, index, 0);
+            }
         }
-        houserail_signal_cancel (protected, index);
-        LayoutSignalsLive[index].state = SIGNAL_CLEAR;
+        status->state = SIGNAL_CLEAR;
         houserail_field_signal_set (name, state);
         return 0;
     }
 
-    LayoutSignalsLive[index].state = 0;
+    status->state = 0;
     houserail_field_signal_set (name, "off");
     return 0;
 }
 
-const char *houserail_signal_near (const struct TrackPath *path, int max) {
+static const char *houserail_signal_near (const struct TrackPath *path,
+                                          int max) {
 
     if (path->count <= 0) return 0; // Should never happen.
     const struct TrackRange *section = path->sections + path->count - 1;

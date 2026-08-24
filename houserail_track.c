@@ -162,11 +162,19 @@
  *
  *     The valid states are "normal" and "reverse".
  *
- * const char *houserail_track_safe (const char *from, const char *to);
+ * const char *houserail_track_safe (const char *from,
+ *                                   const char *to, const char **exit);
  *
  *     If the two names refer to valid segments, and a movement between
  *     the two segment is deemed safe, return a null pointer. Otherwise
- *     return a description of the safety violation.
+ *     return a description of the safety violation. On success, provides
+ *     a reference to the ID of the exit segment (the segment that caused
+ *     the search to stop).
+ *
+ *     The logic is transitive as long as segment "to" is a switch leading
+ *     from segment "from" to another switch. If any switch along the way
+ *     is found misaligned, then a safety violation is raised. The logic
+ *     stops at the first segment that is not a switch.
  *
  *     This function is meant to be called from module houserail_signal.c.
  */
@@ -857,7 +865,8 @@ const char *houserail_track_switch (const char *name, const char *state) {
     }
 
     // If the switch is going to move, cancel any existing route.
-    if (status->needle != oldposition) houserail_signal_protect (segment->id);
+    if (status->needle != oldposition)
+        houserail_signal_protect (LayoutSegments[segment->protected].id);
     houserail_field_switch_set (name, state);
     return 0;
 }
@@ -871,17 +880,29 @@ int houserail_track_poll (void) {
     return LayoutOptions->fieldPollPeriod;
 }
 
-const char *houserail_track_safe (const char *from, const char *to) {
+const char *houserail_track_safe (const char *from,
+                                  const char *to, const char **exit) {
 
     int origin = houserail_topology_search_by_id (from);
     int destination = houserail_topology_search_by_id (to);
     if ((origin < 0) || (destination < 0)) return "Invalid track";
 
-    if (LayoutSegments[destination].branch >= 0) {
-        if ((origin != LayoutSegments[destination].common) &&
-            (origin != LayoutSegmentsLive[destination].needle))
-            return "Cannot allow a movement to an unaligned switch";
+    while ((destination >= 0) && (LayoutSegments[destination].branch >= 0)) {
+
+        if (origin == LayoutSegments[destination].common) {
+            origin = destination;
+            destination = LayoutSegmentsLive[destination].needle;
+            continue;
+        }
+        if (origin == LayoutSegmentsLive[destination].needle) {
+            origin = destination;
+            destination = LayoutSegments[destination].common;
+            continue;
+        }
+        return "Cannot allow a movement to an unaligned switch";
     }
+    if (destination >= 0) *exit = LayoutSegments[destination].id;
+    else *exit = 0;
     return 0;
 }
 
