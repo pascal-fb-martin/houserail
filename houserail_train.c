@@ -975,6 +975,9 @@ const char *houserail_train_consist (const char *id,
             LayoutTrains = (struct TrainConsist *)
                 realloc (LayoutTrains,
                          sizeof(struct TrainConsist) * LayoutTrainsSize);
+            int i;
+            for (i = LayoutTrainsCount; i < LayoutTrainsSize; ++i)
+                LayoutTrains[i] = (struct TrainConsist){0};
         }
         train = LayoutTrains + LayoutTrainsCount;
         train->index = LayoutTrainsCount++;
@@ -1168,6 +1171,7 @@ const char *houserail_train_reload (void) {
       free (oldvehicles);
       free (crossref);
    }
+   free (list);
 
    houselog_event ("LAYOUT", "TRAIN", "LOADED",
                    "%d models %d vehicles (%d trains)",

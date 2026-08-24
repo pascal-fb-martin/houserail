@@ -210,6 +210,8 @@ static int houserail_field_fleet_find (const char *id, int update) {
            if (FleetDbCount >= FleetDbSize) {
                FleetDbSize += 16;
                FleetDb = realloc (FleetDb, sizeof(FleetDb[0])*FleetDbSize);
+               for (i = FleetDbCount; i < FleetDbSize; ++i)
+                   FleetDb[i] = (struct FleetUnit){0}; // Nothing uninitialized
            }
            i = FleetDbCount++;
         }
