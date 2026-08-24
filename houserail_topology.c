@@ -514,7 +514,7 @@ const char *houserail_topology_reload (void) {
     struct TrackLinkage *temp =
         calloc (TopologySegmentsCount, sizeof(struct TrackLinkage));
 
-    echttp_hash_reset (&TopologySegmentsHash, 0);
+    echttp_hash_create (&TopologySegmentsHash);
     TopologySegmentsMap = calloc (TopologySegmentsCount+1, sizeof(int));
 
     for (i = 0; i < TopologySegmentsCount; ++i) {
@@ -903,7 +903,7 @@ const char *houserail_topology_reload (void) {
 
     // Populate the detectors array.
 
-    echttp_hash_reset (&TopologyDetectorsHash, 0);
+    echttp_hash_create (&TopologyDetectorsHash);
 
     TopologyDetectorsMap = calloc (TopologyDetectorsCount+1, sizeof(int));
     TopologyDetectors = calloc (TopologyDetectorsCount, sizeof(struct TrackDetector));
@@ -960,7 +960,7 @@ const char *houserail_topology_reload (void) {
 
     if (TopologySignalsCount > 0) {
 
-        echttp_hash_reset (&TopologySignalsHash, 0);
+        echttp_hash_create (&TopologySignalsHash);
 
         TopologySignalsMap = calloc (TopologySignalsCount+1, sizeof(int));
         TopologySignals = calloc (TopologySignalsCount, sizeof(struct TrackSignal));
