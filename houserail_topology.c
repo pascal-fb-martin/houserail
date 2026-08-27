@@ -714,12 +714,13 @@ const char *houserail_topology_reload (void) {
                     DEBUG (__FILE__ ": invalid defend link %s for segment %s\n", temp[i].defend, segment->id);
                     return "invalid defend link";
                 }
-            }
-            int upstream = TopologySegments[segment->protected].previous;
-            while (upstream >= 0) {
-                if (TopologySegments[upstream].branch < 0) break;
-                segment->protected = upstream;
-                upstream = TopologySegments[upstream].previous;
+            } else {
+                int upstream = TopologySegments[segment->protected].previous;
+                while (upstream >= 0) {
+                    if (TopologySegments[upstream].branch < 0) break;
+                    segment->protected = upstream;
+                    upstream = TopologySegments[upstream].previous;
+                }
             }
             DEBUG (__FILE__ ": switch %s is part of group protected by %s\n", TopologySegments[i].id, TopologySegments[segment->protected].id);
         }
@@ -1021,6 +1022,7 @@ const char *houserail_topology_reload (void) {
                 signal->entry = TopologySegments[segmentindex].previous;
             }
             int protected = -1;
+            signal->protected = -1;
             const char *defend = houseconfig_string (element, ".defend");
             if (defend) {
                 protected = houserail_topology_search_by_id (defend);
@@ -1028,12 +1030,12 @@ const char *houserail_topology_reload (void) {
                     DEBUG (__FILE__ ": invalid link segment %s for signal %s\n", defend, signal->id);
                     continue;
                 }
+                signal->protected = protected;
             } else {
                 protected = signal->entry;
             }
 
-            signal->protected = -1;
-            if (protected >= 0) {
+            if ((!defend) && (protected >= 0)) {
                 const struct TrackSegment *segment = TopologySegments + protected;
                 const struct TrackModel *model = TopologyModels + segment->model;
 

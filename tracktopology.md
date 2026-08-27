@@ -68,7 +68,7 @@ Signals can also protect a simple section of track. By default such signals prot
 As a general rule, the software automatically detects the common cases by walking the track starting from the signal. If the topology is too complex, an explicit `defend` field should be provided, both for switches and signals.
 
 > [!NOTE]
-> Even if a `defend` field is provided, and refers to a switch or bridge, the software will still apply a transitive upstream logic, starting from the segment referred to in `defend`.
+> If a `defend` field is provided, the software will use it has =is, without applying any transitive upstream logic.
 
 When multiple signals are linked to the same segment, clearing one signal in the group cancels the other signals in that group that conflict with the new cleared signal (i.e. those that authorized access to the same tracks in opposite directions). If a switch that belongs to the same group (the linked segment or an adjacent one) changes state, all signals in that group are cancelled.
 
