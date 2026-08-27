@@ -57,20 +57,29 @@ The benefit of the second method is that a change in the list of segments does o
 
 ## Signal Logic
 
-A signal protects a portion of track, often in combination with other signals. This typically protects a switch, an interlocking or a bridge. If there is a group of adjacent such segments, the signal protects the whole group of segments by referencing the most upstream segment.
+A signal protects a portion of track, often in combination with other signals. This typically protects the switch that immediately follow the signal. That switch is called the entry point for that signal.
 
-An interlocking is a special case, as some switches are connected through their branches, and the concept of most upstream segment becomes ambiguous (on which line?). In that case all signals and switch devices should refer (implicitely or explicitely) to the same switch, typically one on the main line.
+If the entry point of a signal is not the segment that immediately follows the signal, that signal should have a `entry` field that links to the segment to use. That entry point segment is where the software starts to explore the group of switches (see below).
 
-Signals that protect a bridge, or a sequence of adjacent bridges, follow a logic similar to switches.
+If there is a group of adjacent switches, the signal protects the whole group by referencing the switch in the group that is considered the most upstream. The software handles groups where switches are connected in line, through their branches or any combination of the two.
 
-Signals can also protect a simple section of track. By default such signals protect the transition between their own segment and the next segment in each signal's direction. If an explicit link to a regular segment is provided, the signal protects the portion of tracks between its own segment and the linked segment. In that case, two signals protect the same portion of track if their links refer to each other's segment.
+If the track topology is too complex for the logic described above, all signals and switch devices may refer explicitely to one same switch within the group by providing a `defend` field that links to it.
 
-As a general rule, the software automatically detects the common cases by walking the track starting from the signal. If the topology is too complex, an explicit `defend` field should be provided, both for switches and signals.
+Signals that protect a featured track, or a sequence of adjacent featured tracks, follow the same logic as described above (except that there is no branch). Featured tracks belong to the same group only if they share the same feature, for example if they are all bridges.
+
+Signals can also protect a simple section of track. By default such signals protect the transition between their own segment and the next segment in each signal's direction.
+
+If an explicit link to a regular segment is provided, the signal protects the portion of tracks between its own segment and the linked segment. In that case, two signals protect the same portion of track if their links refer to each other's segment.
+
+As a general rule, the software automatically detects the common cases by walking the track starting from the signal (or from the explicit entry point segment). If the topology is too complex, the `defend` field bypasses that logic, both for switches and signals.
 
 > [!NOTE]
-> If a `defend` field is provided, the software will use it has =is, without applying any transitive upstream logic.
+> If a `defend` field is provided, the software will use it as-is, without applying any transitive upstream logic.
 
 When multiple signals are linked to the same segment, clearing one signal in the group cancels the other signals in that group that conflict with the new cleared signal (i.e. those that authorized access to the same tracks in opposite directions). If a switch that belongs to the same group (the linked segment or an adjacent one) changes state, all signals in that group are cancelled.
+
+> [!WARNING]
+> Even when using explicit `defend` fields, the software will not find the conflicting signal if it finds two or more consecutive regular segments between two switches in the group. It is OK if switches are separated by only one regular segment at a time.
 
 ## Layout Identification
 

@@ -884,10 +884,31 @@ const char *houserail_track_safe (const char *from,
                                   const char *to, const char **exit) {
 
     int origin = houserail_topology_search_by_id (from);
-    int destination = houserail_topology_search_by_id (to);
-    if ((origin < 0) || (destination < 0)) return "Invalid track";
+    int entry = houserail_topology_search_by_id (to);
+    if ((origin < 0) || (entry < 0)) return "Invalid track";
 
-    while ((destination >= 0) && (LayoutSegments[destination].branch >= 0)) {
+    int protected = LayoutSegments[entry].protected; // Same for all switches
+    int destination = entry;
+    while (destination >= 0) {
+
+        if ((LayoutSegments[destination].branch < 0)) {
+            // Skip a single regular track between two switches in the
+            // current group. (The track might be one half of a crossing.)
+            if (destination == entry) break;
+            int ahead;
+            if (LayoutSegments[destination].next != entry) {
+                ahead = LayoutSegments[destination].next;
+            } else {
+                ahead = LayoutSegments[destination].previous;
+            }
+            if (ahead < 0) break;
+            if (LayoutSegments[ahead].branch < 0) break;
+            if (LayoutSegments[ahead].protected != protected) break;
+
+            // Start over from the switch after that regular track.
+            origin = destination;
+            destination = entry = ahead;
+        }
 
         if (origin == LayoutSegments[destination].common) {
             origin = destination;
