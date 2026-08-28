@@ -79,7 +79,7 @@ As a general rule, the software automatically detects the common cases by walkin
 When multiple signals are linked to the same segment, clearing one signal in the group cancels the other signals in that group that conflict with the new cleared signal (i.e. those that authorized access to the same tracks in opposite directions). If a switch that belongs to the same group (the linked segment or an adjacent one) changes state, all signals in that group are cancelled.
 
 > [!WARNING]
-> Even when using explicit `defend` fields, the software will not find the conflicting signal if it finds two or more consecutive regular segments between two switches in the group. It is OK if switches are separated by only one regular segment at a time.
+> Even when using explicit `defend` fields, the software will not find the conflicting signal if it encounters two or more consecutive regular segments between two switches in the group. It is OK if switches are separated by only one regular segment at a time.
 
 ## Layout Identification
 
@@ -129,7 +129,8 @@ The segments are specific to a layout and are stored in the `rail.track.segments
 * `start`: this optional field provides the starting post value for that segment. This is typically used for a branch parallel to a main line, and connected to the main line through a single 'converging' switch. This can also be used if the line name changes. This start value is always a low post value: posts will increase from there.
 * `curve`: this element is only required if the model is a standard curved track. It represent the direction of the curve for this segment: `left` or `right`. The software also supports `curve` set to 1 (right) or -1 (left).
 * `display`: this field is optional and should be present only once for each set of interconnected tracks. It indicates the position and direction of this segment's origin point on the display. This is an array with three elements: x, y and angle (degrees). The display position of all other segments connected to that segment will be inferred transitively by walking the tracks.
-* `defend`: an optional reference to another segment. This is used for switches that depend on each others. See the Signal Logic section for more details.
+* `defend`: an optional reference to another segment. This is used for a group of switches that is protected by the same set of signals. See the Signal Logic section for more details.
+* `control`: an optional reference to identify the switch control points. The default is to use the ID. This field is mostly useful if the same controls are shared between multiple switches.
 
 If is valid for a segment to have either no `previous` or no `next` segment, even after `next` and `previous` link inferrences, but not both can be missing at the same time. One missing link indicates an end to the line.
 

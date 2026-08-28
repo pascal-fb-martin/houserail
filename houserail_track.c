@@ -841,6 +841,15 @@ int houserail_track_distance (const struct TrackLocation *point1,
 
 const char *houserail_track_switch (const char *name, const char *state) {
 
+    // Standardize the state string to one of only two strings. This makes
+    // the loop faster by allowing to compare pointers instead of strings.
+    //
+    static const char Normal[] = "normal";
+    static const char Reverse[] = "reverse";
+    if (strsame (state, Normal)) state = Normal;
+    else if (strsame (state, Reverse)) state = Reverse;
+    else return "Invalid switch command";
+
     int index = houserail_topology_search_by_id (name);
     if (index < 0) return "Invalid name";
 
@@ -850,24 +859,28 @@ const char *houserail_track_switch (const char *name, const char *state) {
     struct TrackSegmentLive *status = LayoutSegmentsLive + index;
     int oldposition = status->needle;
 
-    if (strsame (state, "normal")) {
+    // Propagate the new state to all the switches that share that same control
+    const char *control = segment->control;
+    const char *protected = LayoutSegments[segment->protected].id;
+    int i;
+    for (i = 0; i < LayoutSegmentsCount; ++i) {
+        segment = LayoutSegments + i;
+        if (segment->branch < 0) continue;
+        if (!strsame (control, segment->control)) continue;
 
-        status->needle =
-            (segment->common == segment->next) ? segment->previous : segment->next;
-
-    } else if (strsame (state, "reverse")) {
-
-        status->needle = segment->branch;
-
-    } else {
-        status->needle = -1;
-        return "Invalid switch command";
+        if (state == Normal) {
+            LayoutSegmentsLive[i].needle =
+                (segment->common == segment->next) ? segment->previous : segment->next;
+        } else {
+            LayoutSegmentsLive[i].needle = segment->branch;
+        }
     }
 
     // If the switch is going to move, cancel any existing route.
-    if (status->needle != oldposition)
-        houserail_signal_protect (LayoutSegments[segment->protected].id);
-    houserail_field_switch_set (name, state);
+    if (status->needle != oldposition) houserail_signal_protect (protected);
+
+    houserail_field_switch_set (control, state);
+
     return 0;
 }
 
@@ -883,9 +896,9 @@ int houserail_track_poll (void) {
 const char *houserail_track_safe (const char *from,
                                   const char *to, const char **exit) {
 
-    int origin = houserail_topology_search_by_id (from);
+    int before = houserail_topology_search_by_id (from);
     int entry = houserail_topology_search_by_id (to);
-    if ((origin < 0) || (entry < 0)) return "Invalid track";
+    if ((before < 0) || (entry < 0)) return "Invalid track";
 
     int protected = LayoutSegments[entry].protected; // Same for all switches
     int destination = entry;
@@ -896,7 +909,7 @@ const char *houserail_track_safe (const char *from,
             // current group. (The track might be one half of a crossing.)
             if (destination == entry) break;
             int ahead;
-            if (LayoutSegments[destination].next != entry) {
+            if (LayoutSegments[destination].next != before) {
                 ahead = LayoutSegments[destination].next;
             } else {
                 ahead = LayoutSegments[destination].previous;
@@ -906,17 +919,17 @@ const char *houserail_track_safe (const char *from,
             if (LayoutSegments[ahead].protected != protected) break;
 
             // Start over from the switch after that regular track.
-            origin = destination;
+            before = destination;
             destination = entry = ahead;
         }
 
-        if (origin == LayoutSegments[destination].common) {
-            origin = destination;
+        if (before == LayoutSegments[destination].common) {
+            before = destination;
             destination = LayoutSegmentsLive[destination].needle;
             continue;
         }
-        if (origin == LayoutSegmentsLive[destination].needle) {
-            origin = destination;
+        if (before == LayoutSegmentsLive[destination].needle) {
+            before = destination;
             destination = LayoutSegments[destination].common;
             continue;
         }

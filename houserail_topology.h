@@ -75,6 +75,8 @@ struct TrackSegment {
     const char *line; // The name of the line going through the normal points.
     int start;        // Starting milepost for this segment (optional).
 
+    const char *control;    // The base name for control points (switch only)
+
     // The following attributes are calculated by following the linkages.
 
     short model;    // Reference index to the track model table.

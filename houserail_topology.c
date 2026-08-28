@@ -603,6 +603,9 @@ const char *houserail_topology_reload (void) {
         }
         TopologyModels[segment->model].usage += 1;
 
+        segment->control = houseconfig_string (element, ".control");
+        if (!segment->control) segment->control = segment->id;
+
         if (houseconfig_present (element, ".start"))
             segment->start = houseconfig_integer (element, ".start");
         else
