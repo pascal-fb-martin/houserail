@@ -91,6 +91,7 @@ struct TrackSegment {
     short branch;   // The adjacent segment connected to the reverse point.
 
     short detector; // First detector on this segment.
+    short detectorcount; // Number of detectors on this segment.
 
     // The following attributes are calculated by following the topology from
     // the terminal point marked as the origin.
@@ -116,10 +117,11 @@ struct TrackDetector {
 
     const char *id;
     unsigned int signature; // Seach accelerator.
-    int index;              // Self reference.
+    short index;            // Self reference.
 
     short segment;
     short next;     // Next detector on the same segment.
+    short map;      // Rank of this detector on the segment. Max 16 detectors.
     struct TrackRange area; // RESTRICTION: a detector covers only one segment.
 };
 

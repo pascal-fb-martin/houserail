@@ -142,6 +142,9 @@
  * the feature protected by a signal: that signature assumes less than 16384
  * segments at this time. See constant TRACK_SEGMENTS_MAX and TrackSignal's
  * field "protected".
+ *
+ * The implementation also assumes maximums of 16384 detectors total and
+ * 16 detectors per segment.
  */
 
 #include <time.h>
@@ -612,6 +615,7 @@ const char *houserail_topology_reload (void) {
             segment->start = -1;
         segment->low = segment->high = -1; // To be calculated later.
         segment->detector = -1; // List will be built later.
+        segment->detectorcount = 0; // List will be built later.
 
         Symbols[i].previous = houseconfig_string (element, ".previous");
         Symbols[i].next = houseconfig_string (element, ".next");
@@ -1014,6 +1018,7 @@ const char *houserail_topology_reload (void) {
                detector->area.line, detector->area.low, detector->area.high);
         detector->next = segment->detector;
         segment->detector = i;
+        detector->map = (segment->detectorcount)++;
         detector->area.segment = segment->id;
 
         int index = echttp_hash_insert (&TopologyDetectorsHash, detector->id);

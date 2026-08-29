@@ -205,7 +205,8 @@ static int TestMode = 0;
 struct TrackSegmentLive {
 
     char *id;
-    int needle;   // The adjacent segment connected to the needle's position.
+    short needle;   // The adjacent segment connected to the needle's position.
+    short occupied;
 };
 
 // This data structure "augments" the TrackDetector table with current status.
@@ -283,6 +284,11 @@ void houserail_track_input (const char *name,
     status->occupied = occupied;
     status->timestamp = timestamp;
 
+    if (occupied)
+        LayoutSegmentsLive[detector->segment].occupied |= (1 << detector->map);
+    else
+        LayoutSegmentsLive[detector->segment].occupied &= ~(1 << detector->map);
+
     int consumed = 0;
     if (TrackNextListener)
         consumed = TrackNextListener (&(detector->area), occupied, timestamp);
@@ -343,6 +349,7 @@ const char *houserail_track_reload (void) {
                (segment->common == segment->next)? segment->previous : segment->next;
             LayoutSwitches[LayoutSwitchesCount++] = i;
         }
+        status->occupied = 0;
     }
 
     // Recover the (old) live status of segments, if applicable.
@@ -369,7 +376,10 @@ const char *houserail_track_reload (void) {
     for (i = 0; i < olddetectorscount; ++i) {
         int index = houserail_topology_search_detector (olddetectors[i].id);
         if (index < 0) continue;
-        LayoutDetectorsLive[index].occupied = olddetectors[i].occupied;
+        const struct TrackDetector *d = LayoutDetectors + index;
+        int occupied = olddetectors[i].occupied;
+        if (occupied) LayoutSegmentsLive[d->segment].occupied |= (1 << d->map);
+        LayoutDetectorsLive[index].occupied = occupied;
         LayoutDetectorsLive[index].timestamp = olddetectors[i].timestamp;
     }
 
@@ -389,18 +399,10 @@ static int houserail_track_status_segments (char *buffer, int size) {
 
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
-        const struct TrackSegment *segment = LayoutSegments + i;
-        const char *occupancy = "off";
-        int j;
-        for (j = segment->detector; j >= 0; j = LayoutDetectors[j].next) {
-            if (LayoutDetectorsLive[j].occupied) {
-                occupancy = "on";
-                break;
-            }
-        }
+        const char *id = LayoutSegments[i].id;
+        const char *state = (LayoutSegmentsLive[i].occupied)?"on":"off";
         cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s[\"%s\",\"%s\"]",
-                            prefix, segment->id, occupancy);
+                            "%s[\"%s\",\"%s\"]", prefix, id, state);
         prefix = ",";
     }
     if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
@@ -414,11 +416,10 @@ int houserail_track_detectors (char *buffer, int size) {
 
     int i;
     for (i = 0; i < LayoutDetectorsCount; ++i) {
-        const struct TrackDetector *detector = LayoutDetectors + i;
-        struct TrackDetectorLive *status = LayoutDetectorsLive + i;
-        const char *state = status->occupied?"on":"off";
+        const char *id = LayoutDetectors[i].id;
+        const char *state = (LayoutDetectorsLive[i].occupied)?"on":"off";
         cursor += snprintf (buffer+cursor, size-cursor,
-                            "%s[\"%s\",\"%s\"]", prefix, detector->id, state);
+                            "%s[\"%s\",\"%s\"]", prefix, id, state);
         prefix = ",";
     }
     if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
