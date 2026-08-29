@@ -47,6 +47,7 @@ struct TrackOptions {
 
     const char *backgroundColor;
     const char *foregroundColor;
+    const char *auxiliaryColor;
 };
 
 struct TrackModel {

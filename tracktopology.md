@@ -101,6 +101,7 @@ Global track parameters are configurable elements of the `rail.track` object tha
 * `display.signal.foot`: a string, value `show` or `hide`. The signal foots will not be shown on the track display if set to `hide` (the signal poles will still be shown). This field is ignored if `display.signal.light` is set to `arrow`; otherwise it is optional and the default is `show`.
 * `display.colors.background`: a string that represents the color of the background for the track display. Any color string accepted in SVG is valid here. This field is optional, the default background color is `#355b1eff`.
 * `display.colors.foreground`: a string that represents the color of the foreground for the track display. Any color string accepted in SVG is valid here. This field is optional, the default foreground color is `white`.
+* `display.colors.auxiliary`: a string that represents the color used to draw objects that are not tracks, signals or trains. Examples of such objects are the sides symbols for bridges and rerailer tracks. Any color string accepted in SVG is valid here. This field is optional, the default auxiliary color is `LightGray`.
 * `periods.poll`: the field poll period in milliseconds. The value must be within the range 10ms to 999ms. Default is 200ms.
 * `catalog`: a string that represents the name of the track catalog to load. See section Track Catalogs.
 

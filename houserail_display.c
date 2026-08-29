@@ -124,6 +124,11 @@ static const char *display_foreground_color (void) {
     return "white";
 }
 
+static const char *display_auxiliary_color (void) {
+    if (LayoutOptions->auxiliaryColor) return LayoutOptions->auxiliaryColor;
+    return "LightGrey";
+}
+
 static int calculate_straight_length (const struct TrackSegment *segment) {
 
     // Explicit length.
@@ -539,7 +544,7 @@ static void draw_bridge_side (const struct TrackSegment *segment,
                      "<path d=\"M %d %d L %d %d L %d %d L %d %d\""
                          " stroke=\"%s\" stroke-width=\"%d\"/>\n",
                      c.x, c.y, a.x, a.y, b.x, b.y, d.x, d.y,
-                     display_foreground_color(), width / 10);
+                     display_auxiliary_color(), width / 10);
     display_append (buffer, size);
 }
 
@@ -564,7 +569,7 @@ static void draw_rerail_side (const struct TrackSegment *segment,
                      "<path d=\"M %d %d L %d %d L %d %d L %d %d\""
                          " stroke-width=\"0\" fill=\"%s\"/>\n",
                      a.x, a.y, b.x, b.y, d.x, d.y, c.x, c.y,
-                     display_foreground_color());
+                     display_auxiliary_color());
     display_append (buffer, size);
 }
 
@@ -739,12 +744,12 @@ static void draw_signal_animation (const struct TrackSignal *signal,
         move_straight (&reference, &a, angle, (3 * width) / 4);
         move_straight (&a, &b, angle, width);
         if (LayoutOptions->showSignalFoot)
-            draw_straight (0, &a, &b, display_foreground_color(), 0);
+            draw_straight (0, &a, &b, display_auxiliary_color(), 0);
 
         // Draw the signal's pole, ends at the center of the signal.
         move_ratio (&a, &b, &p, 50);
         move_straight (&p, &c, rotate (angle, realign), width);
-        draw_straight (0, &c, &p, display_foreground_color(), 0);
+        draw_straight (0, &c, &p, display_auxiliary_color(), 0);
 
         // The signal circle must be drawn last, to be on top of the SVG
         // stacking order.

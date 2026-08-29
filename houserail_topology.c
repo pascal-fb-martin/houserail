@@ -1220,9 +1220,12 @@ const char *houserail_topology_reload (void) {
         houseconfig_string (track, ".display.colors.background");
     TopologyOptions.foregroundColor =
         houseconfig_string (track, ".display.colors.foreground");
-    DEBUG (__FILE__ ": display background %s, foreground %s\n",
+    TopologyOptions.auxiliaryColor =
+        houseconfig_string (track, ".display.colors.auxiliary");
+    DEBUG (__FILE__ ": display background %s, foreground %s auxiliary %s\n",
            TopologyOptions.backgroundColor?TopologyOptions.backgroundColor:"default",
-           TopologyOptions.foregroundColor?TopologyOptions.foregroundColor:"default");
+           TopologyOptions.foregroundColor?TopologyOptions.foregroundColor:"default",
+           TopologyOptions.auxiliaryColor?TopologyOptions.auxiliaryColor:"default");
 
     // Preprocessing for end of track.
     // The goal here is to automatically slow trains when they approach,
