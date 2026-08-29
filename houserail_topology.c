@@ -187,14 +187,14 @@ static int                   TopologyDetectorsCount = 0;
 static struct TrackSignal *TopologySignals = 0;
 static int                 TopologySignalsCount = 0;
 
-static echttp_hash       TopologySegmentsHash;
+static echttp_hash       TopologySegmentsHash = {0};
 static int              *TopologySegmentsMap = 0;
-static struct RangeIndex TopologySegmentsIndex;
+static struct RangeIndex TopologySegmentsIndex = {0};
 
-static echttp_hash TopologyDetectorsHash;
+static echttp_hash TopologyDetectorsHash = {0};
 static int        *TopologyDetectorsMap = 0;
 
-static echttp_hash TopologySignalsHash;
+static echttp_hash TopologySignalsHash = {0};
 static int        *TopologySignalsMap = 0;
 
 struct TrackLinkage {
@@ -235,16 +235,6 @@ int houserail_topology_search_by_id (const char *id) {
     if ((i > 0) && (i <= TopologySegmentsCount)) {
         return TopologySegmentsMap[i];
     }
-
-    // For now: if not in the hash, fallback to linear search.
-    // FIXME: improve echttp_hash to support variable size.
-
-    int signature = echttp_hash_signature (id);
-
-    for (i = 0; i < TopologySegmentsCount; ++i) {
-        if (TopologySegments[i].signature != signature) continue;
-        if (strsame (TopologySegments[i].id, id)) return i;
-    }
     return -1;
 }
 
@@ -261,18 +251,6 @@ int houserail_topology_search_detector (const char *id) {
     if ((i > 0) && (i <= TopologyDetectorsCount)) {
         return TopologyDetectorsMap[i];
     }
-
-    // For now: if not in the hash, fallback to linear search.
-    // FIXME: improve echttp_hash to support variable size.
-
-    int signature = echttp_hash_signature (id);
-
-    for (i = 0; i < TopologyDetectorsCount; ++i) {
-        const struct TrackDetector *detector = TopologyDetectors + i;
-        if (detector->signature != signature) continue;
-        if (!detector->id) continue;
-        if (strsame (detector->id, id)) return i;
-    }
     return -1;
 }
 
@@ -284,18 +262,6 @@ int houserail_topology_search_signal (const char *id) {
     int i = echttp_hash_find (&TopologySignalsHash, id);
     if ((i > 0) && (i <= TopologySignalsCount)) {
         return TopologySignalsMap[i];
-    }
-
-    // For now: if not in the hash, fallback to linear search.
-    // FIXME: improve echttp_hash to support variable size.
-
-    int signature = echttp_hash_signature (id);
-
-    for (i = 0; i < TopologySignalsCount; ++i) {
-        const struct TrackSignal *detector = TopologySignals + i;
-        if (detector->signature != signature) continue;
-        if (!detector->id) continue;
-        if (strsame (detector->id, id)) return i;
     }
     return -1;
 }
@@ -360,6 +326,15 @@ static int houserail_topology_search_origin (struct TrackSegment *segment,
     return count;
 }
 
+static void houserail_topology_erase (echttp_hash *h, int **map) {
+    if (*map) {
+        echttp_hash_reset (h, 0);
+        echttp_hash_release (h);
+        free (*map);
+        *map = 0;
+    }
+}
+
 const char *houserail_topology_reload (void) {
 
     if (Symbols) {
@@ -375,28 +350,21 @@ const char *houserail_topology_reload (void) {
        free (TopologySegments);
        TopologySegments = 0;
        TopologySegmentsCount = 0;
+       houserail_topology_erase (&TopologySegmentsHash, &TopologySegmentsMap);
+       houserail_scout_erase (&TopologySegmentsIndex);
     }
-    if (TopologySegmentsMap) {
-       free (TopologySegmentsMap);
-       TopologySegmentsMap = 0;
-    }
+
     if (TopologyDetectors) {
         free (TopologyDetectors);
         TopologyDetectors= 0;
+        houserail_topology_erase (&TopologyDetectorsHash, &TopologyDetectorsMap);
     }
-    if (TopologyDetectorsMap) {
-        free (TopologyDetectorsMap);
-        TopologyDetectorsMap = 0;
-    }
+
     if (TopologySignals) {
         free (TopologySignals);
         TopologySignals= 0;
+        houserail_topology_erase (&TopologySignalsHash, &TopologySignalsMap);
     }
-    if (TopologySignalsMap) {
-        free (TopologySignalsMap);
-        TopologySignalsMap = 0;
-    }
-    houserail_scout_erase (&TopologySegmentsIndex);
 
     TopologyOptions.name = houseconfig_string (0, ".rail.layout");
     if (!TopologyOptions.name) return "No track layout name";
@@ -569,13 +537,13 @@ const char *houserail_topology_reload (void) {
 
     // Populate the segments array.
 
-    TopologySegments = calloc (TopologySegmentsCount, sizeof(struct TrackSegment));
-    houseconfig_enumerate (segments, list, TopologySegmentsCount);
-
     Symbols = calloc (TopologySegmentsCount, sizeof(struct TrackLinkage));
+    TopologySegments = calloc (TopologySegmentsCount, sizeof(struct TrackSegment));
 
-    echttp_hash_create (&TopologySegmentsHash);
+    echttp_hash_create (&TopologySegmentsHash, TopologySegmentsCount+1);
     TopologySegmentsMap = calloc (TopologySegmentsCount+1, sizeof(int));
+
+    houseconfig_enumerate (segments, list, TopologySegmentsCount);
 
     for (i = 0; i < TopologySegmentsCount; ++i) {
         int element = list[i];
@@ -972,10 +940,11 @@ const char *houserail_topology_reload (void) {
 
     // Populate the detectors array.
 
-    echttp_hash_create (&TopologyDetectorsHash);
-
-    TopologyDetectorsMap = calloc (TopologyDetectorsCount+1, sizeof(int));
     TopologyDetectors = calloc (TopologyDetectorsCount, sizeof(struct TrackDetector));
+
+    echttp_hash_create (&TopologyDetectorsHash, TopologyDetectorsCount+1);
+    TopologyDetectorsMap = calloc (TopologyDetectorsCount+1, sizeof(int));
+
     houseconfig_enumerate (detectors, list, TopologyDetectorsCount);
 
     for (i = 0; i < TopologyDetectorsCount; ++i) {
@@ -1030,10 +999,11 @@ const char *houserail_topology_reload (void) {
 
     if (TopologySignalsCount > 0) {
 
-        echttp_hash_create (&TopologySignalsHash);
-
-        TopologySignalsMap = calloc (TopologySignalsCount+1, sizeof(int));
         TopologySignals = calloc (TopologySignalsCount, sizeof(struct TrackSignal));
+
+        echttp_hash_create (&TopologySignalsHash, TopologySignalsCount+1);
+        TopologySignalsMap = calloc (TopologySignalsCount+1, sizeof(int));
+
         houseconfig_enumerate (signals, list, TopologySignalsCount);
 
         for (i = 0; i < TopologySignalsCount; ++i) {
