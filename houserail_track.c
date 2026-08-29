@@ -241,6 +241,9 @@ static const struct TrackDetector *LayoutDetectors = 0;
 static struct TrackDetectorLive   *LayoutDetectorsLive = 0;
 static int                         LayoutDetectorsCount = 0;
 
+static int *LayoutSwitches = 0;
+static int  LayoutSwitchesCount = 0;
+
 void houserail_track_testmode (int enabled) {
     TestMode = enabled;
 }
@@ -321,8 +324,11 @@ const char *houserail_track_reload (void) {
     LayoutDetectorsLive =
         calloc (LayoutDetectorsCount, sizeof(struct TrackDetectorLive));
 
-    // Initialize the segment status.
+    // Initialize the segment status and create an index of switch segments.
     //
+    if (LayoutSwitches) free (LayoutSwitches);
+    LayoutSwitches = malloc (LayoutSegmentsCount * sizeof(int));
+    LayoutSwitchesCount = 0;
     int i;
     for (i = 0; i < LayoutSegmentsCount; ++i) {
 
@@ -335,6 +341,7 @@ const char *houserail_track_reload (void) {
             // Default state of a switch is 'normal'.
             status->needle =
                (segment->common == segment->next)? segment->previous : segment->next;
+            LayoutSwitches[LayoutSwitchesCount++] = i;
         }
     }
 
@@ -423,23 +430,21 @@ static int houserail_track_status_switches (char *buffer, int size) {
     int cursor = 0;
     const char *prefix = ",\"switch\":[";
 
-    int i;
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
+    int j, i;
+    for (j = 0; j < LayoutSwitchesCount; ++j) {
+        i = LayoutSwitches[j];
         const struct TrackSegment *segment = LayoutSegments + i;
         struct TrackSegmentLive *status = LayoutSegmentsLive + i;
-        if (segment->branch >= 0) {
-            const char *state = "invalid";
-            if (status->needle == segment->branch)
-                state = "reverse";
-            else if (status->needle == segment->next)
-                state = "normal";
-            else if (status->needle == segment->previous)
-                state = "normal";
-            cursor += snprintf (buffer+cursor, size-cursor,
-                                "%s[\"%s\",\"%s\"]",
-                                prefix, segment->id, state);
-            prefix = ",";
-        }
+        const char *state = "invalid";
+        if (status->needle == segment->branch)
+            state = "reverse";
+        else if (status->needle == segment->next)
+            state = "normal";
+        else if (status->needle == segment->previous)
+            state = "normal";
+        cursor += snprintf (buffer+cursor, size-cursor,
+                            "%s[\"%s\",\"%s\"]", prefix, segment->id, state);
+        prefix = ",";
     }
     if (cursor > 0) cursor += snprintf (buffer+cursor, size-cursor, "]");
     return cursor;
@@ -862,10 +867,10 @@ const char *houserail_track_switch (const char *name, const char *state) {
     // Propagate the new state to all the switches that share that same control
     const char *control = segment->control;
     const char *protected = LayoutSegments[segment->protected].id;
-    int i;
-    for (i = 0; i < LayoutSegmentsCount; ++i) {
+    int j, i;
+    for (j = 0; j < LayoutSwitchesCount; ++j) {
+        i = LayoutSwitches[j];
         segment = LayoutSegments + i;
-        if (segment->branch < 0) continue;
         if (!strsame (control, segment->control)) continue;
 
         if (state == Normal) {
