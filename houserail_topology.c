@@ -134,17 +134,17 @@
  *
  * LIMITATIONS:
  *
- * This design is optimized for up to 256 segments for now. To remove this
- * restriction, change echttp_hash.[hc] to allow the caller to set the size
- * of the hash.
+ * The number of segments, signals and detectors is limited to 32768 at this
+ * time, mostly because type short (signed) is used to store segment, signal
+ * and detector indexes, with -1 used as a 'null' reference (0 is a valid
+ * index). See constant TRACK_OBJECTS_MAX.
  *
- * Another limit to the number of segment is the signature that identifies
- * the feature protected by a signal: that signature assumes less than 16384
- * segments at this time. See constant TRACK_SEGMENTS_MAX and TrackSignal's
- * field "protected".
+ * The justification for such an arbitrary limit is that 32768 track segments
+ * represent about 13000 feet of tracks, i.e. a layout length of more than
+ * 600 feet with 10 parallel lines on two levels. This is definitly not
+ * a small layout and goes beyond the design intent for this software.
  *
- * The implementation also assumes maximums of 16384 detectors total and
- * 16 detectors per segment.
+ * The implementation also assumes a maximum of 16 detectors per segment.
  */
 
 #include <time.h>
@@ -167,7 +167,7 @@
 
 #define PRECISION 1000   // Goal is millimeter precision.
 
-#define TRACK_SEGMENTS_MAX 0x4000
+#define TRACK_OBJECTS_MAX 0x8000
 
 static int BillMode = 0;
 static int TestMode = 0;
@@ -408,7 +408,7 @@ const char *houserail_topology_reload (void) {
     TopologySegmentsCount = houseconfig_array_length (segments);
     if (TopologySegmentsCount <= 0)
         return "Empty track segment list";
-    if (TopologySegmentsCount > TRACK_SEGMENTS_MAX)
+    if (TopologySegmentsCount > TRACK_OBJECTS_MAX)
         return "Track segment list too long";
 
     int detectors = houseconfig_array (track, ".detectors");
@@ -416,10 +416,14 @@ const char *houserail_topology_reload (void) {
 
     TopologyDetectorsCount = houseconfig_array_length (detectors);
     if (TopologyDetectorsCount <= 0) return "Empty track detectors list";
+    if (TopologyDetectorsCount > TRACK_OBJECTS_MAX)
+        return "Track detector list too long";
 
     // Signals are optional.
     int signals = houseconfig_array (track, ".signals");
     TopologySignalsCount = (signals>=0)?houseconfig_array_length (signals):0;
+    if (TopologySignalsCount > TRACK_OBJECTS_MAX)
+        return "Signal list too long";
 
     int max = 2; // Minimum.
     if (TopologyModelsCount > max) max = TopologyModelsCount;

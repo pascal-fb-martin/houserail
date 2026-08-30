@@ -15,7 +15,9 @@ This service provides a web user interface to control train traffic:
 - Show live status of signals and turnouts, with one-click controls.
 - Record train movements and speed changes as events.
 
-The software is optimized for smaller layouts that use fixed track sections. It supports turnouts and bridges. It is simple to configure: the JSON configuration data required is minimal and the software automatically generates the track display.
+The software is optimized for smaller layouts that use less than 32768 track segments, signals or detectors. It supports turnouts, rerailers and bridges. The intent is to make it simple to configure: the JSON configuration data required is minimal and the software automatically generates the track display.
+
+Prebuilt interlocking segments (e.g. crossover and double crossover tracks) are supported by splitting them into individual switches sharing common controls, with made-up segment joiners if required.
 
 The software integrates with the House suite of services:
 
