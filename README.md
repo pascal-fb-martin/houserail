@@ -44,7 +44,7 @@ Other House services are optional:
 
 - [HouseSaga](https://github.com/pascal-fb-martin/housesaga) to save events to permanent storage.
 - [Housemech](https://github.com/pascal-fb-martin/housemech) to trigger controls based on train events. (HouseMech requires HouseSaga.)
-- [HouseLights}(https://github.com/pascal-fb-martin/houselights) to control light or other electrical devices from HouseMech. The actual interface to the devices is implemented by services like [HouseKasa](https://github.com/pascal-fb-martin/housekasa), [HouseTuya](https://github.com/pascal-fb-martin/housetuya) or [HouseWiz](https://github.com/pascal-fb-martin/housewiz).
+- [HouseLights](https://github.com/pascal-fb-martin/houselights) to control light or other electrical devices from HouseMech. This also requires installing services like [HouseKasa](https://github.com/pascal-fb-martin/housekasa), [HouseTuya](https://github.com/pascal-fb-martin/housetuya) or [HouseWiz](https://github.com/pascal-fb-martin/housewiz).
 
 ## Installation
 
@@ -241,15 +241,15 @@ The schema of the static configuration is described is two documents:
 * [Track Configuration](https://github.com/pascal-fb-martin/houserail/blob/main/tracktopology.md)
 * [Train Data](https://github.com/pascal-fb-martin/houserail/blob/main/traindata.md)
 
-The software comes with a few layouts and track catalogs:
+The software comes with a few examples of layouts and a handful of track catalogs:
 
 * catalogs/AtlasCode80.json describes the characteristics of (many) Atlas Model Railroad Company's Code 80 N scale tracks.
-* catalogs/KatoUnitrackN.json describes the characteristics of (many) Kato's N scale UniTrack.
+* catalogs/KatoUnitrackN.json describes the characteristics of (many) Kato's N scale UniTrack tracks.
 * layouts/ProgramTrack.json contains just a handful of straight Unitrack segments. This is the original physical layout that HouseRail is tested against.
 * layouts/SimpleLoopKato.json contains a loop with a pocket track. This was the original layout used to test display generation and switch operations.
 * layouts/SimpleWithSpurs.json is a loop with three spurs, loosely inspired by the Atlas N-503 layout.
 
-The `layoutvalidate` tool is provided to both validate that the configuration is valid and verify that the generated topology and fleet are correct:
+The `layoutvalidate` tool is provided to both validate a configuration and verify that the generated topology and fleet are correct:
 
 ```
    layoutvalidate <path to config file>
