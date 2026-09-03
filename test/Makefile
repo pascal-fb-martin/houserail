@@ -43,7 +43,7 @@ clean:
 rebuild: clean all
 
 test: rebuild
-	./testmath ./testscout && ./testpath && ./testtrack && ./testtrain && ./testend && echo "== All tests passed"
+	./testmath && ./testscout && ./testpath && ./testtrack && ./testtrain && ./testend && echo "== All tests passed"
 
 %.o: %.c
 	gcc -c -Wall -g -O2 -o $@ $<
