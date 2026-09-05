@@ -348,13 +348,13 @@ static void houserail_train_fleet (const char *id, int index) {
                if (!train->stopping) {
                    train->deadline = 0; // No speed to maintain anymore
                    train->stopping = houserail_train_timestamp();
-                   houselog_event ("TRAIN", train->id,
-                                   "STOPPING", "(DCC REPORT)");
+                   houselog_event_local ("TRAIN", train->id,
+                                         "STOPPING", "(DCC REPORT)");
                }
            } else {
                train->speed = speed;
-               houselog_event ("TRAIN", train->id,
-                               "SPEED", "CHANGED TO %d", speed);
+               houselog_event_local ("TRAIN", train->id,
+                                     "SPEED", "CHANGED TO %d", speed);
            }
        }
        train->active = 1;
@@ -475,12 +475,12 @@ static void houserail_train_pull (struct TrainConsist *train,
 
     houserail_path_rollup (&(train->path), rear);
     train->updated = timestamp;
-    houselog_event ("TRAIN", train->id, "MOVED",
-                    "%s HEAD %s %d TAIL %s %d (%s AT %s %d TO %d)",
-                    (direction >= 0)?"UP":"DOWN",
-                    train->head.line, train->head.post,
-                    train->tail.line, train->tail.post,
-                    state, area->line, area->low, area->high);
+    houselog_event_local ("TRAIN", train->id, "MOVED",
+                          "%s HEAD %s %d TAIL %s %d (%s AT %s %d TO %d)",
+                          (direction >= 0)?"UP":"DOWN",
+                          train->head.line, train->head.post,
+                          train->tail.line, train->tail.post,
+                          state, area->line, area->low, area->high);
 }
 
 static void houserail_train_pull_occupied (struct TrainConsist *train,
@@ -597,9 +597,9 @@ static const char *houserail_train_drive (struct TrainConsist *train,
                                           int speed, const char *cause) {
 
     if (cause)
-        houselog_event ("TRAIN", train->id, "SPEED",
-                        "REQUESTED CHANGE FROM %d TO %d (%s)",
-                        train->speed, speed, cause);
+        houselog_event_local ("TRAIN", train->id, "SPEED",
+                              "REQUESTED CHANGE FROM %d TO %d (%s)",
+                              train->speed, speed, cause);
 
     if (train->hasdcc) { // This is a DCC consist.
         train->pending += 1;
@@ -670,9 +670,9 @@ static const char *houserail_train_adjust_speed (struct TrainConsist *train,
 
     if (train->pending || TrainTrackingBurstActive) {
         if ((!train->queue.has_speed) || (train->queue.speed != speed)) {
-            houselog_event ("TRAIN", train->id, "SPEED",
-                            "QUEUED CHANGE FROM %d TO %d (%s)",
-                            train->speed, speed, cause);
+            houselog_event_local ("TRAIN", train->id, "SPEED",
+                                  "QUEUED CHANGE FROM %d TO %d (%s)",
+                                  train->speed, speed, cause);
             train->queue.speed = speed;
             train->queue.has_speed = 1;
         }
@@ -1173,9 +1173,10 @@ const char *houserail_train_reload (void) {
    }
    free (list);
 
-   houselog_event ("LAYOUT", "TRAIN", "LOADED",
-                   "%d models %d vehicles (%d trains)",
-                   LayoutVehicleModelsCount, LayoutVehiclesCount, LayoutTrainsCount);
+   houselog_event_local ("LAYOUT", "TRAIN", "LOADED",
+                         "%d models %d vehicles (%d trains)",
+                         LayoutVehicleModelsCount,
+                         LayoutVehiclesCount, LayoutTrainsCount);
 
    houserail_field_fleet_iterate (houserail_train_fleet);
    return 0;

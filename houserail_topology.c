@@ -1340,12 +1340,12 @@ const char *houserail_topology_reload (void) {
         printf (  "-----------------------------\n");
     }
 
-    houselog_event ("LAYOUT", "TOPOLOGY", "LOADED",
-                    "%d models %d tracks %d detectors %d signals",
-                    TopologyModelsCount,
-                    TopologySegmentsCount,
-                    TopologyDetectorsCount,
-                    TopologySignalsCount);
+    houselog_event_local ("LAYOUT", "TOPOLOGY", "LOADED",
+                          "%d models %d tracks %d detectors %d signals",
+                          TopologyModelsCount,
+                          TopologySegmentsCount,
+                          TopologyDetectorsCount,
+                          TopologySignalsCount);
     return 0;
 }
 

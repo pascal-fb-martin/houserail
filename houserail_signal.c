@@ -165,7 +165,7 @@ const char *houserail_signal_reload (void) {
     for (i = 0; i < oldsignalscount; ++i) free (oldsignals[i].id);
     if (oldsignals) free (oldsignals);
 
-    houselog_event ("LAYOUT", "SIGNALS", "LOADED", "");
+    houselog_event_local ("LAYOUT", "SIGNALS", "LOADED", "");
     return 0;
 }
 

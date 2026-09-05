@@ -295,9 +295,11 @@ void houserail_track_input (const char *name,
 
     if (!consumed) {
         int timing = (int) (timestamp % 10000);
-        houselog_event ("DETECTOR", name, state, "AT %d.%03d (%s %d TO %d)",
-                        timing / 1000, timing % 1000, detector->area.line,
-                        detector->area.low, detector->area.high);
+        houselog_event_local ("DETECTOR", name, state,
+                              "AT %d.%03d (%s %d TO %d)",
+                              timing / 1000, timing % 1000,
+                              detector->area.line,
+                              detector->area.low, detector->area.high);
     }
 }
 
@@ -388,7 +390,7 @@ const char *houserail_track_reload (void) {
     if (oldsegments) free (oldsegments);
     if (olddetectors) free (olddetectors);
 
-    houselog_event ("LAYOUT", "TRACK", "LOADED", "");
+    houselog_event_local ("LAYOUT", "TRACK", "LOADED", "");
     return 0;
 }
 
