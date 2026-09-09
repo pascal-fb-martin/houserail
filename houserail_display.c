@@ -506,6 +506,27 @@ static void draw_disc (const char *id,
     display_append (buffer, length);
 }
 
+static void draw_circle (const char *id,
+                         const struct TrackVertex *center,
+                         int radius, int stroke, const char *color) {
+
+    char idparm[120];
+    if (id) snprintf (idparm, sizeof(idparm), " id=\"%s\"", id);
+    else idparm[0] = 0;
+
+    char colorparm[80];
+    if (color)
+        snprintf (colorparm, sizeof(colorparm),
+                  " stroke-width=\"%d\" stroke=\"%s\"", stroke, color);
+    else colorparm[0] = 0;
+
+    char buffer[180];
+    int length = snprintf (buffer, sizeof(buffer),
+                           "<circle%s cx=\"%d\" cy=\"%d\" r=\"%d\"%s/>\n",
+                           idparm, center->x, center->y, radius, colorparm);
+    display_append (buffer, length);
+}
+
 static int is_feature (int index, const char *feature) {
 
     if (strsame (LayoutSegments[index].feature, feature)) return 1;
@@ -924,6 +945,103 @@ static void generate_tracks (int width) {
     generate_group_end(); // Pan & Zoom
 }
 
+static void generate_buttons (const struct TrackVertex *zero, int hight) {
+
+    int margin = hight / 10;
+    int box = hight - (2 * margin);
+    int radius = box / 2;
+    int inner = (2 * radius) / 3;
+    int edge = inner / 3;
+    int stroke = radius / 5;
+
+    const char buttons[] = "<g id=\"buttons\" fill=\"none\">\n";
+    display_append (buttons, sizeof(buttons)-1);
+
+    char buffer[256];
+    int length;
+    struct TrackVertex origin = {0};
+    struct TrackVertex end = {0};
+    struct TrackVertex center;
+
+    static const char turn[] =
+        "<path d=\"M%d %d v%d h%d M%d %d A%d %d 0 %d %d %d %d\"%s";
+
+    char endwithstyle[180];
+    static const char styleformat[] =
+            " stroke-linecap=\"round\" stroke-linejoin=\"round\""
+            " stroke-width=\"%d\" stroke=\"%s\"/>\n";
+    snprintf (endwithstyle, sizeof(endwithstyle),
+              styleformat, stroke, display_foreground_color());
+
+    center.x = zero->x + margin + (hight / 2);
+    center.y = zero->y + margin + (hight / 2);
+    center.angle = 0;
+    draw_disc ("rotateleft", &center, radius, display_background_color());
+    draw_circle (0, &center, radius, stroke / 3, display_foreground_color());
+
+    houserail_math_straight (&center, &origin, -13500, inner);
+    houserail_math_straight (&center, &end, 13500, inner);
+    length = snprintf (buffer, sizeof(buffer), turn,
+                       origin.x, origin.y - edge, edge, edge,
+                       origin.x, origin.y,
+                       inner, inner, 1, 1, end.x, end.y, endwithstyle);
+    display_append (buffer, length);
+
+    center.x += hight;
+    draw_disc ("rotatesave", &center, radius, display_background_color());
+    draw_circle (0, &center, radius, stroke / 3, display_foreground_color());
+
+    int upper = (3 * inner) / 4;
+    int lower = inner / 2;
+    houserail_math_straight (&center, &origin, -9000, upper);
+    houserail_math_straight (&center, &end, 9000, lower);
+    length = snprintf (buffer, sizeof(buffer),
+                       "<path d=\"M%d %d V%d l-%d-%d l%d %d l%d-%d"
+                                " M%d %d h%d\"%s",
+                       origin.x, origin.y, end.y,
+                       edge, edge,
+                       edge, edge,
+                       edge, edge,
+                       end.x - (2 * edge), end.y + (inner / 10), 4 * edge,
+                       endwithstyle);
+    display_append (buffer, length);
+
+
+    center.x += hight;
+    draw_disc ("rotatereset", &center, radius, display_background_color());
+    draw_circle (0, &center, radius, stroke / 3, display_foreground_color());
+
+    houserail_math_straight (&center, &origin, -13500, inner);
+    houserail_math_straight (&center, &end, 0, inner);
+    length = snprintf (buffer, sizeof(buffer), turn,
+                       origin.x, origin.y - edge, edge, edge,
+                       origin.x, origin.y,
+                       inner, inner, 0, 1, end.x, end.y, endwithstyle);
+    display_append (buffer, length);
+
+    houserail_math_straight (&center, &origin, 4500, inner);
+    houserail_math_straight (&center, &end, 18000, inner);
+    length = snprintf (buffer, sizeof(buffer), turn,
+                       origin.x, origin.y + edge, 0 - edge, 0 - edge,
+                       origin.x, origin.y,
+                       inner, inner, 0, 1, end.x, end.y, endwithstyle);
+    display_append (buffer, length);
+
+    center.x += hight;
+    draw_disc ("rotateright", &center, radius, display_background_color());
+    draw_circle (0, &center, radius, stroke / 3, display_foreground_color());
+
+    houserail_math_straight (&center, &origin, -4500, inner);
+    houserail_math_straight (&center, &end, 4500, inner);
+    length = snprintf (buffer, sizeof(buffer), turn,
+                       origin.x, origin.y - edge, edge, 0 - edge,
+                       origin.x, origin.y,
+                       inner, inner, 1, 0, end.x, end.y, endwithstyle);
+    display_append (buffer, length);
+
+    generate_group_end ();
+}
+
 static void generate_svg_tail (void) {
     static const char tail[] = "</svg>\n";
     display_append (tail, sizeof(tail) - 1);
@@ -1026,9 +1144,10 @@ const char *houserail_display_reload (void) {
     struct TrackVertex max;
     calculate_viewbox (&min, &max);
 
+    int top = (max.x - min.x) / 30;
     int margin = (max.x - min.x) / 30;
     min.x -= margin;
-    min.y -= margin;
+    min.y -= (top + margin); // Keep room for the action buttons.
     max.x += margin;
     max.y += margin;
     int width = max.x - min.x;
@@ -1039,6 +1158,7 @@ const char *houserail_display_reload (void) {
     generate_html_head ();
     generate_svg_head (&min, width, height);
     generate_tracks (strokewidth);
+    generate_buttons (&min, top);
     generate_svg_tail ();
     generate_html_tail ();
 
