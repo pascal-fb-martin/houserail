@@ -487,9 +487,9 @@ static void draw_curve (const char *id,
    draw_path (id, d, stroke, length);
 }
 
-static void draw_disc (const char *id,
-                       const struct TrackVertex *center,
-                       int radius, const char *fill) {
+static void draw_circle (const char *id,
+                         const struct TrackVertex *center, int radius,
+                         const char *fill, int stroke, const char *color) {
 
     char idparm[120];
     if (id) snprintf (idparm, sizeof(idparm), " id=\"%s\"", id);
@@ -499,21 +499,6 @@ static void draw_disc (const char *id,
     if (fill) snprintf (fillparm, sizeof(fillparm), " fill=\"%s\"", fill);
     else fillparm[0] = 0;
 
-    char buffer[180];
-    int length = snprintf (buffer, sizeof(buffer),
-                           "<circle%s cx=\"%d\" cy=\"%d\" r=\"%d\"%s/>\n",
-                           idparm, center->x, center->y, radius, fillparm);
-    display_append (buffer, length);
-}
-
-static void draw_circle (const char *id,
-                         const struct TrackVertex *center,
-                         int radius, int stroke, const char *color) {
-
-    char idparm[120];
-    if (id) snprintf (idparm, sizeof(idparm), " id=\"%s\"", id);
-    else idparm[0] = 0;
-
     char colorparm[80];
     if (color)
         snprintf (colorparm, sizeof(colorparm),
@@ -522,8 +507,9 @@ static void draw_circle (const char *id,
 
     char buffer[180];
     int length = snprintf (buffer, sizeof(buffer),
-                           "<circle%s cx=\"%d\" cy=\"%d\" r=\"%d\"%s/>\n",
-                           idparm, center->x, center->y, radius, colorparm);
+                           "<circle%s cx=\"%d\" cy=\"%d\" r=\"%d\"%s%s/>\n",
+                           idparm, center->x, center->y, radius,
+                           fillparm,  colorparm);
     display_append (buffer, length);
 }
 
@@ -774,7 +760,7 @@ static void draw_signal_animation (const struct TrackSignal *signal,
 
         // The signal circle must be drawn last, to be on top of the SVG
         // stacking order.
-        draw_disc (id, &c, width / 2, display_foreground_color());
+        draw_circle (id, &c, width / 2, display_foreground_color(), 0, 0);
         break;
 
      case SIGNAL_ARROW:
@@ -786,7 +772,7 @@ static void draw_signal_animation (const struct TrackSignal *signal,
 
         // Draw the signal's circle.
         move_straight (&reference, &c, angle, (5 * width) / 4);
-        draw_disc (0, &c, width / 2, 0);
+        draw_circle (0, &c, width / 2, 0, 0, 0);
 
         // Draw the arrow
         angle = rotate (angle, realign);
@@ -976,8 +962,8 @@ static void generate_buttons (const struct TrackVertex *zero, int hight) {
     center.x = zero->x + margin + (hight / 2);
     center.y = zero->y + margin + (hight / 2);
     center.angle = 0;
-    draw_disc ("rotateleft", &center, radius, display_background_color());
-    draw_circle (0, &center, radius, stroke / 3, display_foreground_color());
+    draw_circle ("rotateleft", &center, radius, display_background_color(),
+                 stroke / 3, display_foreground_color());
 
     houserail_math_straight (&center, &origin, -13500, inner);
     houserail_math_straight (&center, &end, 13500, inner);
@@ -988,8 +974,8 @@ static void generate_buttons (const struct TrackVertex *zero, int hight) {
     display_append (buffer, length);
 
     center.x += hight;
-    draw_disc ("rotatesave", &center, radius, display_background_color());
-    draw_circle (0, &center, radius, stroke / 3, display_foreground_color());
+    draw_circle ("rotatesave", &center, radius, display_background_color(),
+                 stroke / 3, display_foreground_color());
 
     int upper = (3 * inner) / 4;
     int lower = inner / 2;
@@ -1008,8 +994,8 @@ static void generate_buttons (const struct TrackVertex *zero, int hight) {
 
 
     center.x += hight;
-    draw_disc ("rotatereset", &center, radius, display_background_color());
-    draw_circle (0, &center, radius, stroke / 3, display_foreground_color());
+    draw_circle ("rotatereset", &center, radius, display_background_color(),
+                 stroke / 3, display_foreground_color());
 
     houserail_math_straight (&center, &origin, -13500, inner);
     houserail_math_straight (&center, &end, 0, inner);
@@ -1028,8 +1014,8 @@ static void generate_buttons (const struct TrackVertex *zero, int hight) {
     display_append (buffer, length);
 
     center.x += hight;
-    draw_disc ("rotateright", &center, radius, display_background_color());
-    draw_circle (0, &center, radius, stroke / 3, display_foreground_color());
+    draw_circle ("rotateright", &center, radius, display_background_color(),
+                 stroke / 3, display_foreground_color());
 
     houserail_math_straight (&center, &origin, -4500, inner);
     houserail_math_straight (&center, &end, 4500, inner);
