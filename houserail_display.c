@@ -977,21 +977,9 @@ static void generate_buttons (const struct TrackVertex *zero, int hight) {
     draw_circle ("rotatesave", &center, radius, display_background_color(),
                  stroke / 3, display_foreground_color());
 
-    int upper = (3 * inner) / 4;
-    int lower = inner / 2;
-    houserail_math_straight (&center, &origin, -9000, upper);
-    houserail_math_straight (&center, &end, 9000, lower);
-    length = snprintf (buffer, sizeof(buffer),
-                       "<path d=\"M%d %d V%d l-%d-%d l%d %d l%d-%d"
-                                " M%d %d h%d\"%s",
-                       origin.x, origin.y, end.y,
-                       edge, edge,
-                       edge, edge,
-                       edge, edge,
-                       end.x - (2 * edge), end.y + (inner / 10), 4 * edge,
-                       endwithstyle);
-    display_append (buffer, length);
-
+    // Draw a stylized disk.
+    draw_circle (0, &center, inner, display_foreground_color(), 0, 0);
+    draw_circle (0, &center, inner/4, display_background_color(), 0, 0);
 
     center.x += hight;
     draw_circle ("rotatereset", &center, radius, display_background_color(),
