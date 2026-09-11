@@ -428,7 +428,7 @@ static void generate_html_head (void) {
         "</script>\n"
         "</head>\n"
         "<body style=\"margin: 0;\" width=\"100%%\" height=\"100%%\">\n"
-        "<div style=\"background-color: %s;\" width=\"100%%\" height=\"100%%\">\n";
+        "<div style=\"background-color: %s; flex-grow: 1;\">\n";
     char buffer[1024];
     int length = snprintf (buffer, sizeof(buffer),
                            headformat, display_background_color());
