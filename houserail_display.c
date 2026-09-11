@@ -427,7 +427,7 @@ static void generate_html_head (void) {
         "window.onload = function() {animateStart('/rail');}\n"
         "</script>\n"
         "</head>\n"
-        "<body style=\"margin: 0;\">\n"
+        "<body style=\"margin: 0;\" width=\"100%%\" height=\"100%%\">\n"
         "<div style=\"background-color: %s;\" width=\"100%%\" height=\"100%%\">\n";
     char buffer[1024];
     int length = snprintf (buffer, sizeof(buffer),
