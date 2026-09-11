@@ -4,21 +4,29 @@
 <link rel="stylesheet" href="/rail/tracklayout.css">
 <script>
 
+var LatestViews = 0;
 var LatestConfig = 0;
+
+var RailViews = null;
+var RailPopup  = null;
+var RailTrackMenu = null;
+var RailFrame = null;
+
+function railReloadFrame () {
+    RailFrame.contentWindow.location.reload(true);
+}
 
 function railRefresh (response) {
 
     document.getElementsByTagName('title')[0].innerHTML =
         response.host+' - '+response.rail.layout+' Tracks';
 
-    const iframe = document.getElementsByTagName('iframe');
-    for (var i = 0; i < iframe.length; ++i) {
-       iframe[i].contentWindow.location.reload(true);
-    }
+    if (LatestConfig) railReloadFrame ();
     LatestConfig = response.latest;
 }
 
 function railStatus () {
+
     var url = "/rail/identify";
     if (LatestConfig) url += '?known=' + LatestConfig;
 
@@ -32,9 +40,82 @@ function railStatus () {
     command.send(null);
 }
 
+function railPopupClick (e) {
+
+    e.stopPropagation();
+    RailPopup.classList.remove ('active');
+
+    const url = '/rail/track/view/'+this.innerHTML;
+    RailFrame.src = url;
+}
+
+function railMenuClick (e) {
+
+    if (!RailViews) return;
+    e.stopPropagation();
+
+    if (RailPopup.classList.contains('active')) {
+        RailPopup.classList.remove ('active');
+        return;
+    }
+    const popuprect = RailPopup.getBoundingClientRect();
+    const menurect = RailTrackMenu.getBoundingClientRect();
+    const popupleft = menurect.left + (menurect.width - popuprect.width) / 2;
+    RailPopup.style.left = `${popupleft}px`;
+    RailPopup.style.top = `${menurect.bottom}px`
+
+    RailPopup.classList.add ('active');
+}
+
+function railMenu (response) {
+
+    RailPopup.replaceChildren();
+
+    if (response.rail.view && (response.rail.view.length > 1)) {
+        RailViews = response.rail.view;
+        for (var i = 0; i < RailViews.length; ++i) {
+            var item = document.createElement("span");
+            item.innerHTML = RailViews[i];
+            item.className = 'active';
+            item.style = 'padding: 0 10px;';
+            item.addEventListener ('click',railPopupClick);
+            RailPopup.appendChild(item);
+        }
+        RailTrackMenu.innerHTML = 'Tracks &#9662;';
+        RailTrackMenu.classList.add ('active');
+        RailTrackMenu.addEventListener ('click', railMenuClick);
+    } else {
+        RailViews = null;
+        RailTrackMenu.innerHTML = 'Tracks';
+        RailTrackMenu.classList.remove ('active');
+        RailTrackMenu.removeEventListener ('click', railMenuClick);
+    }
+    LatestViews = response.latest;
+    railStatus ();
+}
+
+function railViews () {
+    var url = "/rail/track/display/views";
+    if (LatestViews) url += '?known=' + LatestViews;
+
+    var command = new XMLHttpRequest();
+    command.open("GET", url);
+    command.onreadystatechange = function () {
+        if (command.readyState === 4 && command.status === 200) {
+            railMenu (JSON.parse(command.responseText));
+        }
+    }
+    command.send(null);
+}
+
 window.onload = function() {
-   railStatus();
-   setInterval (railStatus, 5000);
+
+   RailFrame = document.getElementById('mapcontent');
+   RailPopup = document.getElementById('trackpopup');
+   RailTrackMenu = document.getElementById('trackmenu');
+
+   railViews();
+   setInterval (railViews, 3000);
 };
 </script>
 <title>Tracks</title>
@@ -44,7 +125,11 @@ window.onload = function() {
       <table>
       <tr>
       <td><a href="/rail/index.html">Trains</a></td>
-      <td><span>Tracks</span></td>
+      <td>
+         <span id="trackmenu">Tracks</span>
+         <div id="trackpopup" class="houserailmenu">
+         </div>
+      </td>
       <td><a href="/rail/field.html">Field</a></td>
       <td><a href="/rail/events.html">Events</a></td>
       </tr>

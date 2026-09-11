@@ -1,7 +1,6 @@
 // Animate.js: change the properties of HTML/SVG elements based on
 // the current status returned by the server.
 
-var RootUrl = "";
 var LatestConfig = 0;
 var LatestStatus = 0;
 
@@ -12,13 +11,20 @@ ChangeTurnout['reverse'] = 'normal';
 var TrackSegments = null;
 var KnownTrainLocations = new Array();
 
-var DisplayTransform = [1, 0, 0, 1, 0, 0];
+var DisplayTransform = null;
 var DisplayCenter = new Object();
 var DisplayDragStart = new Object();
 var DisplayDragging = false;
 var DisplayView = new Object();
 var DisplaySvg = null;
 var PanZoomGroup;
+
+function getDisplayCurrentTransform () {
+
+    const transform = PanZoomGroup.getAttribute('transform');
+    const matrix = transform.split (/[()]/g)[1];
+    DisplayTransform = matrix.split (' ');
+}
 
 function getDisplayBox () {
 
@@ -39,7 +45,7 @@ function displaySaveAction () {
     const data = new FormData (form);
     const name = data.get ('viewname');
 
-    var url = RootUrl+"/track/view";
+    var url = "/rail/track/display/add";
     url += '?name='+name;
     url += '&a='+DisplayTransform[0];
     url += '&b='+DisplayTransform[1];
@@ -65,6 +71,7 @@ function prepareDisplayPanZoom () {
     DisplaySvg = document.getElementById ('container');
     PanZoomGroup = document.getElementById ('panzoom');
 
+    getDisplayCurrentTransform ();
     getDisplayBox ();
 
     DisplaySvg.addEventListener ('mousedown', (e) => {
@@ -133,46 +140,49 @@ function prepareDisplayPanZoom () {
     });
 }
 
-function displayApplyTransform () {
+function displayApplyTransform (matrix) {
 
-    const matrix = 'matrix('+DisplayTransform.join (' ')+')';
-    PanZoomGroup.setAttribute ('transform', matrix);
+    const { a, b, c, d, e, f } = matrix;
+    DisplayTransform = [ a, b, c, d, e, f ];
+    const style = 'matrix('+DisplayTransform.join (' ')+')';
+    PanZoomGroup.setAttribute ('transform', style);
 }
 
 function displayRotate (angle) {
+
+    if (!DisplayTransform) getDisplayCurrentTransform();
 
     let matrix = new DOMMatrix(DisplayTransform);
     const after = matrix.translate(DisplayCenter.x, DisplayCenter.y)
                         .rotate(angle)
                         .translate(-DisplayCenter.x,-DisplayCenter.y);
-    const { a, b, c, d, e, f } = after;
-    DisplayTransform = [ a, b, c, d, e, f ];
-    displayApplyTransform ();
+    displayApplyTransform (after);
 }
 
 function displayRotateLeft () {displayRotate (-15)}
 function displayRotateRight () {displayRotate (15)}
 
 function displayReset () {
-    DisplayTransform = [1, 0, 0, 1, 0, 0];
-    displayApplyTransform ();
+    displayApplyTransform (new DOMMatrix());
 }
 
 function displayPan (h, v) {
 
-    DisplayTransform[4] += h;
-    DisplayTransform[5] += v;
-    displayApplyTransform ();
+    if (!DisplayTransform) getDisplayCurrentTransform();
+
+    let matrix = new DOMMatrix(DisplayTransform);
+    displayApplyTransform (matrix.translate(h, v));
 }
 
 function displayZoom (scale) {
 
-    for (var i = 0; i < 4; i++) {
-        DisplayTransform[i] *= scale;
-    }
-    DisplayTransform[4] += (1 - scale) * DisplayCenter.x;
-    DisplayTransform[5] += (1 - scale) * DisplayCenter.y;
-    displayApplyTransform ();
+    if (!DisplayTransform) getDisplayCurrentTransform();
+
+    let matrix = new DOMMatrix(DisplayTransform);
+    const after = matrix.translate(DisplayCenter.x, DisplayCenter.y)
+                        .scale(scale)
+                        .translate(-DisplayCenter.x,-DisplayCenter.y);
+    displayApplyTransform (after);
 }
 
 function searchSegments (line, low, high) {
@@ -258,7 +268,7 @@ function updateSegments (response) {
 }
 
 function railSegments () {
-    var url = RootUrl+"/track/segments";
+    var url = "/rail/track/segments";
     if (LatestConfig) url += "?known=" + LatestConfig;
     var command = new XMLHttpRequest();
     command.open("GET", url);
@@ -272,7 +282,7 @@ function railSegments () {
 
 function setTurnout () {
     var id = this.id.split ('~');
-    var url = RootUrl+"/switch?id="+id[0]+"&cmd="+ChangeTurnout[id[1]];
+    var url = "/rail/switch?id="+id[0]+"&cmd="+ChangeTurnout[id[1]];
     var command = new XMLHttpRequest();
     command.open("GET", url);
     command.onreadystatechange = function () {
@@ -290,7 +300,7 @@ function setSignal () {
     if (color == SignalClear) cmd = 'stop';
     else cmd = 'clear';
 
-    var url = RootUrl+"/signal?id="+id[0]+"&cmd="+cmd;
+    var url = "/rail/signal?id="+id[0]+"&cmd="+cmd;
     var command = new XMLHttpRequest();
     command.open("GET", url);
     command.onreadystatechange = function () {
@@ -491,7 +501,7 @@ function updateDisplay (response) {
 
 function railStatus () {
 
-    var url = RootUrl+"/status";
+    var url = "/rail/status";
     if (LatestStatus) url += "?known=" + LatestStatus;
     var command = new XMLHttpRequest();
     command.open("GET", url);
@@ -507,10 +517,9 @@ function animateStart (path) {
 
    prepareDisplayPanZoom ();
 
-   RootUrl = path;
    railSegments();
    setInterval (railSegments, 5000);
    railStatus();
-   setInterval (railStatus, 100); // For smooth animation and raisonable load.
+   setInterval (railStatus, 200); // For smooth animation and raisonable load.
 }
 

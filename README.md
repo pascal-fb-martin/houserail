@@ -213,6 +213,30 @@ Provide the few items needed to update a web page's title and detect configurati
 Return the track display page's content. This an HTML envelop around a SVG rendering of the track layout, matching the current layout configuration. This is intended to populate the tracks display page of the HouseRail web UI.
 
 ```
+/rail/track/display/add?name=STRING&a=REAL&b=REAL&c=REAL&d=REAL&e=REAL&f=REAL
+```
+
+Create a new view, or modify an existing view. The a, b, c, d, e and f parameters represent the SVG transform matrix to apply by default to this view.
+
+```
+/rail/track/display/views
+```
+
+Return a JSON object that lists all existing views, including the main display (listed as 'Overview'):
+
+* host:          the name of the host replying.
+* timestamp:     the time when the response was built.
+* latest:        the current state of the server configuration (see the `known` parameter).
+* rail.layout:   the name of the layout managed by this server.
+* rail.view:     an array of view names.
+
+```
+/rail/track/view/STRING
+```
+
+Return the page content for the specified view. The difference with `/rail/track/display` is that the transform matrix associated with the view (when it was created or updated) is already applied.
+
+```
 /rail/track/segments[?known=NUMBER]
 ```
 

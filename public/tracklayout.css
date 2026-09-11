@@ -5,3 +5,25 @@
    height: 100%;
 }
 
+.houserailmenu {
+   position: absolute;
+   background: #2f2f2f;
+   border: 0px;
+   display: flex;
+   flex-direction: column;
+   padding: 5px 0;
+   z-index: 1000;
+
+   /* Animation Setup */
+   opacity: 0;
+   transform: scale(0.95);
+   pointer-events: none; /* Prevents clicking links when hidden */
+   transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+
+.houserailmenu.active {
+   opacity: 1;
+   transform: scale(1);
+   pointer-events: auto; /* Re-enables interactions */
+}
+

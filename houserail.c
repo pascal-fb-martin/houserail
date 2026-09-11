@@ -32,6 +32,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
+#include <string.h>
 
 #include <time.h>
 #include <stdlib.h>
@@ -135,6 +136,14 @@ static const char *rail_display (const char *method, const char *uri,
     return houserail_display_get (view);
 }
 
+static const char *rail_subdisplay (const char *method, const char *uri,
+                                 const char *data, int length) {
+    const char *view = strrchr (uri, '/');
+    if (view) view += 1;
+    echttp_content_type_html ();
+    return houserail_display_get (view);
+}
+
 // This returns an ordered list of segments. The data is meant to allow
 // interpreting the train paths returned by rail_status().
 // That is typically needed to update a (segments oriented) track display.
@@ -154,8 +163,8 @@ static const char *rail_segments (const char *method, const char *uri,
     return JsonBuffer;
 }
 
-static const char *rail_view (const char *method, const char *uri,
-                              const char *data, int length) {
+static const char *rail_addview (const char *method, const char *uri,
+                                 const char *data, int length) {
 
     const char *name = echttp_parameter_get("name");
     const char *a = echttp_parameter_get("a"); // SVG transform matrix.
@@ -554,11 +563,13 @@ int main (int argc, const char **argv) {
     echttp_route_uri ("/rail/config", rail_config);
 
     echttp_route_uri ("/rail/identify",       rail_identify);
-    echttp_route_uri ("/rail/track/display",  rail_display);
     echttp_route_uri ("/rail/track/segments", rail_segments);
-    echttp_route_uri ("/rail/track/view",     rail_view);
-    echttp_route_uri ("/rail/track/views",    rail_views);
     echttp_route_uri ("/rail/status",         rail_status);
+
+    echttp_route_uri ("/rail/track/display",       rail_display);
+    echttp_route_uri ("/rail/track/display/add",   rail_addview);
+    echttp_route_uri ("/rail/track/display/views", rail_views);
+    echttp_route_match ("/rail/track/view",        rail_subdisplay);
 
     echttp_static_route ("/", "/usr/local/share/house/public");
     echttp_background (&rail_background);
