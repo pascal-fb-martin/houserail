@@ -420,6 +420,7 @@ static void generate_html_head (void) {
     static const char headformat[] =
         "<html>\n"
         "<head>\n"
+        "<link rel=\"stylesheet\" href=\"/house.css\">\n"
         "<link rel=\"stylesheet\" href=\"/rail/animate.css\">\n"
         "<script src=\"/rail/animate.js\"></script>\n"
         "<script>\n"
@@ -1058,7 +1059,7 @@ static void generate_svg_tail (void) {
 static void generate_html_tail (void) {
     static const char tail[] =
         "</div>\n"
-        "<dialog id=\"displaysave\" style=\"border-radius: 11px; border: 3px solid #2f2f2f; background-color: #FFFFFF; opacity: 1\">"
+        "<dialog id=\"displaysave\">"
         "<form method=\"dialog\">\n"
         "<h2>Save Display View</h2>\n"
         "</body>\n></html>\n"
