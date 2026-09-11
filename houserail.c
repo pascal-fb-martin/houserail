@@ -67,6 +67,7 @@
 static char JsonBuffer[65537];
 
 static int LiveState = -1;
+static int ViewState = -1;
 static int ConfigState = -1;
 
 static FleetListener *TrainNextFleetListener = 0;
@@ -129,8 +130,9 @@ static const char *rail_identify (const char *method, const char *uri,
 //
 static const char *rail_display (const char *method, const char *uri,
                                  const char *data, int length) {
+    const char *view = echttp_parameter_get("view");
     echttp_content_type_html ();
-    return houserail_display_get ();
+    return houserail_display_get (view);
 }
 
 // This returns an ordered list of segments. The data is meant to allow
@@ -148,6 +150,34 @@ static const char *rail_segments (const char *method, const char *uri,
                  (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, ",");
     if (cursor == empty) return "";
     snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
+    echttp_content_type_json ();
+    return JsonBuffer;
+}
+
+static const char *rail_view (const char *method, const char *uri,
+                              const char *data, int length) {
+
+    const char *name = echttp_parameter_get("name");
+    const char *a = echttp_parameter_get("a"); // SVG transform matrix.
+    const char *b = echttp_parameter_get("b");
+    const char *c = echttp_parameter_get("c");
+    const char *d = echttp_parameter_get("d");
+    const char *e = echttp_parameter_get("e");
+    const char *f = echttp_parameter_get("f");
+
+    houserail_display_view (name, a, b, c, d, e, f);
+    housestate_changed (ViewState);
+    return "";
+}
+
+static const char *rail_views (const char *method, const char *uri,
+                               const char *data, int length) {
+
+    if (housestate_same (ViewState)) return "";
+
+    int cursor = rail_header (JsonBuffer, sizeof(JsonBuffer), ViewState);
+    cursor += houserail_display_status (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor);
+    cursor += snprintf (JsonBuffer+cursor, sizeof(JsonBuffer)-cursor, "}}");
     echttp_content_type_json ();
     return JsonBuffer;
 }
@@ -503,7 +533,9 @@ int main (int argc, const char **argv) {
 
     LiveState = housestate_declare ("live");
     ConfigState = housestate_declare ("config");
+    ViewState = housestate_declare ("views");
     housestate_cascade (ConfigState, LiveState);
+    housestate_cascade (ConfigState, ViewState);
 
     echttp_cors_allow_method("GET");
     echttp_protect (0, rail_protect);
@@ -524,6 +556,8 @@ int main (int argc, const char **argv) {
     echttp_route_uri ("/rail/identify",       rail_identify);
     echttp_route_uri ("/rail/track/display",  rail_display);
     echttp_route_uri ("/rail/track/segments", rail_segments);
+    echttp_route_uri ("/rail/track/view",     rail_view);
+    echttp_route_uri ("/rail/track/views",    rail_views);
     echttp_route_uri ("/rail/status",         rail_status);
 
     echttp_static_route ("/", "/usr/local/share/house/public");

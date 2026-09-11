@@ -20,10 +20,7 @@ var DisplayView = new Object();
 var DisplaySvg = null;
 var PanZoomGroup;
 
-function prepareDisplayPanZoom () {
-
-    DisplaySvg = document.getElementById ('container');
-    PanZoomGroup = document.getElementById ('panzoom');
+function getDisplayBox () {
 
     var box = DisplaySvg.getAttribute ('viewBox').split (' ');
     DisplayView.x = parseInt (box[0]);
@@ -33,6 +30,42 @@ function prepareDisplayPanZoom () {
 
     DisplayCenter.x = DisplayView.x + DisplayView.width / 2;
     DisplayCenter.y = DisplayView.y + DisplayView.height / 2;
+}
+
+function displaySaveAction () {
+
+    if (DisplaySaveDialog.returnValue !== 'submit') return;
+    const form = DisplaySaveDialog.querySelector ('form');
+    const data = new FormData (form);
+    const name = data.get ('viewname');
+
+    var url = RootUrl+"/track/view";
+    url += '?name='+name;
+    url += '&a='+DisplayTransform[0];
+    url += '&b='+DisplayTransform[1];
+    url += '&c='+DisplayTransform[2];
+    url += '&d='+DisplayTransform[3];
+    url += '&e='+DisplayTransform[4];
+    url += '&f='+DisplayTransform[5];
+
+    var command = new XMLHttpRequest();
+    command.open("GET", url);
+    command.send(null);
+}
+
+function displaySave () {
+
+    DisplaySaveDialog = document.getElementById('displaysave');
+    DisplaySaveDialog.addEventListener('close', displaySaveAction);
+    DisplaySaveDialog.showModal();
+}
+
+function prepareDisplayPanZoom () {
+
+    DisplaySvg = document.getElementById ('container');
+    PanZoomGroup = document.getElementById ('panzoom');
+
+    getDisplayBox ();
 
     DisplaySvg.addEventListener ('mousedown', (e) => {
 
@@ -81,13 +114,44 @@ function prepareDisplayPanZoom () {
 
         displayZoom (scale);
     }, {passive: false});
+
+    var button = document.getElementById ('rotatesave');
+    button.addEventListener ('click', (e) => {
+        displaySave ();
+    });
+    button = document.getElementById ('rotatereset');
+    button.addEventListener ('click', (e) => {
+        displayReset ();
+    });
+    button = document.getElementById ('rotateleft');
+    button.addEventListener ('click', (e) => {
+        displayRotateLeft ();
+    });
+    button = document.getElementById ('rotateright');
+    button.addEventListener ('click', (e) => {
+        displayRotateRight ();
+    });
 }
 
 function displayApplyTransform () {
 
-    PanZoomGroup.setAttribute ('transform',
-                               'matrix('+DisplayTransform.join (' ')+')');
+    const matrix = 'matrix('+DisplayTransform.join (' ')+')';
+    PanZoomGroup.setAttribute ('transform', matrix);
 }
+
+function displayRotate (angle) {
+
+    let matrix = new DOMMatrix(DisplayTransform);
+    const after = matrix.translate(DisplayCenter.x, DisplayCenter.y)
+                        .rotate(angle)
+                        .translate(-DisplayCenter.x,-DisplayCenter.y);
+    const { a, b, c, d, e, f } = after;
+    DisplayTransform = [ a, b, c, d, e, f ];
+    displayApplyTransform ();
+}
+
+function displayRotateLeft () {displayRotate (-15)}
+function displayRotateRight () {displayRotate (15)}
 
 function displayReset () {
     DisplayTransform = [1, 0, 0, 1, 0, 0];

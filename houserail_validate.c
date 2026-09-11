@@ -142,7 +142,7 @@ int main (int argc, const char **argv) {
         return 1;
     }
 
-    if (DisplayMode) printf ("%s\n", houserail_display_get ());
+    if (DisplayMode) printf ("%s\n", houserail_display_get (0));
 
     return 0;
 }

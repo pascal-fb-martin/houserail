@@ -24,5 +24,11 @@ void houserail_display_default (const char *option);
 const char *houserail_display_initialize (int argc, const char *argv[]);
 
 const char *houserail_display_reload (void);
-const char *houserail_display_get (void);
+
+void houserail_display_view (const char *name,
+                             const char *a, const char *b, const char *c,
+                             const char *d, const char *e, const char *f);
+const char *houserail_display_get (const char *view);
+
+int houserail_display_status (char *buffer, int size);
 

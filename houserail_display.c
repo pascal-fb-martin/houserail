@@ -37,9 +37,22 @@
  *    Generate a track display from the current configuration.
  *    Return 0 on success, an error message on failure.
  *
- * const char *houserail_display_get (void);
+ * void houserail_display_view (const char *name,
+ *                              const char *a, const char *b, const char *c,
+ *                              const char *d, const char *e, const char *f);
  *
- *    Return an HTML content on success, 0 on failure.
+ *    Create a view associated with the provided transform matrix.
+ *    If the view already exists, just update its matrix.
+ *
+ * const char *houserail_display_get (const char *view);
+ *
+ *    Return the display as an HTML content on success, 0 on failure.
+ *    If the view is null, the default transform matrix is used. If the
+ *    view is not null and exists, the view's associated matrix is used.
+ *
+ * int houserail_display_status (char *buffer, int size);
+ *
+ *    Report the available track views in JSON format.
  */
 
 #include <time.h>
@@ -74,6 +87,8 @@ static int TestMode = 0;
 static int TrackBridgesFirst = -1;
 static int TrackBridgesLast = -1;
 
+static echttp_hash DisplayViews;
+
 struct TrackSegmentDisplay {
 
     struct TrackShape shape;
@@ -95,6 +110,8 @@ static char *DisplayContent = 0;
 static int   DisplayContentLength = 0;
 static int   DisplayContentSize = 0;
 static int   DisplayContentIncrement = 0x10000;
+static int   DisplayMatrixStart = 0;
+static int   DisplayMatrixEnd = 0;
 
 static const struct TrackOptions *LayoutOptions = 0;
 
@@ -827,9 +844,14 @@ static void generate_tracks (int width) {
     // All the SVG elements are within a pan & zoom group. Both the pan
     // and zoom are defined by a matrix transform.
 
-    static const char panzoom[] =
-        "<g id=\"panzoom\" transform=\"matrix(1 0 0 1 0 0)\">";
-    display_append (panzoom, sizeof(panzoom) - 1);
+    static const char panzoom1[] = "<g id=\"panzoom\" transform=\"matrix(";
+    static const char panzoom2[] = "1 0 0 1 0 0";
+    static const char panzoom3[] = ")\">";
+    display_append (panzoom1, sizeof(panzoom1) - 1);
+    DisplayMatrixStart = DisplayContentLength;
+    display_append (panzoom2, sizeof(panzoom2) - 1);
+    DisplayMatrixEnd = DisplayContentLength;
+    display_append (panzoom3, sizeof(panzoom3) - 1);
 
     // This draws each track three times, differently:
     // draw the track background first, then the train animation paths, and
@@ -962,7 +984,9 @@ static void generate_buttons (const struct TrackVertex *zero, int hight) {
     center.x = zero->x + margin + (hight / 2);
     center.y = zero->y + margin + (hight / 2);
     center.angle = 0;
-    draw_circle ("rotateleft", &center, radius, display_background_color(),
+    static const char rotateleft[] = "<g id=\"rotateleft\" fill=\"none\">\n";
+    display_append (rotateleft, sizeof(rotateleft)-1);
+    draw_circle (0, &center, radius, display_background_color(),
                  stroke / 3, display_foreground_color());
 
     houserail_math_straight (&center, &origin, -13500, inner);
@@ -972,17 +996,23 @@ static void generate_buttons (const struct TrackVertex *zero, int hight) {
                        origin.x, origin.y,
                        inner, inner, 1, 1, end.x, end.y, endwithstyle);
     display_append (buffer, length);
+    generate_group_end ();
 
     center.x += hight;
-    draw_circle ("rotatesave", &center, radius, display_background_color(),
+    static const char rotatesave[] = "<g id=\"rotatesave\" fill=\"none\">\n";
+    display_append (rotatesave, sizeof(rotatesave)-1);
+    draw_circle (0, &center, radius, display_background_color(),
                  stroke / 3, display_foreground_color());
 
     // Draw a stylized disk.
     draw_circle (0, &center, inner, display_foreground_color(), 0, 0);
     draw_circle (0, &center, inner/4, display_background_color(), 0, 0);
+    generate_group_end ();
 
     center.x += hight;
-    draw_circle ("rotatereset", &center, radius, display_background_color(),
+    static const char rotatereset[] = "<g id=\"rotatereset\" fill=\"none\">\n";
+    display_append (rotatereset, sizeof(rotatereset)-1);
+    draw_circle (0, &center, radius, display_background_color(),
                  stroke / 3, display_foreground_color());
 
     houserail_math_straight (&center, &origin, -13500, inner);
@@ -1000,9 +1030,12 @@ static void generate_buttons (const struct TrackVertex *zero, int hight) {
                        origin.x, origin.y,
                        inner, inner, 0, 1, end.x, end.y, endwithstyle);
     display_append (buffer, length);
+    generate_group_end ();
 
     center.x += hight;
-    draw_circle ("rotateright", &center, radius, display_background_color(),
+    static const char rotateright[] = "<g id=\"rotateright\" fill=\"none\">\n";
+    display_append (rotateright, sizeof(rotateright)-1);
+    draw_circle (0, &center, radius, display_background_color(),
                  stroke / 3, display_foreground_color());
 
     houserail_math_straight (&center, &origin, -4500, inner);
@@ -1012,6 +1045,7 @@ static void generate_buttons (const struct TrackVertex *zero, int hight) {
                        origin.x, origin.y,
                        inner, inner, 1, 0, end.x, end.y, endwithstyle);
     display_append (buffer, length);
+    generate_group_end ();
 
     generate_group_end ();
 }
@@ -1022,7 +1056,21 @@ static void generate_svg_tail (void) {
 }
 
 static void generate_html_tail (void) {
-    static const char tail[] = "</div>\n</body>\n></html>\n";
+    static const char tail[] =
+        "</div>\n"
+        "<dialog id=\"displaysave\" style=\"border-radius: 11px; border: 3px solid #2f2f2f; background-color: #FFFFFF; opacity: 1\">"
+        "<form method=\"dialog\">\n"
+        "<h2>Save Display View</h2>\n"
+        "</body>\n></html>\n"
+        "<label>Name: <input type=\"text\" name=\"viewname\"></label>\n"
+        "<menu>\n"
+        "<button value=\"cancel\">Cancel</button>\n"
+        "<button value=\"submit\">Submit</button>\n"
+        "</menu>\n"
+        "</form>\n"
+        "</dialog>\n"
+        "</body>\n"
+        "</html>\n";
     display_append (tail, sizeof(tail) - 1);
 }
 
@@ -1071,6 +1119,16 @@ const char *houserail_display_initialize (int argc, const char *argv[]) {
     return 0;
 }
 
+static int houserail_display_release (int i, const char *name) {
+
+    if (i > 1) { // The first item (Overview) is permanent.
+        char *old = echttp_hash_set (&DisplayViews, name, 0);
+        if (old) free (old);
+        free ((char *)name);
+    }
+    return 0;
+}
+
 const char *houserail_display_reload (void) {
 
     struct timeval start;
@@ -1082,6 +1140,9 @@ const char *houserail_display_reload (void) {
     if (LayoutSegmentsDisplay) {
        free (LayoutSegmentsDisplay);
        LayoutSegmentsDisplay = 0;
+       echttp_hash_reset (&DisplayViews, houserail_display_release);
+    } else {
+       echttp_hash_create (&DisplayViews, 256);
     }
 
     LayoutOptions = houserail_topology_options();
@@ -1150,12 +1211,91 @@ const char *houserail_display_reload (void) {
     else
         houselog_event ("DISPLAY", LayoutOptions->name,
                         "GENERATED", "IN %lld SECONDS", s);
+
+    // Register the whole display as the first view.
+    echttp_hash_set (&DisplayViews, "Overview", DisplayContent);
     return 0;
 }
 
-const char *houserail_display_get (void) {
+void houserail_display_view (const char *name,
+                             const char *a, const char *b, const char *c,
+                             const char *d, const char *e, const char *f) {
 
-    if (!DisplayContent) return "";
-    return DisplayContent; // Straightfoward, and that's the point
+    // Generates the whole view content now: generate once, get many times.
+    // This trades space for speed, considering that only few views will
+    // be created.
+    // The result is the display content with the original panzoom matrix
+    // values replaced by those provided here.
+    char matrix[256];
+    int ml = snprintf (matrix, sizeof(matrix), "%s %s %s %s %s %s",
+                       a?a:"1", b?b:"0", c?c:"0", d?d:"1", e?e:"0", f?f:"0");
+
+    int size = DisplayContentLength + ml + 1; // A bit too large, who cares.
+    char *content = malloc (size);
+    if (!content) return;
+
+    char *end = content + size;
+    stpecpy (content, content+DisplayMatrixStart+1, DisplayContent);
+    char *cursor = stpecpy (content+DisplayMatrixStart, end, matrix);
+    cursor = stpecpy (cursor, end, DisplayContent+DisplayMatrixEnd);
+    if (!cursor) { // Should never happen since enough space was allocated..
+        free (content);
+        return;
+    }
+
+    char *old = echttp_hash_set (&DisplayViews, strdup(name), content);
+    if (old) free (old);
+
+    // Double check: there might be too many views already.
+    if (content != echttp_hash_get (&DisplayViews, name)) {
+        free (content);
+    }
+}
+
+const char *houserail_display_get (const char *view) {
+
+    if (!DisplayContent) return ""; // Too early.
+
+    // Just return the display was generated when the layout was loaded
+    // or when the view was created.
+    if (view) {
+        const char *content = echttp_hash_get (&DisplayViews, view);
+        if (!content) return "";
+        return content;
+    }
+    return DisplayContent;
+}
+
+static char *DisplayStatusBuffer = 0;
+static char *DisplayStatusPrefix = 0;
+static int DisplayStatusCursor = 0;
+static int DisplayStatusSize = 0;
+
+static int houserail_display_list (int i, const char *name) {
+    DisplayStatusCursor +=
+        snprintf (DisplayStatusBuffer+DisplayStatusCursor,
+                  DisplayStatusSize-DisplayStatusCursor,
+                  "%s\"%s\"", DisplayStatusPrefix, name);
+    DisplayStatusPrefix = ",";
+    if (DisplayStatusCursor >= DisplayStatusSize) return 1;
+    return 0;
+}
+
+int houserail_display_status (char *buffer, int size) {
+
+    DisplayStatusPrefix = ",\"view\":[";
+    DisplayStatusBuffer = buffer;
+    DisplayStatusSize = size;
+    DisplayStatusCursor = 0;
+
+    echttp_hash_iterate (&DisplayViews, 0, houserail_display_list);
+
+    int cursor = DisplayStatusCursor;
+    cursor += snprintf (buffer+cursor, size-cursor, "]");
+    if (cursor >= size) cursor = 0;
+
+    DisplayStatusBuffer = 0;
+    DisplayStatusCursor = DisplayStatusSize = 0;
+    return cursor;
 }
 
