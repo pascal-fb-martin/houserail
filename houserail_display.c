@@ -1062,7 +1062,6 @@ static void generate_html_tail (void) {
         "<dialog id=\"displaysave\">"
         "<form method=\"dialog\">\n"
         "<h2>Save Display View</h2>\n"
-        "</body>\n></html>\n"
         "<label>Name: <input type=\"text\" name=\"viewname\"></label>\n"
         "<menu>\n"
         "<button value=\"cancel\">Cancel</button>\n"
