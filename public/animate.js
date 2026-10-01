@@ -17,6 +17,7 @@ var DisplayDragStart = new Object();
 var DisplayDragging = false;
 var DisplayView = new Object();
 var DisplaySvg = null;
+var DisplaySaveDialog = null;
 var PanZoomGroup;
 
 function getDisplayCurrentTransform () {
