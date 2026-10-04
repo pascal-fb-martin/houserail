@@ -174,6 +174,10 @@ static const char *rail_addview (const char *method, const char *uri,
     const char *e = echttp_parameter_get("e");
     const char *f = echttp_parameter_get("f");
 
+    if (!name || !a || !b || !c || !d || !e || !f) {
+        echttp_error (404, "Invalid view definition");
+        return "";
+    }
     houserail_display_view (name, a, b, c, d, e, f);
     housestate_changed (ViewState);
     return "";
@@ -263,7 +267,7 @@ static const char *rail_consist (const char *method, const char *uri,
         echttp_error (404, "Missing Train ID");
         return "";
     }
-    if ((!cars) || (cars[0] == 0)) {
+    if (!cars) {
         echttp_error (404, "Missing Cars");
         return "";
     }
@@ -385,9 +389,7 @@ static const char *rail_stop (const char *method, const char *uri,
                               const char *data, int length) {
 
     const char *id = echttp_parameter_get("id");
-    const char *urgent = echttp_parameter_get("urgent");
-
-    int emergency = urgent?atoi(urgent):0;
+    int emergency = echttp_parameter_present("urgent");
 
     const char *error = houserail_train_stop (id, emergency);
     if (error) {

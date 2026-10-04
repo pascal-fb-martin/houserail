@@ -163,10 +163,10 @@ Order a train to move in a specified direction. The slow option forces the train
 This returns an updated status of the trains.
 
 ```
-/rail/stop[?id=STRING]
+/rail/stop[?id=STRING][&urgent]
 ```
 
-Immediately stop the identified train, or all known trains if the id parameter is missing.
+Immediately stop the identified train, or all known trains if the id parameter is missing. If the `urgent` flag is present, the stop is brutal (no desceleration curve).
 
 This returns an updated status of the trains.
 
