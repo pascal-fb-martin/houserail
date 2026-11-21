@@ -349,9 +349,9 @@ static void houserail_field_discovered
     if (status == 421) return; // Not the layout requested.
     if (status == 304) return; // No update.
 
-    if (status != 200) {
-        houselog_trace (HOUSE_FAILURE, (const char *)origin,
-                        "HTTP error %d", status);
+    if (!ECHTTP_SUCCESS(status)) {
+        houselog_trace (HOUSE_FAILURE, "query", "%s: HTTP error %d %s",
+                        origin, status, echttp_reason());
         return;
     }
 
@@ -367,7 +367,8 @@ static void houserail_field_discovered
         }
     }
 
-    houserail_field_update ((const char *)origin, data, length);
+    if (data && length)
+        houserail_field_update ((const char *)origin, data, length);
 }
 
 static const char *houserail_field_request (const char *url, const char *uri) {
